@@ -18,11 +18,143 @@ var (
 		Columns:    TodosColumns,
 		PrimaryKey: []*schema.Column{TodosColumns[0]},
 	}
+	// TokensColumns holds the columns for the "tokens" table.
+	TokensColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "token", Type: field.TypeString, Size: 1000},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"access", "refresh"}},
+		{Name: "expires_at", Type: field.TypeTime},
+		{Name: "is_revoked", Type: field.TypeBool, Default: false},
+		{Name: "last_used_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "user_id", Type: field.TypeString, Size: 26},
+	}
+	// TokensTable holds the schema information for the "tokens" table.
+	TokensTable = &schema.Table{
+		Name:       "tokens",
+		Columns:    TokensColumns,
+		PrimaryKey: []*schema.Column{TokensColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "tokens_users_tokens",
+				Columns:    []*schema.Column{TokensColumns[9]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "token_token_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{TokensColumns[1], TokensColumns[8]},
+			},
+			{
+				Name:    "token_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[9]},
+			},
+			{
+				Name:    "token_user_id_type",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[9], TokensColumns[2]},
+			},
+			{
+				Name:    "token_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[3]},
+			},
+			{
+				Name:    "token_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[8]},
+			},
+			{
+				Name:    "token_is_revoked",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[4]},
+			},
+			{
+				Name:    "token_type",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[2]},
+			},
+			{
+				Name:    "token_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[6]},
+			},
+			{
+				Name:    "token_user_id_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{TokensColumns[9], TokensColumns[8]},
+			},
+		},
+	}
+	// UsersColumns holds the columns for the "users" table.
+	UsersColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "username", Type: field.TypeString, Size: 50},
+		{Name: "email", Type: field.TypeString, Size: 255},
+		{Name: "password_hash", Type: field.TypeString, Size: 255},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive", "suspended"}, Default: "active"},
+		{Name: "last_login_at", Type: field.TypeTime, Nullable: true},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+	}
+	// UsersTable holds the schema information for the "users" table.
+	UsersTable = &schema.Table{
+		Name:       "users",
+		Columns:    UsersColumns,
+		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "user_email_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[2], UsersColumns[8]},
+			},
+			{
+				Name:    "user_username_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[1], UsersColumns[8]},
+			},
+			{
+				Name:    "user_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[8]},
+			},
+			{
+				Name:    "user_status",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[4]},
+			},
+			{
+				Name:    "user_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[6]},
+			},
+			{
+				Name:    "user_email",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[2]},
+			},
+			{
+				Name:    "user_username",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[1]},
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		TodosTable,
+		TokensTable,
+		UsersTable,
 	}
 )
 
 func init() {
+	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }

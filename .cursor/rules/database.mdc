@@ -1,6 +1,6 @@
 ---
-description: 
-globs: ent/*
+description: 数据库设计规范
+globs: 
 alwaysApply: false
 ---
 # 数据库设计规范

@@ -1,6 +1,6 @@
 ---
-description: 
-globs: *.go
+description: 项目开发规范
+globs: 
 alwaysApply: false
 ---
 # Echo Template 项目 Cursor 规则

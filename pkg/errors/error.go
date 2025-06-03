@@ -176,6 +176,16 @@ func InternalError(message string) *AppError {
 	return New(InternalServerError, message)
 }
 
+// ConflictError 创建409错误
+func ConflictError(message string) *AppError {
+	return New(Conflict, message)
+}
+
+// NewDatabaseError 创建数据库错误
+func NewDatabaseError(message string) *AppError {
+	return New(DatabaseError, message)
+}
+
 // DatabaseErrorf 创建数据库错误
 func DatabaseErrorf(format string, args ...any) *AppError {
 	return New(DatabaseError, fmt.Sprintf(format, args...))
@@ -184,4 +194,9 @@ func DatabaseErrorf(format string, args ...any) *AppError {
 // ValidationErrorf 创建验证错误
 func ValidationErrorf(format string, args ...any) *AppError {
 	return New(ValidationError, fmt.Sprintf(format, args...))
+}
+
+// NewValidationError 创建验证错误
+func NewValidationError(message string) *AppError {
+	return New(ValidationError, message)
 }

@@ -33,6 +33,8 @@ type Container struct {
 
 	// ORM stores a client to the ORM.
 	ORM *ent.Client
+
+	Auth *AuthService
 }
 
 // NewContainer creates and initializes a new Container.
@@ -42,6 +44,7 @@ func NewContainer() *Container {
 	c.initWeb()
 	c.initDatabase()
 	c.initORM()
+	c.initAuth()
 	return c
 }
 
@@ -113,6 +116,10 @@ func (c *Container) initORM() {
 	if err := c.ORM.Schema.Create(context.Background()); err != nil {
 		panic(err)
 	}
+}
+
+func (c *Container) initAuth() {
+	c.Auth = NewAuthService(c.ORM)
 }
 
 // openDB opens a database connection.
