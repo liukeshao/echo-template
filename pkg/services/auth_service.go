@@ -9,6 +9,7 @@ import (
 	"github.com/liukeshao/echo-template/ent/token"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
@@ -24,73 +25,42 @@ func NewAuthService(orm *ent.Client) *AuthService {
 	}
 }
 
-// RegisterRequest 用户注册请求
-type RegisterRequest struct {
-	Username string `json:"username" validate:"required,min=3,max=50"`
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required,min=8"`
-}
-
-// LoginRequest 用户登录请求
-type LoginRequest struct {
-	Email    string `json:"email" validate:"required,email"`
-	Password string `json:"password" validate:"required"`
-}
-
-// AuthResponse 认证响应
-type AuthResponse struct {
-	User         *UserInfo `json:"user"`
-	AccessToken  string    `json:"access_token"`
-	RefreshToken string    `json:"refresh_token"`
-	ExpiresAt    int64     `json:"expires_at"`
-}
-
-// UserInfo 用户信息
-type UserInfo struct {
-	ID          string     `json:"id"`
-	Username    string     `json:"username"`
-	Email       string     `json:"email"`
-	Status      string     `json:"status"`
-	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
-	CreatedAt   time.Time  `json:"created_at"`
-}
-
 // Register 用户注册
-func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*AuthResponse, error) {
+func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*types.AuthOutput, error) {
 	// 验证密码强度
-	if !utils.IsPasswordValid(req.Password) {
+	if !utils.IsPasswordValid(in.Password) {
 		return nil, errors.NewValidationError("密码长度至少8位").
 			With("field", "password")
 	}
 
 	// 检查用户名是否已存在
 	existingByUsername, err := s.orm.User.Query().
-		Where(userEnt.Username(req.Username), userEnt.DeletedAt(0)).
+		Where(userEnt.Username(in.Username), userEnt.DeletedAt(0)).
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
-		slog.ErrorContext(ctx, "检查用户名失败", "error", err, "username", req.Username)
+		slog.ErrorContext(ctx, "检查用户名失败", "error", err, "username", in.Username)
 		return nil, errors.NewDatabaseError("检查用户名失败").Wrap(err)
 	}
 	if existingByUsername != nil {
 		return nil, errors.ConflictError("用户名已存在").
-			With("username", req.Username)
+			With("username", in.Username)
 	}
 
 	// 检查邮箱是否已存在
 	existingByEmail, err := s.orm.User.Query().
-		Where(userEnt.Email(req.Email), userEnt.DeletedAt(0)).
+		Where(userEnt.Email(in.Email), userEnt.DeletedAt(0)).
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
-		slog.ErrorContext(ctx, "检查邮箱失败", "error", err, "email", req.Email)
+		slog.ErrorContext(ctx, "检查邮箱失败", "error", err, "email", in.Email)
 		return nil, errors.NewDatabaseError("检查邮箱失败").Wrap(err)
 	}
 	if existingByEmail != nil {
 		return nil, errors.ConflictError("邮箱已存在").
-			With("email", req.Email)
+			With("email", in.Email)
 	}
 
 	// 加密密码
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := utils.HashPassword(in.Password)
 	if err != nil {
 		slog.ErrorContext(ctx, "密码加密失败", "error", err)
 		return nil, errors.InternalError("密码加密失败").Wrap(err)
@@ -102,16 +72,16 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	// 创建用户
 	newUser, err := s.orm.User.Create().
 		SetID(userID).
-		SetUsername(req.Username).
-		SetEmail(req.Email).
+		SetUsername(in.Username).
+		SetEmail(in.Email).
 		SetPasswordHash(hashedPassword).
 		SetStatus(userEnt.StatusActive).
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建用户失败",
 			"error", err,
-			"username", req.Username,
-			"email", req.Email,
+			"username", in.Username,
+			"email", in.Email,
 		)
 		return nil, errors.NewDatabaseError("创建用户失败").Wrap(err)
 	}
@@ -123,21 +93,21 @@ func (s *AuthService) Register(ctx context.Context, req *RegisterRequest) (*Auth
 	)
 
 	// 生成tokens
-	return s.generateAuthResponse(ctx, newUser)
+	return s.generateAuthOutput(ctx, newUser)
 }
 
 // Login 用户登录
-func (s *AuthService) Login(ctx context.Context, req *LoginRequest) (*AuthResponse, error) {
+func (s *AuthService) Login(ctx context.Context, in *types.LoginInput) (*types.AuthOutput, error) {
 	// 查找用户
 	user, err := s.orm.User.Query().
-		Where(userEnt.Email(req.Email), userEnt.DeletedAt(0)).
+		Where(userEnt.Email(in.Email), userEnt.DeletedAt(0)).
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			slog.WarnContext(ctx, "用户登录失败：邮箱不存在", "email", req.Email)
+			slog.WarnContext(ctx, "用户登录失败：邮箱不存在", "email", in.Email)
 			return nil, errors.UnauthorizedError("邮箱或密码错误")
 		}
-		slog.ErrorContext(ctx, "查询用户失败", "error", err, "email", req.Email)
+		slog.ErrorContext(ctx, "查询用户失败", "error", err, "email", in.Email)
 		return nil, errors.NewDatabaseError("查询用户失败").Wrap(err)
 	}
 
@@ -152,10 +122,10 @@ func (s *AuthService) Login(ctx context.Context, req *LoginRequest) (*AuthRespon
 	}
 
 	// 验证密码
-	if err := utils.VerifyPassword(user.PasswordHash, req.Password); err != nil {
+	if err := utils.VerifyPassword(user.PasswordHash, in.Password); err != nil {
 		slog.WarnContext(ctx, "用户登录失败：密码错误",
 			"user_id", user.ID,
-			"email", req.Email,
+			"email", in.Email,
 		)
 		return nil, errors.UnauthorizedError("邮箱或密码错误")
 	}
@@ -180,11 +150,11 @@ func (s *AuthService) Login(ctx context.Context, req *LoginRequest) (*AuthRespon
 	)
 
 	// 生成tokens
-	return s.generateAuthResponse(ctx, user)
+	return s.generateAuthOutput(ctx, user)
 }
 
 // RefreshToken 刷新访问令牌
-func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString string) (*AuthResponse, error) {
+func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString string) (*types.AuthOutput, error) {
 	// 验证refresh token
 	claims, err := utils.ValidateToken(refreshTokenString)
 	if err != nil {
@@ -262,7 +232,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	)
 
 	// 生成新的tokens
-	return s.generateAuthResponse(ctx, user)
+	return s.generateAuthOutput(ctx, user)
 }
 
 // RevokeToken 撤销令牌
@@ -302,8 +272,8 @@ func (s *AuthService) RevokeToken(ctx context.Context, tokenString string) error
 	return nil
 }
 
-// generateAuthResponse 生成认证响应
-func (s *AuthService) generateAuthResponse(ctx context.Context, user *ent.User) (*AuthResponse, error) {
+// generateAuthOutput 生成认证输出
+func (s *AuthService) generateAuthOutput(ctx context.Context, user *ent.User) (*types.AuthOutput, error) {
 	// 生成access token
 	accessTokenString, accessExpiry, err := utils.GenerateAccessToken(
 		user.ID, user.Username, user.Email,
@@ -362,8 +332,8 @@ func (s *AuthService) generateAuthResponse(ctx context.Context, user *ent.User) 
 		return nil, errors.NewDatabaseError("提交事务失败").Wrap(err)
 	}
 
-	return &AuthResponse{
-		User: &UserInfo{
+	return &types.AuthOutput{
+		User: &types.UserInfo{
 			ID:          user.ID,
 			Username:    user.Username,
 			Email:       user.Email,
