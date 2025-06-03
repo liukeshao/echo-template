@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	echomw "github.com/labstack/echo/v4/middleware"
@@ -10,6 +11,12 @@ import (
 
 // BuildRouter builds the router.
 func BuildRouter(c *services.Container) error {
+	// 创建logger实例用于错误处理
+	logger := slog.Default()
+
+	// 设置自定义错误处理器
+	c.Web.HTTPErrorHandler = EchoErrorHandler(logger)
+
 	// Non-static file route group.
 	g := c.Web.Group("")
 

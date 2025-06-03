@@ -1,0 +1,1010 @@
+---
+description: 
+globs: *.go
+alwaysApply: false
+---
+# Echo Template 项目 Cursor 规则
+
+## 项目概述
+这是一个基于 Go 的高性能 Web 应用模板，使用以下技术栈：
+- **Web 框架**: Echo v4 - 高性能、可扩展、极简的 Go Web 框架
+- **ORM**: Ent - 简单而强大的实体框架，用于数据建模和查询
+- **数据库**: SQLite - 轻量级、高可靠性的嵌入式数据库
+- **配置管理**: Viper - 灵活的配置管理库
+- **测试**: Testify - Go 测试断言库
+
+## 代码规范
+
+### 1. 项目结构规范
+```
+/
+├── cmd/           # 应用程序入口点
+├── pkg/           # 核心业务逻辑
+│   ├── handlers/  # HTTP 路由处理器
+│   ├── services/  # 业务服务层
+│   ├── middleware/ # 中间件
+│   ├── context/   # 上下文处理
+│   ├── errors/    # 错误处理
+│   ├── log/       # 日志系统
+│   └── tests/     # 测试辅助工具
+├── config/        # 配置文件和结构
+└──ent/           # Ent ORM 生成代码和 schema
+```
+
+### 2. Handler 开发规范
+
+#### Handler 接口
+所有 Handler 必须实现以下接口：
+
+```go
+type Handler interface {
+    // Routes 允许自注册 HTTP 路由到路由器
+    Routes(g *echo.Group)
+    
+    // Init 提供服务容器进行初始化
+    Init(*services.Container) error
+}
+```
+
+#### Handler 开发模式
+
+**1. 定义 Handler 结构体**：
+```go
+// UserHandler 用户相关处理器
+type UserHandler struct {
+    orm    *ent.Client    // ORM 客户端
+    config *config.Config // 配置
+    // 其他需要的服务依赖
+}
+```
+
+**2. 实现 Init 方法（依赖注入）**：
+```go
+func (h *UserHandler) Init(c *services.Container) error {
+    h.orm = c.ORM
+    h.config = c.Config
+    return nil
+}
+```
+
+**3. 使用 init 函数注册 Handler**：
+```go
+func init() {
+    Register(new(UserHandler))
+}
+```
+
+**4. 实现 Routes 方法（路由定义）**：
+```go
+func (h *UserHandler) Routes(g *echo.Group) {
+    // API 路由组
+    api := g.Group("/api/v1/users")
+    
+    // RESTful 路由
+    api.GET("", h.GetUsers)           // GET /api/v1/users
+    api.POST("", h.CreateUser)        // POST /api/v1/users
+    api.GET("/:id", h.GetUser)        // GET /api/v1/users/:id
+    api.PUT("/:id", h.UpdateUser)     // PUT /api/v1/users/:id
+    api.DELETE("/:id", h.DeleteUser)  // DELETE /api/v1/users/:id
+}
+```
+
+**5. 实现具体的路由处理方法**：
+```go
+func (h *UserHandler) GetUser(c echo.Context) error {
+    ctx := c.Request().Context()
+    userID := c.Param("id")
+    
+    // 记录请求开始
+    slog.InfoContext(ctx, "开始查询用户", "user_id", userID)
+    
+    // 业务逻辑
+    user, err := h.orm.User.Query().
+        Where(user.ID(userID)).
+        Only(ctx)
+    if err != nil {
+        // 记录错误
+        slog.ErrorContext(ctx, "查询用户失败", 
+            "error", err,
+            "user_id", userID,
+        )
+        
+        if ent.IsNotFound(err) {
+            return errors.NotFoundError("用户不存在").
+                With("user_id", userID)
+        }
+        return errors.DatabaseError("查询用户失败").
+            Wrap(err).
+            With("user_id", userID)
+    }
+    
+    // 记录成功
+    slog.InfoContext(ctx, "查询用户成功", 
+        "user_id", userID,
+        "username", user.Name,
+    )
+    
+    // 返回成功响应
+    return Success(user).JSON(c)
+}
+```
+
+#### 完整 Handler 示例
+
+```go
+package handlers
+
+import (
+    "log/slog"
+    "strconv"
+    
+    "github.com/labstack/echo/v4"
+    "github.com/liukeshao/echo-template/ent"
+    "github.com/liukeshao/echo-template/ent/user"
+    "github.com/liukeshao/echo-template/pkg/errors"
+    "github.com/liukeshao/echo-template/pkg/services"
+)
+
+// UserHandler 用户处理器
+type UserHandler struct {
+    orm *ent.Client
+}
+
+// 自动注册
+func init() {
+    Register(new(UserHandler))
+}
+
+// Init 依赖注入
+func (h *UserHandler) Init(c *services.Container) error {
+    h.orm = c.ORM
+    return nil
+}
+
+// Routes 路由定义
+func (h *UserHandler) Routes(g *echo.Group) {
+    api := g.Group("/api/v1/users")
+    
+    api.GET("", h.GetUsers)
+    api.POST("", h.CreateUser)
+    api.GET("/:id", h.GetUser)
+    api.PUT("/:id", h.UpdateUser)
+    api.DELETE("/:id", h.DeleteUser)
+}
+
+// GetUsers 获取用户列表
+func (h *UserHandler) GetUsers(c echo.Context) error {
+    ctx := c.Request().Context()
+    
+    // 解析查询参数
+    limit, _ := strconv.Atoi(c.QueryParam("limit"))
+    if limit <= 0 {
+        limit = 10
+    }
+    
+    offset, _ := strconv.Atoi(c.QueryParam("offset"))
+    if offset < 0 {
+        offset = 0
+    }
+    
+    slog.InfoContext(ctx, "查询用户列表", 
+        "limit", limit, 
+        "offset", offset,
+    )
+    
+    // 查询数据
+    users, err := h.orm.User.Query().
+        Limit(limit).
+        Offset(offset).
+        All(ctx)
+    if err != nil {
+        slog.ErrorContext(ctx, "查询用户列表失败", "error", err)
+        return errors.DatabaseError("查询用户列表失败").Wrap(err)
+    }
+    
+    // 查询总数
+    total, err := h.orm.User.Query().Count(ctx)
+    if err != nil {
+        slog.ErrorContext(ctx, "查询用户总数失败", "error", err)
+        return errors.DatabaseError("查询用户总数失败").Wrap(err)
+    }
+    
+    slog.InfoContext(ctx, "查询用户列表成功", 
+        "count", len(users),
+        "total", total,
+    )
+    
+    // 构建响应
+    result := map[string]interface{}{
+        "users": users,
+        "pagination": map[string]interface{}{
+            "limit":  limit,
+            "offset": offset,
+            "total":  total,
+        },
+    }
+    
+    return Success(result).JSON(c)
+}
+
+// CreateUser 创建用户
+func (h *UserHandler) CreateUser(c echo.Context) error {
+    ctx := c.Request().Context()
+    
+    // 解析请求体
+    var req struct {
+        Name  string `json:"name" validate:"required"`
+        Email string `json:"email" validate:"required,email"`
+    }
+    
+    if err := c.Bind(&req); err != nil {
+        return errors.BadRequestError("请求参数无效").
+            With("error", err.Error())
+    }
+    
+    // 验证请求参数
+    if req.Name == "" {
+        return ValidationError("验证失败", []ErrorDetail{
+            {Field: "name", Message: "用户名不能为空", Code: "REQUIRED"},
+        }).JSON(c)
+    }
+    
+    if req.Email == "" {
+        return ValidationError("验证失败", []ErrorDetail{
+            {Field: "email", Message: "邮箱不能为空", Code: "REQUIRED"},
+        }).JSON(c)
+    }
+    
+    slog.InfoContext(ctx, "开始创建用户", 
+        "name", req.Name,
+        "email", req.Email,
+    )
+    
+    // 创建用户
+    user, err := h.orm.User.Create().
+        SetName(req.Name).
+        SetEmail(req.Email).
+        Save(ctx)
+    if err != nil {
+        slog.ErrorContext(ctx, "创建用户失败", 
+            "error", err,
+            "name", req.Name,
+            "email", req.Email,
+        )
+        
+        if ent.IsConstraintError(err) {
+            return errors.ConflictError("用户邮箱已存在").
+                With("email", req.Email)
+        }
+        
+        return errors.DatabaseError("创建用户失败").
+            Wrap(err).
+            With("name", req.Name, "email", req.Email)
+    }
+    
+    slog.InfoContext(ctx, "创建用户成功", 
+        "user_id", user.ID,
+        "name", user.Name,
+        "email", user.Email,
+    )
+    
+    return Success(user).JSON(c)
+}
+```
+
+#### Handler 最佳实践
+
+**错误处理模式**：
+```go
+func (h *Handler) SomeMethod(c echo.Context) error {
+    // 直接返回 AppError，由错误处理器统一处理
+    return errors.NotFoundError("资源不存在").
+        With("resource_id", resourceID)
+}
+```
+
+**日志记录模式**：
+```go
+func (h *Handler) SomeMethod(c echo.Context) error {
+    ctx := c.Request().Context()
+    
+    // 记录开始
+    slog.InfoContext(ctx, "操作开始", "param", value)
+    
+    // 业务逻辑...
+    
+    // 记录结果
+    slog.InfoContext(ctx, "操作完成", "result", result)
+    
+    return Success(result).JSON(c)
+}
+```
+
+**参数验证模式**：
+```go
+func (h *Handler) CreateResource(c echo.Context) error {
+    var req struct {
+        Name string `json:"name" validate:"required"`
+        Age  int    `json:"age" validate:"min=0,max=120"`
+    }
+    
+    if err := c.Bind(&req); err != nil {
+        return errors.BadRequestError("请求参数格式错误").
+            With("error", err.Error())
+    }
+    
+    // 手动验证或使用验证库
+    if req.Name == "" {
+        return ValidationError("验证失败", []ErrorDetail{
+            {Field: "name", Message: "名称不能为空", Code: "REQUIRED"},
+        }).JSON(c)
+    }
+    
+    // 继续处理...
+}
+```
+
+**数据库操作模式**：
+```go
+func (h *Handler) UpdateResource(c echo.Context) error {
+    ctx := c.Request().Context()
+    id := c.Param("id")
+    
+    // 开启事务
+    tx, err := h.orm.Tx(ctx)
+    if err != nil {
+        return errors.DatabaseError("开启事务失败").Wrap(err)
+    }
+    defer tx.Rollback()
+    
+    // 检查资源是否存在
+    resource, err := tx.Resource.Query().
+        Where(resource.ID(id)).
+        Only(ctx)
+    if err != nil {
+        if ent.IsNotFound(err) {
+            return errors.NotFoundError("资源不存在").
+                With("resource_id", id)
+        }
+        return errors.DatabaseError("查询资源失败").
+            Wrap(err).
+            With("resource_id", id)
+    }
+    
+    // 更新操作
+    updatedResource, err := tx.Resource.UpdateOne(resource).
+        SetName("new name").
+        Save(ctx)
+    if err != nil {
+        return errors.DatabaseError("更新资源失败").
+            Wrap(err).
+            With("resource_id", id)
+    }
+    
+    // 提交事务
+    if err := tx.Commit(); err != nil {
+        return errors.DatabaseError("提交事务失败").
+            Wrap(err).
+            With("resource_id", id)
+    }
+    
+    return Success(updatedResource).JSON(c)
+}
+```
+
+#### 自动注册机制
+
+项目使用 `init()` 函数自动注册 Handler：
+
+1. **每个 Handler 文件都包含**：
+```go
+func init() {
+    Register(new(YourHandler))
+}
+```
+
+2. **路由器自动加载所有注册的 Handler**：
+```go
+// BuildRouter 会自动初始化并注册所有 Handler
+for _, h := range GetHandlers() {
+    if err := h.Init(c); err != nil {
+        return err
+    }
+    h.Routes(g)
+}
+```
+
+3. **无需手动管理 Handler 列表**，只要导入包即可自动注册
+
+#### 路由组织建议
+
+**按功能模块组织**：
+```go
+// 用户模块
+api.Group("/users")
+
+// 订单模块  
+api.Group("/orders")
+
+// 产品模块
+api.Group("/products")
+```
+
+**RESTful 风格**：
+```go
+// 资源的标准 REST 操作
+GET    /api/v1/users     # 获取列表
+POST   /api/v1/users     # 创建
+GET    /api/v1/users/:id # 获取详情  
+PUT    /api/v1/users/:id # 更新
+DELETE /api/v1/users/:id # 删除
+```
+
+### 3. 数据库和 ORM 规范
+
+#### Ent Entity 开发
+```bash
+# 创建新实体
+make ent-new name=EntityName
+
+# 生成代码
+make ent-gen
+```
+
+#### 查询模式
+```go
+entity, err := c.ORM.EntityType.
+    Query().
+    Where(entitytype.FieldName(value)).
+    Where(entitytype.HasRelationWith(relation.ID(relationID))).
+    Only(ctx.Request().Context())
+```
+
+#### 数据库迁移
+- 使用 Ent 的自动迁移功能
+- 迁移在容器创建时自动执行
+
+### 4. 配置管理规范
+
+#### 配置结构
+- 所有配置定义在 `config/config.yaml`
+- 嵌套字段使用下划线分隔
+
+### 5. 服务容器规范
+
+#### 依赖注入
+- 所有服务注册到 `services.Container`
+- Handler 通过 `Init()` 方法接收容器
+- 测试中使用完整的容器进行集成测试
+
+#### 容器生命周期
+```go
+c := services.NewContainer()
+defer c.Shutdown()
+```
+
+### 6. 测试规范
+
+#### 测试环境设置
+```go
+func TestMain(m *testing.M) {
+    config.SwitchEnvironment(config.EnvTest)
+    c = services.NewContainer()
+    exitVal := m.Run()
+    c.Shutdown()
+    os.Exit(exitVal)
+}
+```
+
+#### HTTP 测试模式
+```go
+func TestHandler(t *testing.T) {
+    doc := request(t).
+        setRoute("routeName").
+        get().
+        assertStatusCode(http.StatusOK).
+        toDoc()
+    
+    // 使用 goquery 进行 DOM 断言
+    h1 := doc.Find("h1.title")
+    assert.Equal(t, "Expected Title", h1.Text())
+}
+```
+
+### 7. 中间件规范
+- 自定义中间件放在 `pkg/middleware`
+- 遵循 Echo 中间件签名
+- 在 `router.go` 中注册中间件
+
+### 8. 日志规范
+- 不使用 Echo 默认日志器
+- 支持结构化日志
+- 可在上下文中预填充日志属性
+
+#### 日志系统架构
+项目使用 Go 原生的 `log/slog` 包实现结构化日志记录：
+
+```go
+import "log/slog"
+```
+
+#### ContextHandler 自动注入 Request ID
+自定义的 `ContextHandler` 自动从 context 中提取并注入 `request_id`：
+
+```go
+type ContextHandler struct {
+    slog.Handler
+}
+
+func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
+    // 自动从 Context 中提取 Request ID
+    requestID, ok := appContext.GetRequestIDFromContext(ctx)
+    if ok {
+        r.AddAttrs(slog.String("request_id", requestID))
+    }
+    return h.Handler.Handle(ctx, r)
+}
+```
+
+#### 日志级别配置
+根据环境自动配置日志级别：
+
+```go
+func Setup(cfg *config.Config) {
+    // 使用 JSON 格式输出到标准输出
+    baseHandler := slog.NewJSONHandler(os.Stdout, nil)
+    
+    // 包装为 ContextHandler 支持自动注入 request_id
+    handler := NewContextHandler(baseHandler)
+    
+    // 设置为全局默认 Logger
+    slog.SetDefault(slog.New(handler))
+    
+    // 根据环境配置日志级别
+    switch cfg.App.Environment {
+    case config.EnvProduction:
+        slog.SetLogLoggerLevel(slog.LevelInfo)
+    default:
+        slog.SetLogLoggerLevel(slog.LevelDebug)
+    }
+}
+```
+
+#### 基础日志使用模式
+
+**标准日志记录**：
+```go
+import "log/slog"
+
+// 基础用法
+slog.Info("用户登录成功", "user_id", 123, "email", "user@example.com")
+slog.Error("数据库连接失败", "error", err, "database", "users")
+slog.Debug("查询参数", "limit", 10, "offset", 0)
+slog.Warn("缓存未命中", "key", "user:123", "ttl", 300)
+```
+
+**结构化字段**：
+```go
+// 使用 slog.Group 创建嵌套结构
+slog.Info("API 请求",
+    "method", "POST",
+    "path", "/api/users",
+    slog.Group("request",
+        "user_id", userID,
+        "ip", clientIP,
+        "user_agent", userAgent,
+    ),
+    slog.Group("response",
+        "status_code", 200,
+        "duration_ms", 45,
+    ),
+)
+```
+
+#### Context 相关日志
+
+**使用 Context 版本自动注入 request_id**：
+```go
+// 推荐：使用 Context 版本，自动注入 request_id
+slog.InfoContext(ctx, "处理用户请求", "user_id", userID)
+slog.ErrorContext(ctx, "业务逻辑错误", "error", err)
+slog.DebugContext(ctx, "查询数据库", "table", "users", "query", sql)
+slog.WarnContext(ctx, "性能警告", "duration_ms", 2000)
+```
+
+**在 Handler 中的使用**：
+```go
+func (h *UserHandler) GetUser(c echo.Context) error {
+    ctx := c.Request().Context()
+    userID := c.Param("id")
+    
+    slog.InfoContext(ctx, "开始查询用户", "user_id", userID)
+    
+    user, err := h.orm.User.Query().
+        Where(user.ID(userID)).
+        Only(ctx)
+    if err != nil {
+        slog.ErrorContext(ctx, "查询用户失败", 
+            "error", err,
+            "user_id", userID,
+        )
+        
+        if ent.IsNotFound(err) {
+            return errors.NotFoundError("用户不存在").
+                With("user_id", userID)
+        }
+        return errors.DatabaseError("查询用户失败").
+            Wrap(err).
+            With("user_id", userID)
+    }
+    
+    slog.InfoContext(ctx, "查询用户成功", 
+        "user_id", userID,
+        "username", user.Name,
+    )
+    
+    return Success(user).JSON(c)
+}
+```
+
+#### AppError 日志集成
+
+**LogValuer 接口实现**：
+`AppError` 实现了 `slog.LogValuer` 接口，支持结构化日志输出：
+
+```go
+// AppError 会自动展开为结构化字段
+appErr := errors.NotFoundError("用户不存在").
+    With("user_id", 123, "attempted_at", time.Now())
+
+slog.ErrorContext(ctx, "业务错误", "error", appErr)
+// 输出：
+// {
+//   "time": "2024-01-01T12:00:00Z",
+//   "level": "ERROR", 
+//   "msg": "业务错误",
+//   "request_id": "req-123",
+//   "error": {
+//     "code": 404,
+//     "message": "用户不存在",
+//     "user_id": 123,
+//     "attempted_at": "2024-01-01T12:00:00Z"
+//   }
+// }
+```
+
+#### 错误处理器中的日志模式
+
+**业务错误日志**：
+```go
+func logAppError(logger *slog.Logger, err *errors.AppError, c echo.Context) {
+    logger.ErrorContext(c.Request().Context(),
+        "Business error occurred",
+        "error", err,                    // AppError 自动展开
+        "path", c.Request().URL.Path,
+        "method", c.Request().Method,
+        "user_agent", c.Request().UserAgent(),
+        "remote_addr", c.RealIP(),
+    )
+}
+```
+
+**HTTP 错误日志**：
+```go
+func logHTTPError(logger *slog.Logger, err *echo.HTTPError, c echo.Context) {
+    logger.WarnContext(c.Request().Context(),
+        "HTTP error occurred",
+        "http_status", err.Code,
+        "message", err.Message,
+        "path", c.Request().URL.Path,
+        "method", c.Request().Method,
+        "user_agent", c.Request().UserAgent(),
+        "remote_addr", c.RealIP(),
+    )
+}
+```
+
+#### 日志最佳实践
+
+**字段命名规范**：
+```go
+// 推荐的字段命名
+slog.Info("操作完成",
+    "user_id", userID,           // 使用下划线命名
+    "duration_ms", 100,          // 包含单位
+    "status_code", 200,          // 明确的字段名
+    "table_name", "users",       // 具体描述
+    "query_count", 5,            // 数量型字段
+)
+```
+
+**性能监控日志**：
+```go
+start := time.Now()
+// ... 业务逻辑
+duration := time.Since(start)
+
+slog.InfoContext(ctx, "数据库查询完成",
+    "table", "users", 
+    "duration_ms", duration.Milliseconds(),
+    "rows_affected", count,
+)
+
+// 性能警告
+if duration > time.Second*2 {
+    slog.WarnContext(ctx, "慢查询警告",
+        "duration_ms", duration.Milliseconds(),
+        "threshold_ms", 2000,
+        "query", sql,
+    )
+}
+```
+
+**安全相关日志**：
+```go
+// 登录成功
+slog.InfoContext(ctx, "用户登录成功",
+    "user_id", userID,
+    "login_method", "password",
+    "ip", clientIP,
+    "user_agent", userAgent,
+)
+
+// 登录失败
+slog.WarnContext(ctx, "用户登录失败", 
+    "email", email,
+    "reason", "invalid_password",
+    "ip", clientIP,
+    "attempt_count", attemptCount,
+)
+```
+
+#### 不使用 Echo 默认日志器
+
+项目明确不使用 Echo 的默认日志器，原因：
+1. 不支持结构化日志
+2. 难以集成上下文信息（如 request_id）
+3. Echo v5 将移除内置日志器
+4. 使用标准库 `slog` 更灵活和标准化
+
+**全局日志实例**：
+```go
+// 使用全局默认实例
+slog.InfoContext(ctx, "消息")
+
+// 或创建专门的日志实例
+logger := slog.Default()
+logger.InfoContext(ctx, "消息")
+```
+
+## 编码最佳实践
+
+### Go 代码风格
+- 遵循 Go 官方代码规范
+- 使用 `gofmt` 格式化代码
+- 导入顺序：标准库 -> 第三方 -> 项目内部
+
+### 错误处理
+- 始终检查并处理错误
+- 使用包装错误提供上下文
+- 记录错误但不重复记录
+
+### 并发安全
+- 数据库连接是并发安全的
+- 避免共享可变状态
+- 适当使用互斥锁
+
+### 性能考虑
+- 复用数据库连接
+- 使用上下文进行超时控制
+- 避免 N+1 查询问题
+
+## 开发工作流
+
+### 1. 新功能开发
+1. 创建 Handler 文件
+2. 定义路由和处理逻辑
+3. 如需新实体，创建 Ent schema
+4. 编写测试
+5. 更新配置（如需要）
+
+### 2. 数据库变更
+1. 修改 Ent schema
+2. 运行 `make ent-gen`
+3. 测试迁移
+4. 更新相关 Handler
+
+### 3. 中间件开发
+1. 在 `pkg/middleware` 创建中间件
+2. 在 `router.go` 注册
+3. 编写单元测试
+4. 文档说明用途
+
+## 注意事项
+
+### 安全
+- 始终验证用户输入
+- 使用参数化查询防止 SQL 注入
+- 实施适当的身份验证和授权
+
+### 可维护性
+- 保持函数简短和专注
+- 使用有意义的变量和函数名
+- 编写文档说明复杂逻辑
+
+### 扩展性
+- 使用接口而不是具体类型
+- 保持松耦合设计
+- 考虑未来的扩展需求
+
+## 常用命令
+```bash
+# Ent 相关
+make ent-install  # 安装 Ent 工具
+make ent-new name=EntityName  # 创建新实体
+make ent-gen      # 生成 Ent 代码
+
+# 开发
+go run cmd/main.go  # 启动应用
+go test ./...       # 运行所有测试
+```
+
+记住：这个项目的目标是快速、简单的开发。保持代码简洁，优先选择简单的解决方案。
+
+### 9. 错误处理规范
+
+#### AppError 结构化错误
+项目使用自定义的 `AppError` 结构提供完整的错误处理能力：
+
+```go
+type AppError struct {
+    Code    int            // 错误码
+    Message string         // 错误消息
+    Context map[string]any // 结构化上下文
+    Cause   error          // 原始错误
+}
+```
+
+#### 错误创建模式
+```go
+// 基础错误创建
+err := errors.New(errors.NotFound, "用户不存在")
+
+// 添加结构化上下文
+err := errors.NotFoundError("用户不存在").
+    With("user_id", userID, "timestamp", time.Now())
+
+// 包装原始错误
+err := errors.DatabaseError("查询失败").
+    Wrap(originalErr).
+    With("table", "users", "query", sql)
+```
+
+#### 便捷构造函数
+```go
+// HTTP 错误
+errors.BadRequestError("请求参数无效")
+errors.UnauthorizedError("未授权访问")
+errors.ForbiddenError("权限不足")
+errors.NotFoundError("资源不存在")
+errors.InternalError("服务器内部错误")
+
+// 业务错误
+errors.DatabaseErrorf("数据库连接失败: %s", reason)
+errors.ValidationErrorf("字段 %s 验证失败", fieldName)
+```
+
+#### 错误码定义
+```go
+// HTTP 标准错误码
+const (
+    OK                  = 200
+    BadRequest          = 400
+    Unauthorized        = 401
+    Forbidden           = 403
+    NotFound            = 404
+    InternalServerError = 500
+)
+
+// 业务错误码 6xxx
+const (
+    DatabaseError      = 6001
+    CacheError         = 6002
+    ExternalAPIError   = 6003
+    ValidationError    = 6004
+    BusinessLogicError = 6005
+)
+```
+
+### 10. 响应处理规范
+
+#### 统一响应结构
+所有 API 响应使用统一的 `Response` 结构：
+
+```go
+type Response struct {
+    Code      int           `json:"code"`                 // 业务状态码
+    Message   string        `json:"message"`              // 响应消息
+    Data      interface{}   `json:"data"`                 // 响应数据
+    Errors    []ErrorDetail `json:"errors,omitempty"`     // 错误详情列表
+    Timestamp int64         `json:"timestamp"`            // 时间戳
+    RequestID string        `json:"request_id,omitempty"` // 请求ID
+    Success   bool          `json:"success"`              // 是否成功
+}
+
+type ErrorDetail struct {
+    Field   string `json:"field,omitempty"` // 错误字段
+    Message string `json:"message"`         // 错误消息
+    Code    string `json:"code,omitempty"`  // 错误代码
+}
+```
+
+#### 响应构建模式
+使用 `ResponseBuilder` 链式构建响应：
+
+```go
+// 成功响应
+return Success(data).JSON(c)
+
+// 错误响应
+return Error(errors.NotFound, "用户不存在").JSON(c)
+
+// 验证错误响应
+errorDetails := []ErrorDetail{
+    {Field: "email", Message: "邮箱格式不正确", Code: "INVALID_EMAIL"},
+    {Field: "password", Message: "密码长度不能少于8位", Code: "PASSWORD_TOO_SHORT"},
+}
+return ValidationError("验证失败", errorDetails).JSON(c)
+
+// 自定义响应
+return NewResponse().
+    WithCode(errors.OK).
+    WithMessage("操作成功").
+    WithData(result).
+    JSON(c)
+```
+
+#### 便捷响应方法
+```go
+// 成功响应
+Success(data interface{}) *ResponseBuilder
+
+// 错误响应  
+Error(code int, message string) *ResponseBuilder
+
+// 验证错误响应
+ValidationError(message string, errorDetails []ErrorDetail) *ResponseBuilder
+```
+
+#### 错误处理器集成
+项目使用自定义的 Echo 错误处理器，自动处理：
+- `AppError` 业务错误
+- `echo.HTTPError` 框架错误  
+- 未知错误统一处理
+
+```go
+// 在handler中直接返回错误，由错误处理器统一处理
+func (h *Handler) GetUser(c echo.Context) error {
+    user, err := h.userService.GetByID(userID)
+    if err != nil {
+        return errors.NotFoundError("用户不存在").
+            With("user_id", userID)
+    }
+    return Success(user).JSON(c)
+}
+```
+
+#### HTTP 状态码约定
+- 所有 API 响应的 HTTP 状态码统一为 200
+- 实际的业务状态通过响应体中的 `code` 字段表示
+- 错误信息通过 `message` 和 `errors` 字段提供详细信息
+
+#### 与日志系统集成
+`AppError` 实现了 `slog.LogValuer` 接口，自动支持结构化日志：
+
+```go
+slog.ErrorContext(ctx, "业务操作失败", 
+    "error", appError,  // 自动展开为结构化字段
+    "user_id", userID,
+)
+```
