@@ -186,7 +186,7 @@ func (h *UserHandler) Init(c *services.Container) error {
 // 3. 实现 Routes 方法（路由定义）
 func (h *UserHandler) Routes(g *echo.Group) {
     api := g.Group("/api/v1/users")
-    api.GET("", h.GetUsers)
+    api.GET("", h.ListUsers)
     api.POST("", h.CreateUser)
 }
 ```
@@ -238,7 +238,7 @@ func (h *UserHandler) Routes(g *echo.Group) {
     authMw := middleware.NewAuthMiddleware(h.orm)
     protected := g.Group("/api/v1/users")
     protected.Use(authMw.RequireAuth)
-    protected.GET("", h.GetUsers)
+    protected.GET("", h.ListUsers)
 }
 ```
 

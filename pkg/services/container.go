@@ -35,6 +35,7 @@ type Container struct {
 	ORM *ent.Client
 
 	Auth *AuthService
+	User *UserService
 
 	// Docs stores the documentation service.
 	Docs *DocsService
@@ -48,6 +49,7 @@ func NewContainer() *Container {
 	c.initDatabase()
 	c.initORM()
 	c.initAuth()
+	c.initUser()
 	c.initDocs()
 	return c
 }
@@ -124,6 +126,10 @@ func (c *Container) initORM() {
 
 func (c *Container) initAuth() {
 	c.Auth = NewAuthService(c.ORM)
+}
+
+func (c *Container) initUser() {
+	c.User = NewUserService(c.ORM)
 }
 
 // initDocs initializes the documentation service.

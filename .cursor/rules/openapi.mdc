@@ -1,5 +1,5 @@
 ---
-description: 
+description: openapi规范文档
 globs: 
 alwaysApply: false
 ---
@@ -16,209 +16,79 @@ docs/
 ├── openapi.yaml              # 主入口文件
 ├── paths/                    # API路径定义目录
 │   ├── auth.yaml            # 认证相关API路径
+│   ├── users.yaml           # 用户管理API路径
 │   ├── examples.yaml        # 示例API路径
 │   └── docs.yaml            # 文档相关API路径
 └── schemas/                  # Schema定义目录
-    ├── common.yaml          # 通用Schema定义
-    └── auth.yaml            # 认证相关Schema定义
+    ├── common.yaml          # 通用Schema和响应定义
+    ├── auth.yaml            # 认证相关Schema定义
+    └── user.yaml            # 用户管理Schema定义
 ```
 
-## 文件说明
+## 核心原则
 
-### 主入口文件 (`docs/openapi.yaml`)
+### 1. 文件对应关系
+| Handler文件 | 路径文件 | Schema文件 | 说明 |
+|---|---|-----|---|
+| `auth_handler.go` | `paths/auth.yaml` | `schemas/auth.yaml` | 认证相关接口 |
+| `user_handler.go` | `paths/users.yaml` | `schemas/user.yaml` | 用户管理接口 |
+| `example_handler.go` | `paths/examples.yaml` | `schemas/common.yaml` | 示例接口 |
+| `docs_handler.go` | `paths/docs.yaml` | 无特定Schema | 文档接口 |
 
-- **作用**: 定义API的基本信息、服务器配置、标签等全局配置
-- **内容**: 包含 `info`、`servers`、`tags`、`components/securitySchemes` 等
-- **引用**: 通过 `$ref` 引用其他文件中的路径和Schema定义
-
+### 2. 引用语法
 ```yaml
-# 示例引用语法
-paths:
-  /api/v1/auth/register:
-    $ref: './paths/auth.yaml#/register'
-    
-components:
-  schemas:
-    RegisterInput:
-      $ref: './schemas/auth.yaml#/RegisterInput'
-```
-
-### 路径定义文件 (`docs/paths/`)
-
-#### `auth.yaml` - 认证相关API
-- **对应Handler**: `pkg/handlers/auth_handler.go`
-- **包含接口**: 注册、登录、刷新令牌、登出
-- **引用Schema**: 引用 `../schemas/auth.yaml` 和 `../schemas/common.yaml`
-
-#### `examples.yaml` - 示例API
-- **对应Handler**: `pkg/handlers/example_handler.go`  
-- **包含接口**: 成功、业务错误、验证错误、HTTP错误、未知错误示例
-- **引用Schema**: 主要引用 `../schemas/common.yaml`
-
-#### `docs.yaml` - 文档相关API
-- **对应Handler**: `pkg/handlers/docs_handler.go`
-- **包含接口**: 获取OpenAPI规范、API文档页面
-- **特点**: 主要为静态资源和元数据接口
-
-### Schema定义文件 (`docs/schemas/`)
-
-#### `common.yaml` - 通用Schema
-- **内容**: `ErrorDetail`、`Response` 等通用数据结构
-- **作用**: 被所有其他文件引用的基础Schema定义
-
-#### `auth.yaml` - 认证相关Schema
-- **对应类型文件**: `pkg/types/auth.go`
-- **内容**: `RegisterInput`、`LoginInput`、`UserInfo`、`AuthData` 等
-- **引用关系**: Schema之间可以相互引用，如 `AuthData` 引用 `UserInfo`
-
-## 引用语法规范
-
-### 外部文件引用
-```yaml
-# 引用其他文件中的特定Schema
+# 引用其他文件中的Schema
 $ref: './schemas/auth.yaml#/RegisterInput'
 
-# 引用其他文件中的路径定义
-$ref: '../paths/auth.yaml#/register'
+# 引用路径定义
+$ref: './paths/users.yaml#/users'
+
+# 引用专门的响应类型
+$ref: './schemas/common.yaml#/UsersResponse'
 ```
 
-### 文件内引用
-```yaml
-# 引用同一文件内的定义
-$ref: '#/UserInfo'
-```
+### 3. 响应类型设计
+为每种数据类型创建专门的响应类型，避免使用复杂的 `allOf` 组合：
 
-### 路径规则
-- **相对路径**: 相对于当前文件的位置
-- **JSON Pointer**: 使用 `#/` 分隔文件路径和内部路径
-- **路径格式**: `文件路径#/内部路径`
+| 响应类型 | 用途 | data字段类型 |
+|---------|------|-------------|
+| `UserResponse` | 单个用户信息 | `UserOutput` |
+| `UsersResponse` | 用户列表 | `ListUsersOutput` |
+| `UserStatsResponse` | 用户统计 | `UserStatsOutput` |
+| `MessageResponse` | 操作消息 | `MessageResponse` |
+| `AuthResponse` | 认证信息 | `AuthData` |
 
 ## 开发工作流
 
 ### 添加新的API接口
+1. 在对应的Schema文件中定义数据类型
+2. 在 `docs/schemas/common.yaml` 中添加专门的响应类型
+3. 在对应的路径文件中定义API接口
+4. 在 `docs/openapi.yaml` 中添加路径引用和Schema引用
+5. 确保Schema定义与 `pkg/types/` 下的Go类型一致
 
-1. **确定Handler归属**: 确定接口属于哪个Handler（如认证、用户、订单等）
-2. **创建路径文件**: 如果是新的Handler，在 `docs/paths/` 下创建对应文件
-3. **定义Schema**: 在 `docs/schemas/` 下定义输入输出类型
-4. **更新主文件**: 在 `docs/openapi.yaml` 中添加路径引用和Schema引用
-5. **同步代码**: 确保Schema定义与 `pkg/types/` 下的Go类型一致
-
-### 添加新的Handler
-
-```bash
-# 1. 创建新的路径文件
-touch docs/paths/user.yaml
-
-# 2. 创建对应的Schema文件
-touch docs/schemas/user.yaml
-
-# 3. 在主文件中添加引用
-# 编辑 docs/openapi.yaml
-```
-
-### Handler与文档文件的对应关系
-
-| Handler文件 | 路径文件 | Schema文件 | 说明 |
-|------------|---------|-----------|------|
-| `auth_handler.go` | `paths/auth.yaml` | `schemas/auth.yaml` | 认证相关 |
-| `example_handler.go` | `paths/examples.yaml` | `schemas/common.yaml` | 示例接口 |
-| `docs_handler.go` | `paths/docs.yaml` | 无特定Schema | 文档接口 |
-| `user_handler.go` | `paths/user.yaml` | `schemas/user.yaml` | 用户管理（未来） |
-
-## 技术实现
-
-### 文档服务支持
-
-项目的 `pkg/services/docs_service.go` 已经实现了对多文件OpenAPI规范的支持：
-
-- **引用解析**: 自动解析 `$ref` 引用，包括外部文件和本地引用
-- **文件缓存**: 避免重复解析同一文件
-- **路径解析**: 支持相对路径和JSON Pointer语法
-- **错误处理**: 提供详细的引用解析错误信息
-
-### 引用解析流程
-
-1. **加载主文件**: 读取 `docs/openapi.yaml`
-2. **递归解析**: 遍历所有对象，查找 `$ref` 字段
-3. **文件加载**: 根据引用路径加载外部文件
-4. **路径查找**: 使用JSON Pointer在目标文件中查找具体对象
-5. **替换引用**: 将 `$ref` 替换为实际的对象内容
-6. **缓存结果**: 缓存已解析的文件，提高性能
+### Schema与Go类型对应
+- Schema定义必须与 `pkg/types/` 中的Go类型严格对应
+- 验证规则与Go struct tag保持一致
+- 为每个字段提供清楚的描述和示例
 
 ## 最佳实践
 
-### 文件组织原则
+1. **明确性优于简洁性**: 每个响应类型都完整定义所有字段
+2. **按Handler分组**: 每个Handler对应一个路径文件
+3. **Schema复用**: 通用Schema放在 `common.yaml` 中
+4. **同步更新**: 修改Go类型时同步更新对应Schema
+5. **命名规范**: 文件名使用小写，Schema名使用PascalCase
 
-1. **按Handler分组**: 每个Handler对应一个路径文件
-2. **Schema复用**: 通用Schema放在 `common.yaml` 中
-3. **引用一致性**: 确保文档Schema与Go类型定义一致
-4. **命名规范**: 文件名使用小写，Schema名使用PascalCase
-
-### 维护建议
-
-1. **同步更新**: 修改Go类型时同步更新对应Schema
-2. **引用检查**: 使用工具验证引用的正确性
-3. **示例完整**: 为每个Schema提供完整的示例数据
-4. **文档注释**: 在每个文件头部说明其用途和对应的Handler
-
-### 验证工具
+## 常用命令
 
 ```bash
-# 使用在线工具验证YAML语法
+# 检查OpenAPI JSON输出
+curl -s http://localhost:8000/openapi.json | jq '.'
+
+# 验证YAML语法
+yamllint docs/openapi.yaml
+
+# 在线验证工具
 # https://editor.swagger.io/
-
-# 或使用命令行工具
-swagger-codegen validate -i docs/openapi.yaml
 ```
-
-## 扩展指南
-
-### 添加新的功能模块
-
-假设要添加用户管理功能：
-
-1. **创建路径文件**:
-```yaml
-# docs/paths/user.yaml
-get-users:
-  get:
-    tags:
-      - 用户
-    summary: 获取用户列表
-    # ... 其他定义
-```
-
-2. **创建Schema文件**:
-```yaml
-# docs/schemas/user.yaml
-User:
-  type: object
-  properties:
-    id:
-      type: string
-    name:
-      type: string
-```
-
-3. **更新主文件**:
-```yaml
-# docs/openapi.yaml
-paths:
-  /api/v1/users:
-    $ref: './paths/user.yaml#/get-users'
-    
-components:
-  schemas:
-    User:
-      $ref: './schemas/user.yaml#/User'
-```
-
-## 注意事项
-
-1. **路径分隔符**: 在YAML中使用 `/` 作为路径分隔符，与操作系统无关
-2. **引用循环**: 避免创建循环引用，会导致解析失败
-3. **文件编码**: 所有YAML文件使用UTF-8编码
-4. **YAML语法**: 注意YAML的缩进和语法规则，推荐使用编辑器的YAML支持
-5. **引用路径**: 确保引用的文件路径和内部路径都存在且正确
-
-通过这种模块化的文档结构，团队可以并行开发和维护不同模块的API文档，提高开发效率和文档质量。
