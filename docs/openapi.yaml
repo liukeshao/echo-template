@@ -382,88 +382,6 @@ components:
       required:
         - message
 
-    # 消息数据
-    MessageData:
-      title: 消息数据
-      type: object
-      description: 消息数据
-      properties:
-        message:
-          type: string
-          description: 消息内容
-          example: "操作成功"
-      required:
-        - message
-
-    # 用户信息
-    UserInfo:
-      title: 用户信息
-      type: object
-      description: 用户基本信息
-      properties:
-        id:
-          type: string
-          description: 用户ID
-          example: "usr_123456"
-        username:
-          type: string
-          description: 用户名
-          example: "johndoe"
-        email:
-          type: string
-          format: email
-          description: 邮箱地址
-          example: "john@example.com"
-        status:
-          type: string
-          enum: [active, inactive, suspended]
-          description: 用户状态
-          example: "active"
-        last_login_at:
-          type: string
-          format: date-time
-          nullable: true
-          description: 最后登录时间
-          example: "2023-12-31T23:59:59Z"
-        created_at:
-          type: string
-          format: date-time
-          description: 创建时间
-          example: "2023-01-01T00:00:00Z"
-      required:
-        - id
-        - username
-        - email
-        - status
-        - created_at
-
-    # 认证数据输出
-    AuthData:
-      title: 认证数据
-      type: object
-      description: 认证数据输出
-      properties:
-        user:
-          $ref: '#/components/schemas/UserInfo'
-        access_token:
-          type: string
-          description: 访问令牌
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        refresh_token:
-          type: string
-          description: 刷新令牌
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-        expires_at:
-          type: integer
-          format: int64
-          description: 访问令牌过期时间戳
-          example: 1640995200
-      required:
-        - user
-        - access_token
-        - refresh_token
-        - expires_at
-
     # 认证相关Schema定义
     
     # 用户注册输入
@@ -634,78 +552,6 @@ components:
           description: 搜索关键词（用于搜索用户名或邮箱）
           example: "john"
 
-    # 用户输出
-    UserOutput:
-      title: 用户详情
-      $ref: '#/components/schemas/UserInfo'
-
-    # 用户列表输出
-    ListUsersOutput:
-      title: 用户列表数据
-      type: object
-      description: 用户列表输出
-      properties:
-        users:
-          type: array
-          description: 用户列表
-          items:
-            $ref: '#/components/schemas/UserInfo'
-        total:
-          type: integer
-          format: int64
-          description: 总记录数
-          example: 100
-        page:
-          type: integer
-          description: 当前页码
-          example: 1
-        page_size:
-          type: integer
-          description: 每页数量
-          example: 20
-        total_pages:
-          type: integer
-          description: 总页数
-          example: 5
-      required:
-        - users
-        - total
-        - page
-        - page_size
-        - total_pages
-
-    # 用户统计输出
-    UserStatsOutput:
-      title: 用户统计数据
-      type: object
-      description: 用户统计输出
-      properties:
-        total_users:
-          type: integer
-          format: int64
-          description: 总用户数
-          example: 1000
-        active_users:
-          type: integer
-          format: int64
-          description: 活跃用户数
-          example: 800
-        inactive_users:
-          type: integer
-          format: int64
-          description: 非活跃用户数
-          example: 150
-        suspended_users:
-          type: integer
-          format: int64
-          description: 被暂停用户数
-          example: 50
-      required:
-        - total_users
-        - active_users
-        - inactive_users
-        - suspended_users
-
     # 响应类型定义
     
     # 认证响应
@@ -723,7 +569,66 @@ components:
           description: 响应消息
           example: "登录成功"
         data:
-          $ref: '#/components/schemas/AuthData'
+          type: object
+          description: 认证数据
+          properties:
+            user:
+              type: object
+              description: 用户基本信息
+              properties:
+                id:
+                  type: string
+                  description: 用户ID
+                  example: "usr_123456"
+                username:
+                  type: string
+                  description: 用户名
+                  example: "johndoe"
+                email:
+                  type: string
+                  format: email
+                  description: 邮箱地址
+                  example: "john@example.com"
+                status:
+                  type: string
+                  enum: [active, inactive, suspended]
+                  description: 用户状态
+                  example: "active"
+                last_login_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+                  description: 最后登录时间
+                  example: "2023-12-31T23:59:59Z"
+                created_at:
+                  type: string
+                  format: date-time
+                  description: 创建时间
+                  example: "2023-01-01T00:00:00Z"
+              required:
+                - id
+                - username
+                - email
+                - status
+                - created_at
+            access_token:
+              type: string
+              description: 访问令牌
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            refresh_token:
+              type: string
+              description: 刷新令牌
+              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            expires_at:
+              type: integer
+              format: int64
+              description: 访问令牌过期时间戳
+              example: 1640995200
+          required:
+            - user
+            - access_token
+            - refresh_token
+            - expires_at
         errors:
           type: array
           description: 错误详情列表
@@ -759,7 +664,44 @@ components:
           description: 响应消息
           example: "获取用户信息成功"
         data:
-          $ref: '#/components/schemas/UserOutput'
+          type: object
+          description: 用户基本信息
+          properties:
+            id:
+              type: string
+              description: 用户ID
+              example: "usr_123456"
+            username:
+              type: string
+              description: 用户名
+              example: "johndoe"
+            email:
+              type: string
+              format: email
+              description: 邮箱地址
+              example: "john@example.com"
+            status:
+              type: string
+              enum: [active, inactive, suspended]
+              description: 用户状态
+              example: "active"
+            last_login_at:
+              type: string
+              format: date-time
+              nullable: true
+              description: 最后登录时间
+              example: "2023-12-31T23:59:59Z"
+            created_at:
+              type: string
+              format: date-time
+              description: 创建时间
+              example: "2023-01-01T00:00:00Z"
+          required:
+            - id
+            - username
+            - email
+            - status
+            - created_at
         errors:
           type: array
           description: 错误详情列表
@@ -795,7 +737,74 @@ components:
           description: 响应消息
           example: "获取用户列表成功"
         data:
-          $ref: '#/components/schemas/ListUsersOutput'
+          type: object
+          description: 用户列表数据
+          properties:
+            users:
+              type: array
+              description: 用户列表
+              items:
+                type: object
+                description: 用户基本信息
+                properties:
+                  id:
+                    type: string
+                    description: 用户ID
+                    example: "usr_123456"
+                  username:
+                    type: string
+                    description: 用户名
+                    example: "johndoe"
+                  email:
+                    type: string
+                    format: email
+                    description: 邮箱地址
+                    example: "john@example.com"
+                  status:
+                    type: string
+                    enum: [active, inactive, suspended]
+                    description: 用户状态
+                    example: "active"
+                  last_login_at:
+                    type: string
+                    format: date-time
+                    nullable: true
+                    description: 最后登录时间
+                    example: "2023-12-31T23:59:59Z"
+                  created_at:
+                    type: string
+                    format: date-time
+                    description: 创建时间
+                    example: "2023-01-01T00:00:00Z"
+                required:
+                  - id
+                  - username
+                  - email
+                  - status
+                  - created_at
+            total:
+              type: integer
+              format: int64
+              description: 总记录数
+              example: 100
+            page:
+              type: integer
+              description: 当前页码
+              example: 1
+            page_size:
+              type: integer
+              description: 每页数量
+              example: 20
+            total_pages:
+              type: integer
+              description: 总页数
+              example: 5
+          required:
+            - users
+            - total
+            - page
+            - page_size
+            - total_pages
         errors:
           type: array
           description: 错误详情列表
@@ -831,7 +840,34 @@ components:
           description: 响应消息
           example: "获取用户统计成功"
         data:
-          $ref: '#/components/schemas/UserStatsOutput'
+          type: object
+          description: 用户统计数据
+          properties:
+            total_users:
+              type: integer
+              format: int64
+              description: 总用户数
+              example: 1000
+            active_users:
+              type: integer
+              format: int64
+              description: 活跃用户数
+              example: 800
+            inactive_users:
+              type: integer
+              format: int64
+              description: 非活跃用户数
+              example: 150
+            suspended_users:
+              type: integer
+              format: int64
+              description: 被暂停用户数
+              example: 50
+          required:
+            - total_users
+            - active_users
+            - inactive_users
+            - suspended_users
         errors:
           type: array
           description: 错误详情列表
@@ -867,7 +903,15 @@ components:
           description: 响应消息
           example: "操作成功"
         data:
-          $ref: '#/components/schemas/MessageData'
+          type: object
+          description: 消息数据
+          properties:
+            message:
+              type: string
+              description: 消息内容
+              example: "操作成功"
+          required:
+            - message
         errors:
           type: array
           description: 错误详情列表
