@@ -34,9 +34,9 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 			logAppError(logger, e, c)
 
 		case *echo.HTTPError:
-			// Echo框架HTTP错误
-			response = handleHTTPError(e, requestID)
-			logHTTPError(logger, e, c)
+			// Echo框架HTTP错误，使用Echo原生策略处理
+			handleEchoHTTPError(e, c, logger)
+			return
 
 		default:
 			// 未知错误，作为内部服务器错误处理
@@ -76,22 +76,22 @@ func handleAppError(err *errors.AppError, requestID string) *ResponseBuilder {
 	return response
 }
 
-// handleHTTPError 处理Echo HTTP错误
-func handleHTTPError(err *echo.HTTPError, requestID string) *ResponseBuilder {
-	code := err.Code
-	message := "Unknown Error"
+// handleEchoHTTPError 使用Echo原生策略处理HTTP错误
+func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logger) {
+	// 记录HTTP错误日志
+	logEchoHTTPError(logger, err, c)
 
-	// 获取错误消息
-	if err.Message != nil {
-		if msg, ok := err.Message.(string); ok {
-			message = msg
-		}
+	// 使用Echo原生的HTTP错误响应格式
+	// 如果有内部错误信息，只返回状态码对应的标准消息
+	message := err.Message
+	if message == nil {
+		message = http.StatusText(err.Code)
 	}
 
-	// 映射HTTP状态码到业务错误码
-	businessCode := mapHTTPStatusToBusinessCode(code)
-
-	return Error(businessCode, message).WithRequestID(requestID)
+	// 直接返回HTTP状态码和消息，不使用我们的自定义响应格式
+	c.JSON(err.Code, echo.Map{
+		"message": message,
+	})
 }
 
 // handleUnknownError 处理未知错误
@@ -99,40 +99,6 @@ func handleUnknownError(err error, requestID string) *ResponseBuilder {
 	return Error(errors.InternalServerError, "Internal Server Error").
 		WithRequestID(requestID).
 		WithError("system", err.Error(), "UNKNOWN_ERROR")
-}
-
-// mapHTTPStatusToBusinessCode 映射HTTP状态码到业务错误码
-func mapHTTPStatusToBusinessCode(httpStatus int) int {
-	switch httpStatus {
-	case http.StatusBadRequest:
-		return errors.BadRequest
-	case http.StatusUnauthorized:
-		return errors.Unauthorized
-	case http.StatusForbidden:
-		return errors.Forbidden
-	case http.StatusNotFound:
-		return errors.NotFound
-	case http.StatusMethodNotAllowed:
-		return errors.MethodNotAllowed
-	case http.StatusConflict:
-		return errors.Conflict
-	case http.StatusUnprocessableEntity:
-		return errors.UnprocessableEntity
-	case http.StatusTooManyRequests:
-		return errors.TooManyRequests
-	case http.StatusInternalServerError:
-		return errors.InternalServerError
-	case http.StatusNotImplemented:
-		return errors.NotImplemented
-	case http.StatusBadGateway:
-		return errors.BadGateway
-	case http.StatusServiceUnavailable:
-		return errors.ServiceUnavailable
-	case http.StatusGatewayTimeout:
-		return errors.GatewayTimeout
-	default:
-		return errors.InternalServerError
-	}
 }
 
 // 日志记录函数
@@ -149,10 +115,10 @@ func logAppError(logger *slog.Logger, err *errors.AppError, c echo.Context) {
 	)
 }
 
-// logHTTPError 记录HTTP错误日志
-func logHTTPError(logger *slog.Logger, err *echo.HTTPError, c echo.Context) {
+// logEchoHTTPError 记录Echo HTTP错误日志
+func logEchoHTTPError(logger *slog.Logger, err *echo.HTTPError, c echo.Context) {
 	logger.WarnContext(c.Request().Context(),
-		"HTTP error occurred",
+		"Echo HTTP error occurred",
 		"http_status", err.Code,
 		"message", err.Message,
 		"path", c.Request().URL.Path,
