@@ -1,0 +1,139 @@
+# 认证相关Schema定义
+# 对应 pkg/types/auth.go 中的数据结构
+
+RegisterInput:
+  type: object
+  title: 用户注册输入
+  description: 用户注册所需的信息
+  required:
+    - username
+    - email
+    - password
+  properties:
+    username:
+      type: string
+      description: 用户名，用于登录和显示
+      minLength: 3
+      maxLength: 50
+      pattern: '^[a-zA-Z0-9_-]+$'
+      examples:
+        - john_doe
+        - user123
+    email:
+      type: string
+      format: email
+      description: 用户邮箱地址，用于登录和通知
+      examples:
+        - user@example.com
+        - john@company.co
+    password:
+      type: string
+      description: 用户密码，至少8位字符
+      minLength: 8
+      maxLength: 128
+      examples:
+        - SecurePass123!
+  additionalProperties: false
+
+LoginInput:
+  type: object
+  title: 用户登录输入
+  description: 用户登录所需的凭据
+  required:
+    - email
+    - password
+  properties:
+    email:
+      type: string
+      format: email
+      description: 注册时使用的邮箱地址
+      examples:
+        - user@example.com
+    password:
+      type: string
+      description: 用户密码
+      examples:
+        - SecurePass123!
+  additionalProperties: false
+
+RefreshTokenInput:
+  type: object
+  title: 刷新令牌输入
+  description: 用于刷新access_token的请求体
+  required:
+    - refresh_token
+  properties:
+    refresh_token:
+      type: string
+      description: 刷新令牌
+      examples:
+        - 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+  additionalProperties: false
+
+UserInfo:
+  type: object
+  title: 用户信息
+  description: 用户的基本信息
+  properties:
+    id:
+      type: string
+      description: 用户唯一标识符
+      examples:
+        - 123e4567-e89b-12d3-a456-426614174000
+    username:
+      type: string
+      description: 用户名
+      examples:
+        - john_doe
+    email:
+      type: string
+      format: email
+      description: 用户邮箱
+      examples:
+        - user@example.com
+    status:
+      type: string
+      description: 用户状态
+      enum:
+        - active
+        - inactive
+        - pending
+      examples:
+        - active
+    last_login_at:
+      type: string
+      format: date-time
+      description: 最后登录时间
+      examples:
+        - '2024-01-01T12:00:00Z'
+    created_at:
+      type: string
+      format: date-time
+      description: 账户创建时间
+      examples:
+        - '2024-01-01T12:00:00Z'
+  additionalProperties: false
+
+AuthData:
+  type: object
+  title: 认证数据
+  description: 用户认证成功后返回的数据
+  properties:
+    user:
+      $ref: '#/UserInfo'
+    access_token:
+      type: string
+      description: 访问令牌
+      examples:
+        - 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    refresh_token:
+      type: string
+      description: 刷新令牌
+      examples:
+        - 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+    expires_at:
+      type: integer
+      description: 令牌过期时间戳
+      examples:
+        - 1704067200
+  additionalProperties: false 

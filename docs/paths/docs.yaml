@@ -1,0 +1,53 @@
+# 文档相关API路径定义
+# 对应 docs_handler.go 中的接口
+
+openapi-json:
+  get:
+    tags:
+      - 文档
+    summary: 获取OpenAPI规范
+    description: 返回当前API的OpenAPI 3.1规范（JSON格式）
+    operationId: getOpenAPISpec
+    responses:
+      '200':
+        description: OpenAPI规范JSON
+        content:
+          application/json:
+            schema:
+              type: object
+
+docs:
+  get:
+    tags:
+      - 文档
+    summary: API文档页面
+    description: 返回可交互的API文档页面（HTML）
+    operationId: getDocsPage
+    responses:
+      '200':
+        description: 文档页面
+        content:
+          text/html:
+            schema:
+              type: string
+
+docs-path:
+  get:
+    tags:
+      - 文档
+    summary: API文档页面（子路径）
+    description: 返回可交互的API文档页面（HTML）
+    operationId: getDocsSubPage
+    parameters:
+      - name: path
+        in: path
+        required: true
+        schema:
+          type: string
+    responses:
+      '200':
+        description: 文档页面
+        content:
+          text/html:
+            schema:
+              type: string 
