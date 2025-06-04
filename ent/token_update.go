@@ -29,6 +29,33 @@ func (tu *TokenUpdate) Where(ps ...predicate.Token) *TokenUpdate {
 	return tu
 }
 
+// SetUpdatedAt sets the "updated_at" field.
+func (tu *TokenUpdate) SetUpdatedAt(t time.Time) *TokenUpdate {
+	tu.mutation.SetUpdatedAt(t)
+	return tu
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tu *TokenUpdate) SetDeletedAt(i int64) *TokenUpdate {
+	tu.mutation.ResetDeletedAt()
+	tu.mutation.SetDeletedAt(i)
+	return tu
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tu *TokenUpdate) SetNillableDeletedAt(i *int64) *TokenUpdate {
+	if i != nil {
+		tu.SetDeletedAt(*i)
+	}
+	return tu
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (tu *TokenUpdate) AddDeletedAt(i int64) *TokenUpdate {
+	tu.mutation.AddDeletedAt(i)
+	return tu
+}
+
 // SetUserID sets the "user_id" field.
 func (tu *TokenUpdate) SetUserID(s string) *TokenUpdate {
 	tu.mutation.SetUserID(s)
@@ -119,33 +146,6 @@ func (tu *TokenUpdate) ClearLastUsedAt() *TokenUpdate {
 	return tu
 }
 
-// SetUpdatedAt sets the "updated_at" field.
-func (tu *TokenUpdate) SetUpdatedAt(t time.Time) *TokenUpdate {
-	tu.mutation.SetUpdatedAt(t)
-	return tu
-}
-
-// SetDeletedAt sets the "deleted_at" field.
-func (tu *TokenUpdate) SetDeletedAt(i int64) *TokenUpdate {
-	tu.mutation.ResetDeletedAt()
-	tu.mutation.SetDeletedAt(i)
-	return tu
-}
-
-// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
-func (tu *TokenUpdate) SetNillableDeletedAt(i *int64) *TokenUpdate {
-	if i != nil {
-		tu.SetDeletedAt(*i)
-	}
-	return tu
-}
-
-// AddDeletedAt adds i to the "deleted_at" field.
-func (tu *TokenUpdate) AddDeletedAt(i int64) *TokenUpdate {
-	tu.mutation.AddDeletedAt(i)
-	return tu
-}
-
 // SetUser sets the "user" edge to the User entity.
 func (tu *TokenUpdate) SetUser(u *User) *TokenUpdate {
 	return tu.SetUserID(u.ID)
@@ -164,7 +164,9 @@ func (tu *TokenUpdate) ClearUser() *TokenUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (tu *TokenUpdate) Save(ctx context.Context) (int, error) {
-	tu.defaults()
+	if err := tu.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, tu.sqlSave, tu.mutation, tu.hooks)
 }
 
@@ -191,11 +193,15 @@ func (tu *TokenUpdate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (tu *TokenUpdate) defaults() {
+func (tu *TokenUpdate) defaults() error {
 	if _, ok := tu.mutation.UpdatedAt(); !ok {
+		if token.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized token.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := token.UpdateDefaultUpdatedAt()
 		tu.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -233,6 +239,15 @@ func (tu *TokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
+	if value, ok := tu.mutation.UpdatedAt(); ok {
+		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := tu.mutation.DeletedAt(); ok {
+		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tu.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(token.FieldDeletedAt, field.TypeInt64, value)
+	}
 	if value, ok := tu.mutation.Token(); ok {
 		_spec.SetField(token.FieldToken, field.TypeString, value)
 	}
@@ -250,15 +265,6 @@ func (tu *TokenUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if tu.mutation.LastUsedAtCleared() {
 		_spec.ClearField(token.FieldLastUsedAt, field.TypeTime)
-	}
-	if value, ok := tu.mutation.UpdatedAt(); ok {
-		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
-	}
-	if value, ok := tu.mutation.DeletedAt(); ok {
-		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
-	}
-	if value, ok := tu.mutation.AddedDeletedAt(); ok {
-		_spec.AddField(token.FieldDeletedAt, field.TypeInt64, value)
 	}
 	if tu.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -307,6 +313,33 @@ type TokenUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *TokenMutation
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (tuo *TokenUpdateOne) SetUpdatedAt(t time.Time) *TokenUpdateOne {
+	tuo.mutation.SetUpdatedAt(t)
+	return tuo
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tuo *TokenUpdateOne) SetDeletedAt(i int64) *TokenUpdateOne {
+	tuo.mutation.ResetDeletedAt()
+	tuo.mutation.SetDeletedAt(i)
+	return tuo
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tuo *TokenUpdateOne) SetNillableDeletedAt(i *int64) *TokenUpdateOne {
+	if i != nil {
+		tuo.SetDeletedAt(*i)
+	}
+	return tuo
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (tuo *TokenUpdateOne) AddDeletedAt(i int64) *TokenUpdateOne {
+	tuo.mutation.AddDeletedAt(i)
+	return tuo
 }
 
 // SetUserID sets the "user_id" field.
@@ -399,33 +432,6 @@ func (tuo *TokenUpdateOne) ClearLastUsedAt() *TokenUpdateOne {
 	return tuo
 }
 
-// SetUpdatedAt sets the "updated_at" field.
-func (tuo *TokenUpdateOne) SetUpdatedAt(t time.Time) *TokenUpdateOne {
-	tuo.mutation.SetUpdatedAt(t)
-	return tuo
-}
-
-// SetDeletedAt sets the "deleted_at" field.
-func (tuo *TokenUpdateOne) SetDeletedAt(i int64) *TokenUpdateOne {
-	tuo.mutation.ResetDeletedAt()
-	tuo.mutation.SetDeletedAt(i)
-	return tuo
-}
-
-// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
-func (tuo *TokenUpdateOne) SetNillableDeletedAt(i *int64) *TokenUpdateOne {
-	if i != nil {
-		tuo.SetDeletedAt(*i)
-	}
-	return tuo
-}
-
-// AddDeletedAt adds i to the "deleted_at" field.
-func (tuo *TokenUpdateOne) AddDeletedAt(i int64) *TokenUpdateOne {
-	tuo.mutation.AddDeletedAt(i)
-	return tuo
-}
-
 // SetUser sets the "user" edge to the User entity.
 func (tuo *TokenUpdateOne) SetUser(u *User) *TokenUpdateOne {
 	return tuo.SetUserID(u.ID)
@@ -457,7 +463,9 @@ func (tuo *TokenUpdateOne) Select(field string, fields ...string) *TokenUpdateOn
 
 // Save executes the query and returns the updated Token entity.
 func (tuo *TokenUpdateOne) Save(ctx context.Context) (*Token, error) {
-	tuo.defaults()
+	if err := tuo.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, tuo.sqlSave, tuo.mutation, tuo.hooks)
 }
 
@@ -484,11 +492,15 @@ func (tuo *TokenUpdateOne) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (tuo *TokenUpdateOne) defaults() {
+func (tuo *TokenUpdateOne) defaults() error {
 	if _, ok := tuo.mutation.UpdatedAt(); !ok {
+		if token.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized token.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := token.UpdateDefaultUpdatedAt()
 		tuo.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -543,6 +555,15 @@ func (tuo *TokenUpdateOne) sqlSave(ctx context.Context) (_node *Token, err error
 			}
 		}
 	}
+	if value, ok := tuo.mutation.UpdatedAt(); ok {
+		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := tuo.mutation.DeletedAt(); ok {
+		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tuo.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(token.FieldDeletedAt, field.TypeInt64, value)
+	}
 	if value, ok := tuo.mutation.Token(); ok {
 		_spec.SetField(token.FieldToken, field.TypeString, value)
 	}
@@ -560,15 +581,6 @@ func (tuo *TokenUpdateOne) sqlSave(ctx context.Context) (_node *Token, err error
 	}
 	if tuo.mutation.LastUsedAtCleared() {
 		_spec.ClearField(token.FieldLastUsedAt, field.TypeTime)
-	}
-	if value, ok := tuo.mutation.UpdatedAt(); ok {
-		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
-	}
-	if value, ok := tuo.mutation.DeletedAt(); ok {
-		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
-	}
-	if value, ok := tuo.mutation.AddedDeletedAt(); ok {
-		_spec.AddField(token.FieldDeletedAt, field.TypeInt64, value)
 	}
 	if tuo.mutation.UserCleared() {
 		edge := &sqlgraph.EdgeSpec{

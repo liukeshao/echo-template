@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
@@ -27,6 +28,115 @@ func (tu *TodoUpdate) Where(ps ...predicate.Todo) *TodoUpdate {
 	return tu
 }
 
+// SetUpdatedAt sets the "updated_at" field.
+func (tu *TodoUpdate) SetUpdatedAt(t time.Time) *TodoUpdate {
+	tu.mutation.SetUpdatedAt(t)
+	return tu
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tu *TodoUpdate) SetDeletedAt(i int64) *TodoUpdate {
+	tu.mutation.ResetDeletedAt()
+	tu.mutation.SetDeletedAt(i)
+	return tu
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableDeletedAt(i *int64) *TodoUpdate {
+	if i != nil {
+		tu.SetDeletedAt(*i)
+	}
+	return tu
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (tu *TodoUpdate) AddDeletedAt(i int64) *TodoUpdate {
+	tu.mutation.AddDeletedAt(i)
+	return tu
+}
+
+// SetTitle sets the "title" field.
+func (tu *TodoUpdate) SetTitle(s string) *TodoUpdate {
+	tu.mutation.SetTitle(s)
+	return tu
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableTitle(s *string) *TodoUpdate {
+	if s != nil {
+		tu.SetTitle(*s)
+	}
+	return tu
+}
+
+// SetDescription sets the "description" field.
+func (tu *TodoUpdate) SetDescription(s string) *TodoUpdate {
+	tu.mutation.SetDescription(s)
+	return tu
+}
+
+// SetNillableDescription sets the "description" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableDescription(s *string) *TodoUpdate {
+	if s != nil {
+		tu.SetDescription(*s)
+	}
+	return tu
+}
+
+// ClearDescription clears the value of the "description" field.
+func (tu *TodoUpdate) ClearDescription() *TodoUpdate {
+	tu.mutation.ClearDescription()
+	return tu
+}
+
+// SetCompleted sets the "completed" field.
+func (tu *TodoUpdate) SetCompleted(b bool) *TodoUpdate {
+	tu.mutation.SetCompleted(b)
+	return tu
+}
+
+// SetNillableCompleted sets the "completed" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableCompleted(b *bool) *TodoUpdate {
+	if b != nil {
+		tu.SetCompleted(*b)
+	}
+	return tu
+}
+
+// SetPriority sets the "priority" field.
+func (tu *TodoUpdate) SetPriority(t todo.Priority) *TodoUpdate {
+	tu.mutation.SetPriority(t)
+	return tu
+}
+
+// SetNillablePriority sets the "priority" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillablePriority(t *todo.Priority) *TodoUpdate {
+	if t != nil {
+		tu.SetPriority(*t)
+	}
+	return tu
+}
+
+// SetDueDate sets the "due_date" field.
+func (tu *TodoUpdate) SetDueDate(t time.Time) *TodoUpdate {
+	tu.mutation.SetDueDate(t)
+	return tu
+}
+
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tu *TodoUpdate) SetNillableDueDate(t *time.Time) *TodoUpdate {
+	if t != nil {
+		tu.SetDueDate(*t)
+	}
+	return tu
+}
+
+// ClearDueDate clears the value of the "due_date" field.
+func (tu *TodoUpdate) ClearDueDate() *TodoUpdate {
+	tu.mutation.ClearDueDate()
+	return tu
+}
+
 // Mutation returns the TodoMutation object of the builder.
 func (tu *TodoUpdate) Mutation() *TodoMutation {
 	return tu.mutation
@@ -34,6 +144,9 @@ func (tu *TodoUpdate) Mutation() *TodoMutation {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (tu *TodoUpdate) Save(ctx context.Context) (int, error) {
+	if err := tu.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, tu.sqlSave, tu.mutation, tu.hooks)
 }
 
@@ -59,14 +172,74 @@ func (tu *TodoUpdate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (tu *TodoUpdate) defaults() error {
+	if _, ok := tu.mutation.UpdatedAt(); !ok {
+		if todo.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized todo.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
+		v := todo.UpdateDefaultUpdatedAt()
+		tu.mutation.SetUpdatedAt(v)
+	}
+	return nil
+}
+
+// check runs all checks and user-defined validators on the builder.
+func (tu *TodoUpdate) check() error {
+	if v, ok := tu.mutation.Title(); ok {
+		if err := todo.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Todo.title": %w`, err)}
+		}
+	}
+	if v, ok := tu.mutation.Priority(); ok {
+		if err := todo.PriorityValidator(v); err != nil {
+			return &ValidationError{Name: "priority", err: fmt.Errorf(`ent: validator failed for field "Todo.priority": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (tu *TodoUpdate) sqlSave(ctx context.Context) (n int, err error) {
-	_spec := sqlgraph.NewUpdateSpec(todo.Table, todo.Columns, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeInt))
+	if err := tu.check(); err != nil {
+		return n, err
+	}
+	_spec := sqlgraph.NewUpdateSpec(todo.Table, todo.Columns, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString))
 	if ps := tu.mutation.predicates; len(ps) > 0 {
 		_spec.Predicate = func(selector *sql.Selector) {
 			for i := range ps {
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := tu.mutation.UpdatedAt(); ok {
+		_spec.SetField(todo.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := tu.mutation.DeletedAt(); ok {
+		_spec.SetField(todo.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tu.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(todo.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tu.mutation.Title(); ok {
+		_spec.SetField(todo.FieldTitle, field.TypeString, value)
+	}
+	if value, ok := tu.mutation.Description(); ok {
+		_spec.SetField(todo.FieldDescription, field.TypeString, value)
+	}
+	if tu.mutation.DescriptionCleared() {
+		_spec.ClearField(todo.FieldDescription, field.TypeString)
+	}
+	if value, ok := tu.mutation.Completed(); ok {
+		_spec.SetField(todo.FieldCompleted, field.TypeBool, value)
+	}
+	if value, ok := tu.mutation.Priority(); ok {
+		_spec.SetField(todo.FieldPriority, field.TypeEnum, value)
+	}
+	if value, ok := tu.mutation.DueDate(); ok {
+		_spec.SetField(todo.FieldDueDate, field.TypeTime, value)
+	}
+	if tu.mutation.DueDateCleared() {
+		_spec.ClearField(todo.FieldDueDate, field.TypeTime)
 	}
 	if n, err = sqlgraph.UpdateNodes(ctx, tu.driver, _spec); err != nil {
 		if _, ok := err.(*sqlgraph.NotFoundError); ok {
@@ -86,6 +259,115 @@ type TodoUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *TodoMutation
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (tuo *TodoUpdateOne) SetUpdatedAt(t time.Time) *TodoUpdateOne {
+	tuo.mutation.SetUpdatedAt(t)
+	return tuo
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tuo *TodoUpdateOne) SetDeletedAt(i int64) *TodoUpdateOne {
+	tuo.mutation.ResetDeletedAt()
+	tuo.mutation.SetDeletedAt(i)
+	return tuo
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableDeletedAt(i *int64) *TodoUpdateOne {
+	if i != nil {
+		tuo.SetDeletedAt(*i)
+	}
+	return tuo
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (tuo *TodoUpdateOne) AddDeletedAt(i int64) *TodoUpdateOne {
+	tuo.mutation.AddDeletedAt(i)
+	return tuo
+}
+
+// SetTitle sets the "title" field.
+func (tuo *TodoUpdateOne) SetTitle(s string) *TodoUpdateOne {
+	tuo.mutation.SetTitle(s)
+	return tuo
+}
+
+// SetNillableTitle sets the "title" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableTitle(s *string) *TodoUpdateOne {
+	if s != nil {
+		tuo.SetTitle(*s)
+	}
+	return tuo
+}
+
+// SetDescription sets the "description" field.
+func (tuo *TodoUpdateOne) SetDescription(s string) *TodoUpdateOne {
+	tuo.mutation.SetDescription(s)
+	return tuo
+}
+
+// SetNillableDescription sets the "description" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableDescription(s *string) *TodoUpdateOne {
+	if s != nil {
+		tuo.SetDescription(*s)
+	}
+	return tuo
+}
+
+// ClearDescription clears the value of the "description" field.
+func (tuo *TodoUpdateOne) ClearDescription() *TodoUpdateOne {
+	tuo.mutation.ClearDescription()
+	return tuo
+}
+
+// SetCompleted sets the "completed" field.
+func (tuo *TodoUpdateOne) SetCompleted(b bool) *TodoUpdateOne {
+	tuo.mutation.SetCompleted(b)
+	return tuo
+}
+
+// SetNillableCompleted sets the "completed" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableCompleted(b *bool) *TodoUpdateOne {
+	if b != nil {
+		tuo.SetCompleted(*b)
+	}
+	return tuo
+}
+
+// SetPriority sets the "priority" field.
+func (tuo *TodoUpdateOne) SetPriority(t todo.Priority) *TodoUpdateOne {
+	tuo.mutation.SetPriority(t)
+	return tuo
+}
+
+// SetNillablePriority sets the "priority" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillablePriority(t *todo.Priority) *TodoUpdateOne {
+	if t != nil {
+		tuo.SetPriority(*t)
+	}
+	return tuo
+}
+
+// SetDueDate sets the "due_date" field.
+func (tuo *TodoUpdateOne) SetDueDate(t time.Time) *TodoUpdateOne {
+	tuo.mutation.SetDueDate(t)
+	return tuo
+}
+
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tuo *TodoUpdateOne) SetNillableDueDate(t *time.Time) *TodoUpdateOne {
+	if t != nil {
+		tuo.SetDueDate(*t)
+	}
+	return tuo
+}
+
+// ClearDueDate clears the value of the "due_date" field.
+func (tuo *TodoUpdateOne) ClearDueDate() *TodoUpdateOne {
+	tuo.mutation.ClearDueDate()
+	return tuo
 }
 
 // Mutation returns the TodoMutation object of the builder.
@@ -108,6 +390,9 @@ func (tuo *TodoUpdateOne) Select(field string, fields ...string) *TodoUpdateOne 
 
 // Save executes the query and returns the updated Todo entity.
 func (tuo *TodoUpdateOne) Save(ctx context.Context) (*Todo, error) {
+	if err := tuo.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, tuo.sqlSave, tuo.mutation, tuo.hooks)
 }
 
@@ -133,8 +418,38 @@ func (tuo *TodoUpdateOne) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (tuo *TodoUpdateOne) defaults() error {
+	if _, ok := tuo.mutation.UpdatedAt(); !ok {
+		if todo.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized todo.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
+		v := todo.UpdateDefaultUpdatedAt()
+		tuo.mutation.SetUpdatedAt(v)
+	}
+	return nil
+}
+
+// check runs all checks and user-defined validators on the builder.
+func (tuo *TodoUpdateOne) check() error {
+	if v, ok := tuo.mutation.Title(); ok {
+		if err := todo.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Todo.title": %w`, err)}
+		}
+	}
+	if v, ok := tuo.mutation.Priority(); ok {
+		if err := todo.PriorityValidator(v); err != nil {
+			return &ValidationError{Name: "priority", err: fmt.Errorf(`ent: validator failed for field "Todo.priority": %w`, err)}
+		}
+	}
+	return nil
+}
+
 func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) {
-	_spec := sqlgraph.NewUpdateSpec(todo.Table, todo.Columns, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeInt))
+	if err := tuo.check(); err != nil {
+		return _node, err
+	}
+	_spec := sqlgraph.NewUpdateSpec(todo.Table, todo.Columns, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString))
 	id, ok := tuo.mutation.ID()
 	if !ok {
 		return nil, &ValidationError{Name: "id", err: errors.New(`ent: missing "Todo.id" for update`)}
@@ -158,6 +473,36 @@ func (tuo *TodoUpdateOne) sqlSave(ctx context.Context) (_node *Todo, err error) 
 				ps[i](selector)
 			}
 		}
+	}
+	if value, ok := tuo.mutation.UpdatedAt(); ok {
+		_spec.SetField(todo.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := tuo.mutation.DeletedAt(); ok {
+		_spec.SetField(todo.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tuo.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(todo.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := tuo.mutation.Title(); ok {
+		_spec.SetField(todo.FieldTitle, field.TypeString, value)
+	}
+	if value, ok := tuo.mutation.Description(); ok {
+		_spec.SetField(todo.FieldDescription, field.TypeString, value)
+	}
+	if tuo.mutation.DescriptionCleared() {
+		_spec.ClearField(todo.FieldDescription, field.TypeString)
+	}
+	if value, ok := tuo.mutation.Completed(); ok {
+		_spec.SetField(todo.FieldCompleted, field.TypeBool, value)
+	}
+	if value, ok := tuo.mutation.Priority(); ok {
+		_spec.SetField(todo.FieldPriority, field.TypeEnum, value)
+	}
+	if value, ok := tuo.mutation.DueDate(); ok {
+		_spec.SetField(todo.FieldDueDate, field.TypeTime, value)
+	}
+	if tuo.mutation.DueDateCleared() {
+		_spec.ClearField(todo.FieldDueDate, field.TypeTime)
 	}
 	_node = &Todo{config: tuo.config}
 	_spec.Assign = _node.assignValues

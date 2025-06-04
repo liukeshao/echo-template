@@ -278,7 +278,7 @@ func (c *TodoClient) UpdateOne(t *Todo) *TodoUpdateOne {
 }
 
 // UpdateOneID returns an update builder for the given id.
-func (c *TodoClient) UpdateOneID(id int) *TodoUpdateOne {
+func (c *TodoClient) UpdateOneID(id string) *TodoUpdateOne {
 	mutation := newTodoMutation(c.config, OpUpdateOne, withTodoID(id))
 	return &TodoUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
@@ -295,7 +295,7 @@ func (c *TodoClient) DeleteOne(t *Todo) *TodoDeleteOne {
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *TodoClient) DeleteOneID(id int) *TodoDeleteOne {
+func (c *TodoClient) DeleteOneID(id string) *TodoDeleteOne {
 	builder := c.Delete().Where(todo.ID(id))
 	builder.mutation.id = &id
 	builder.mutation.op = OpDeleteOne
@@ -312,12 +312,12 @@ func (c *TodoClient) Query() *TodoQuery {
 }
 
 // Get returns a Todo entity by its id.
-func (c *TodoClient) Get(ctx context.Context, id int) (*Todo, error) {
+func (c *TodoClient) Get(ctx context.Context, id string) (*Todo, error) {
 	return c.Query().Where(todo.ID(id)).Only(ctx)
 }
 
 // GetX is like Get, but panics if an error occurs.
-func (c *TodoClient) GetX(ctx context.Context, id int) *Todo {
+func (c *TodoClient) GetX(ctx context.Context, id string) *Todo {
 	obj, err := c.Get(ctx, id)
 	if err != nil {
 		panic(err)
@@ -327,12 +327,14 @@ func (c *TodoClient) GetX(ctx context.Context, id int) *Todo {
 
 // Hooks returns the client hooks.
 func (c *TodoClient) Hooks() []Hook {
-	return c.hooks.Todo
+	hooks := c.hooks.Todo
+	return append(hooks[:len(hooks):len(hooks)], todo.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
 func (c *TodoClient) Interceptors() []Interceptor {
-	return c.inters.Todo
+	inters := c.inters.Todo
+	return append(inters[:len(inters):len(inters)], todo.Interceptors[:]...)
 }
 
 func (c *TodoClient) mutate(ctx context.Context, m *TodoMutation) (Value, error) {
@@ -476,12 +478,14 @@ func (c *TokenClient) QueryUser(t *Token) *UserQuery {
 
 // Hooks returns the client hooks.
 func (c *TokenClient) Hooks() []Hook {
-	return c.hooks.Token
+	hooks := c.hooks.Token
+	return append(hooks[:len(hooks):len(hooks)], token.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
 func (c *TokenClient) Interceptors() []Interceptor {
-	return c.inters.Token
+	inters := c.inters.Token
+	return append(inters[:len(inters):len(inters)], token.Interceptors[:]...)
 }
 
 func (c *TokenClient) mutate(ctx context.Context, m *TokenMutation) (Value, error) {
@@ -625,12 +629,14 @@ func (c *UserClient) QueryTokens(u *User) *TokenQuery {
 
 // Hooks returns the client hooks.
 func (c *UserClient) Hooks() []Hook {
-	return c.hooks.User
+	hooks := c.hooks.User
+	return append(hooks[:len(hooks):len(hooks)], user.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
 func (c *UserClient) Interceptors() []Interceptor {
-	return c.inters.User
+	inters := c.inters.User
+	return append(inters[:len(inters):len(inters)], user.Interceptors[:]...)
 }
 
 func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error) {

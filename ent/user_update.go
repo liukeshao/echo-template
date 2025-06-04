@@ -29,6 +29,33 @@ func (uu *UserUpdate) Where(ps ...predicate.User) *UserUpdate {
 	return uu
 }
 
+// SetUpdatedAt sets the "updated_at" field.
+func (uu *UserUpdate) SetUpdatedAt(t time.Time) *UserUpdate {
+	uu.mutation.SetUpdatedAt(t)
+	return uu
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (uu *UserUpdate) SetDeletedAt(i int64) *UserUpdate {
+	uu.mutation.ResetDeletedAt()
+	uu.mutation.SetDeletedAt(i)
+	return uu
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableDeletedAt(i *int64) *UserUpdate {
+	if i != nil {
+		uu.SetDeletedAt(*i)
+	}
+	return uu
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (uu *UserUpdate) AddDeletedAt(i int64) *UserUpdate {
+	uu.mutation.AddDeletedAt(i)
+	return uu
+}
+
 // SetUsername sets the "username" field.
 func (uu *UserUpdate) SetUsername(s string) *UserUpdate {
 	uu.mutation.SetUsername(s)
@@ -105,33 +132,6 @@ func (uu *UserUpdate) ClearLastLoginAt() *UserUpdate {
 	return uu
 }
 
-// SetUpdatedAt sets the "updated_at" field.
-func (uu *UserUpdate) SetUpdatedAt(t time.Time) *UserUpdate {
-	uu.mutation.SetUpdatedAt(t)
-	return uu
-}
-
-// SetDeletedAt sets the "deleted_at" field.
-func (uu *UserUpdate) SetDeletedAt(i int64) *UserUpdate {
-	uu.mutation.ResetDeletedAt()
-	uu.mutation.SetDeletedAt(i)
-	return uu
-}
-
-// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
-func (uu *UserUpdate) SetNillableDeletedAt(i *int64) *UserUpdate {
-	if i != nil {
-		uu.SetDeletedAt(*i)
-	}
-	return uu
-}
-
-// AddDeletedAt adds i to the "deleted_at" field.
-func (uu *UserUpdate) AddDeletedAt(i int64) *UserUpdate {
-	uu.mutation.AddDeletedAt(i)
-	return uu
-}
-
 // AddTokenIDs adds the "tokens" edge to the Token entity by IDs.
 func (uu *UserUpdate) AddTokenIDs(ids ...string) *UserUpdate {
 	uu.mutation.AddTokenIDs(ids...)
@@ -175,7 +175,9 @@ func (uu *UserUpdate) RemoveTokens(t ...*Token) *UserUpdate {
 
 // Save executes the query and returns the number of nodes affected by the update operation.
 func (uu *UserUpdate) Save(ctx context.Context) (int, error) {
-	uu.defaults()
+	if err := uu.defaults(); err != nil {
+		return 0, err
+	}
 	return withHooks(ctx, uu.sqlSave, uu.mutation, uu.hooks)
 }
 
@@ -202,11 +204,15 @@ func (uu *UserUpdate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (uu *UserUpdate) defaults() {
+func (uu *UserUpdate) defaults() error {
 	if _, ok := uu.mutation.UpdatedAt(); !ok {
+		if user.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.UpdateDefaultUpdatedAt()
 		uu.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -246,6 +252,15 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			}
 		}
 	}
+	if value, ok := uu.mutation.UpdatedAt(); ok {
+		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := uu.mutation.DeletedAt(); ok {
+		_spec.SetField(user.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := uu.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(user.FieldDeletedAt, field.TypeInt64, value)
+	}
 	if value, ok := uu.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 	}
@@ -263,15 +278,6 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	}
 	if uu.mutation.LastLoginAtCleared() {
 		_spec.ClearField(user.FieldLastLoginAt, field.TypeTime)
-	}
-	if value, ok := uu.mutation.UpdatedAt(); ok {
-		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
-	}
-	if value, ok := uu.mutation.DeletedAt(); ok {
-		_spec.SetField(user.FieldDeletedAt, field.TypeInt64, value)
-	}
-	if value, ok := uu.mutation.AddedDeletedAt(); ok {
-		_spec.AddField(user.FieldDeletedAt, field.TypeInt64, value)
 	}
 	if uu.mutation.TokensCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -336,6 +342,33 @@ type UserUpdateOne struct {
 	fields   []string
 	hooks    []Hook
 	mutation *UserMutation
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (uuo *UserUpdateOne) SetUpdatedAt(t time.Time) *UserUpdateOne {
+	uuo.mutation.SetUpdatedAt(t)
+	return uuo
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (uuo *UserUpdateOne) SetDeletedAt(i int64) *UserUpdateOne {
+	uuo.mutation.ResetDeletedAt()
+	uuo.mutation.SetDeletedAt(i)
+	return uuo
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableDeletedAt(i *int64) *UserUpdateOne {
+	if i != nil {
+		uuo.SetDeletedAt(*i)
+	}
+	return uuo
+}
+
+// AddDeletedAt adds i to the "deleted_at" field.
+func (uuo *UserUpdateOne) AddDeletedAt(i int64) *UserUpdateOne {
+	uuo.mutation.AddDeletedAt(i)
+	return uuo
 }
 
 // SetUsername sets the "username" field.
@@ -414,33 +447,6 @@ func (uuo *UserUpdateOne) ClearLastLoginAt() *UserUpdateOne {
 	return uuo
 }
 
-// SetUpdatedAt sets the "updated_at" field.
-func (uuo *UserUpdateOne) SetUpdatedAt(t time.Time) *UserUpdateOne {
-	uuo.mutation.SetUpdatedAt(t)
-	return uuo
-}
-
-// SetDeletedAt sets the "deleted_at" field.
-func (uuo *UserUpdateOne) SetDeletedAt(i int64) *UserUpdateOne {
-	uuo.mutation.ResetDeletedAt()
-	uuo.mutation.SetDeletedAt(i)
-	return uuo
-}
-
-// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
-func (uuo *UserUpdateOne) SetNillableDeletedAt(i *int64) *UserUpdateOne {
-	if i != nil {
-		uuo.SetDeletedAt(*i)
-	}
-	return uuo
-}
-
-// AddDeletedAt adds i to the "deleted_at" field.
-func (uuo *UserUpdateOne) AddDeletedAt(i int64) *UserUpdateOne {
-	uuo.mutation.AddDeletedAt(i)
-	return uuo
-}
-
 // AddTokenIDs adds the "tokens" edge to the Token entity by IDs.
 func (uuo *UserUpdateOne) AddTokenIDs(ids ...string) *UserUpdateOne {
 	uuo.mutation.AddTokenIDs(ids...)
@@ -497,7 +503,9 @@ func (uuo *UserUpdateOne) Select(field string, fields ...string) *UserUpdateOne 
 
 // Save executes the query and returns the updated User entity.
 func (uuo *UserUpdateOne) Save(ctx context.Context) (*User, error) {
-	uuo.defaults()
+	if err := uuo.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, uuo.sqlSave, uuo.mutation, uuo.hooks)
 }
 
@@ -524,11 +532,15 @@ func (uuo *UserUpdateOne) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (uuo *UserUpdateOne) defaults() {
+func (uuo *UserUpdateOne) defaults() error {
 	if _, ok := uuo.mutation.UpdatedAt(); !ok {
+		if user.UpdateDefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized user.UpdateDefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := user.UpdateDefaultUpdatedAt()
 		uuo.mutation.SetUpdatedAt(v)
 	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
@@ -585,6 +597,15 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 			}
 		}
 	}
+	if value, ok := uuo.mutation.UpdatedAt(); ok {
+		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
+	}
+	if value, ok := uuo.mutation.DeletedAt(); ok {
+		_spec.SetField(user.FieldDeletedAt, field.TypeInt64, value)
+	}
+	if value, ok := uuo.mutation.AddedDeletedAt(); ok {
+		_spec.AddField(user.FieldDeletedAt, field.TypeInt64, value)
+	}
 	if value, ok := uuo.mutation.Username(); ok {
 		_spec.SetField(user.FieldUsername, field.TypeString, value)
 	}
@@ -602,15 +623,6 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 	}
 	if uuo.mutation.LastLoginAtCleared() {
 		_spec.ClearField(user.FieldLastLoginAt, field.TypeTime)
-	}
-	if value, ok := uuo.mutation.UpdatedAt(); ok {
-		_spec.SetField(user.FieldUpdatedAt, field.TypeTime, value)
-	}
-	if value, ok := uuo.mutation.DeletedAt(); ok {
-		_spec.SetField(user.FieldDeletedAt, field.TypeInt64, value)
-	}
-	if value, ok := uuo.mutation.AddedDeletedAt(); ok {
-		_spec.AddField(user.FieldDeletedAt, field.TypeInt64, value)
 	}
 	if uuo.mutation.TokensCleared() {
 		edge := &sqlgraph.EdgeSpec{

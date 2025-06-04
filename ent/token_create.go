@@ -21,6 +21,48 @@ type TokenCreate struct {
 	hooks    []Hook
 }
 
+// SetCreatedAt sets the "created_at" field.
+func (tc *TokenCreate) SetCreatedAt(t time.Time) *TokenCreate {
+	tc.mutation.SetCreatedAt(t)
+	return tc
+}
+
+// SetNillableCreatedAt sets the "created_at" field if the given value is not nil.
+func (tc *TokenCreate) SetNillableCreatedAt(t *time.Time) *TokenCreate {
+	if t != nil {
+		tc.SetCreatedAt(*t)
+	}
+	return tc
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (tc *TokenCreate) SetUpdatedAt(t time.Time) *TokenCreate {
+	tc.mutation.SetUpdatedAt(t)
+	return tc
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (tc *TokenCreate) SetNillableUpdatedAt(t *time.Time) *TokenCreate {
+	if t != nil {
+		tc.SetUpdatedAt(*t)
+	}
+	return tc
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tc *TokenCreate) SetDeletedAt(i int64) *TokenCreate {
+	tc.mutation.SetDeletedAt(i)
+	return tc
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tc *TokenCreate) SetNillableDeletedAt(i *int64) *TokenCreate {
+	if i != nil {
+		tc.SetDeletedAt(*i)
+	}
+	return tc
+}
+
 // SetUserID sets the "user_id" field.
 func (tc *TokenCreate) SetUserID(s string) *TokenCreate {
 	tc.mutation.SetUserID(s)
@@ -73,48 +115,6 @@ func (tc *TokenCreate) SetNillableLastUsedAt(t *time.Time) *TokenCreate {
 	return tc
 }
 
-// SetCreatedAt sets the "created_at" field.
-func (tc *TokenCreate) SetCreatedAt(t time.Time) *TokenCreate {
-	tc.mutation.SetCreatedAt(t)
-	return tc
-}
-
-// SetNillableCreatedAt sets the "created_at" field if the given value is not nil.
-func (tc *TokenCreate) SetNillableCreatedAt(t *time.Time) *TokenCreate {
-	if t != nil {
-		tc.SetCreatedAt(*t)
-	}
-	return tc
-}
-
-// SetUpdatedAt sets the "updated_at" field.
-func (tc *TokenCreate) SetUpdatedAt(t time.Time) *TokenCreate {
-	tc.mutation.SetUpdatedAt(t)
-	return tc
-}
-
-// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
-func (tc *TokenCreate) SetNillableUpdatedAt(t *time.Time) *TokenCreate {
-	if t != nil {
-		tc.SetUpdatedAt(*t)
-	}
-	return tc
-}
-
-// SetDeletedAt sets the "deleted_at" field.
-func (tc *TokenCreate) SetDeletedAt(i int64) *TokenCreate {
-	tc.mutation.SetDeletedAt(i)
-	return tc
-}
-
-// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
-func (tc *TokenCreate) SetNillableDeletedAt(i *int64) *TokenCreate {
-	if i != nil {
-		tc.SetDeletedAt(*i)
-	}
-	return tc
-}
-
 // SetID sets the "id" field.
 func (tc *TokenCreate) SetID(s string) *TokenCreate {
 	tc.mutation.SetID(s)
@@ -133,7 +133,9 @@ func (tc *TokenCreate) Mutation() *TokenMutation {
 
 // Save creates the Token in the database.
 func (tc *TokenCreate) Save(ctx context.Context) (*Token, error) {
-	tc.defaults()
+	if err := tc.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, tc.sqlSave, tc.mutation, tc.hooks)
 }
 
@@ -160,16 +162,18 @@ func (tc *TokenCreate) ExecX(ctx context.Context) {
 }
 
 // defaults sets the default values of the builder before save.
-func (tc *TokenCreate) defaults() {
-	if _, ok := tc.mutation.IsRevoked(); !ok {
-		v := token.DefaultIsRevoked
-		tc.mutation.SetIsRevoked(v)
-	}
+func (tc *TokenCreate) defaults() error {
 	if _, ok := tc.mutation.CreatedAt(); !ok {
+		if token.DefaultCreatedAt == nil {
+			return fmt.Errorf("ent: uninitialized token.DefaultCreatedAt (forgotten import ent/runtime?)")
+		}
 		v := token.DefaultCreatedAt()
 		tc.mutation.SetCreatedAt(v)
 	}
 	if _, ok := tc.mutation.UpdatedAt(); !ok {
+		if token.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized token.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
 		v := token.DefaultUpdatedAt()
 		tc.mutation.SetUpdatedAt(v)
 	}
@@ -177,10 +181,24 @@ func (tc *TokenCreate) defaults() {
 		v := token.DefaultDeletedAt
 		tc.mutation.SetDeletedAt(v)
 	}
+	if _, ok := tc.mutation.IsRevoked(); !ok {
+		v := token.DefaultIsRevoked
+		tc.mutation.SetIsRevoked(v)
+	}
+	return nil
 }
 
 // check runs all checks and user-defined validators on the builder.
 func (tc *TokenCreate) check() error {
+	if _, ok := tc.mutation.CreatedAt(); !ok {
+		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Token.created_at"`)}
+	}
+	if _, ok := tc.mutation.UpdatedAt(); !ok {
+		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Token.updated_at"`)}
+	}
+	if _, ok := tc.mutation.DeletedAt(); !ok {
+		return &ValidationError{Name: "deleted_at", err: errors.New(`ent: missing required field "Token.deleted_at"`)}
+	}
 	if _, ok := tc.mutation.UserID(); !ok {
 		return &ValidationError{Name: "user_id", err: errors.New(`ent: missing required field "Token.user_id"`)}
 	}
@@ -210,15 +228,6 @@ func (tc *TokenCreate) check() error {
 	}
 	if _, ok := tc.mutation.IsRevoked(); !ok {
 		return &ValidationError{Name: "is_revoked", err: errors.New(`ent: missing required field "Token.is_revoked"`)}
-	}
-	if _, ok := tc.mutation.CreatedAt(); !ok {
-		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Token.created_at"`)}
-	}
-	if _, ok := tc.mutation.UpdatedAt(); !ok {
-		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Token.updated_at"`)}
-	}
-	if _, ok := tc.mutation.DeletedAt(); !ok {
-		return &ValidationError{Name: "deleted_at", err: errors.New(`ent: missing required field "Token.deleted_at"`)}
 	}
 	if v, ok := tc.mutation.ID(); ok {
 		if err := token.IDValidator(v); err != nil {
@@ -263,6 +272,18 @@ func (tc *TokenCreate) createSpec() (*Token, *sqlgraph.CreateSpec) {
 		_node.ID = id
 		_spec.ID.Value = id
 	}
+	if value, ok := tc.mutation.CreatedAt(); ok {
+		_spec.SetField(token.FieldCreatedAt, field.TypeTime, value)
+		_node.CreatedAt = value
+	}
+	if value, ok := tc.mutation.UpdatedAt(); ok {
+		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
+		_node.UpdatedAt = value
+	}
+	if value, ok := tc.mutation.DeletedAt(); ok {
+		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
+		_node.DeletedAt = value
+	}
 	if value, ok := tc.mutation.Token(); ok {
 		_spec.SetField(token.FieldToken, field.TypeString, value)
 		_node.Token = value
@@ -282,18 +303,6 @@ func (tc *TokenCreate) createSpec() (*Token, *sqlgraph.CreateSpec) {
 	if value, ok := tc.mutation.LastUsedAt(); ok {
 		_spec.SetField(token.FieldLastUsedAt, field.TypeTime, value)
 		_node.LastUsedAt = &value
-	}
-	if value, ok := tc.mutation.CreatedAt(); ok {
-		_spec.SetField(token.FieldCreatedAt, field.TypeTime, value)
-		_node.CreatedAt = value
-	}
-	if value, ok := tc.mutation.UpdatedAt(); ok {
-		_spec.SetField(token.FieldUpdatedAt, field.TypeTime, value)
-		_node.UpdatedAt = value
-	}
-	if value, ok := tc.mutation.DeletedAt(); ok {
-		_spec.SetField(token.FieldDeletedAt, field.TypeInt64, value)
-		_node.DeletedAt = value
 	}
 	if nodes := tc.mutation.UserIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

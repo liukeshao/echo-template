@@ -4,7 +4,9 @@ package ent
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"time"
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
@@ -18,6 +20,116 @@ type TodoCreate struct {
 	hooks    []Hook
 }
 
+// SetCreatedAt sets the "created_at" field.
+func (tc *TodoCreate) SetCreatedAt(t time.Time) *TodoCreate {
+	tc.mutation.SetCreatedAt(t)
+	return tc
+}
+
+// SetNillableCreatedAt sets the "created_at" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableCreatedAt(t *time.Time) *TodoCreate {
+	if t != nil {
+		tc.SetCreatedAt(*t)
+	}
+	return tc
+}
+
+// SetUpdatedAt sets the "updated_at" field.
+func (tc *TodoCreate) SetUpdatedAt(t time.Time) *TodoCreate {
+	tc.mutation.SetUpdatedAt(t)
+	return tc
+}
+
+// SetNillableUpdatedAt sets the "updated_at" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableUpdatedAt(t *time.Time) *TodoCreate {
+	if t != nil {
+		tc.SetUpdatedAt(*t)
+	}
+	return tc
+}
+
+// SetDeletedAt sets the "deleted_at" field.
+func (tc *TodoCreate) SetDeletedAt(i int64) *TodoCreate {
+	tc.mutation.SetDeletedAt(i)
+	return tc
+}
+
+// SetNillableDeletedAt sets the "deleted_at" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableDeletedAt(i *int64) *TodoCreate {
+	if i != nil {
+		tc.SetDeletedAt(*i)
+	}
+	return tc
+}
+
+// SetTitle sets the "title" field.
+func (tc *TodoCreate) SetTitle(s string) *TodoCreate {
+	tc.mutation.SetTitle(s)
+	return tc
+}
+
+// SetDescription sets the "description" field.
+func (tc *TodoCreate) SetDescription(s string) *TodoCreate {
+	tc.mutation.SetDescription(s)
+	return tc
+}
+
+// SetNillableDescription sets the "description" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableDescription(s *string) *TodoCreate {
+	if s != nil {
+		tc.SetDescription(*s)
+	}
+	return tc
+}
+
+// SetCompleted sets the "completed" field.
+func (tc *TodoCreate) SetCompleted(b bool) *TodoCreate {
+	tc.mutation.SetCompleted(b)
+	return tc
+}
+
+// SetNillableCompleted sets the "completed" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableCompleted(b *bool) *TodoCreate {
+	if b != nil {
+		tc.SetCompleted(*b)
+	}
+	return tc
+}
+
+// SetPriority sets the "priority" field.
+func (tc *TodoCreate) SetPriority(t todo.Priority) *TodoCreate {
+	tc.mutation.SetPriority(t)
+	return tc
+}
+
+// SetNillablePriority sets the "priority" field if the given value is not nil.
+func (tc *TodoCreate) SetNillablePriority(t *todo.Priority) *TodoCreate {
+	if t != nil {
+		tc.SetPriority(*t)
+	}
+	return tc
+}
+
+// SetDueDate sets the "due_date" field.
+func (tc *TodoCreate) SetDueDate(t time.Time) *TodoCreate {
+	tc.mutation.SetDueDate(t)
+	return tc
+}
+
+// SetNillableDueDate sets the "due_date" field if the given value is not nil.
+func (tc *TodoCreate) SetNillableDueDate(t *time.Time) *TodoCreate {
+	if t != nil {
+		tc.SetDueDate(*t)
+	}
+	return tc
+}
+
+// SetID sets the "id" field.
+func (tc *TodoCreate) SetID(s string) *TodoCreate {
+	tc.mutation.SetID(s)
+	return tc
+}
+
 // Mutation returns the TodoMutation object of the builder.
 func (tc *TodoCreate) Mutation() *TodoMutation {
 	return tc.mutation
@@ -25,6 +137,9 @@ func (tc *TodoCreate) Mutation() *TodoMutation {
 
 // Save creates the Todo in the database.
 func (tc *TodoCreate) Save(ctx context.Context) (*Todo, error) {
+	if err := tc.defaults(); err != nil {
+		return nil, err
+	}
 	return withHooks(ctx, tc.sqlSave, tc.mutation, tc.hooks)
 }
 
@@ -50,8 +165,72 @@ func (tc *TodoCreate) ExecX(ctx context.Context) {
 	}
 }
 
+// defaults sets the default values of the builder before save.
+func (tc *TodoCreate) defaults() error {
+	if _, ok := tc.mutation.CreatedAt(); !ok {
+		if todo.DefaultCreatedAt == nil {
+			return fmt.Errorf("ent: uninitialized todo.DefaultCreatedAt (forgotten import ent/runtime?)")
+		}
+		v := todo.DefaultCreatedAt()
+		tc.mutation.SetCreatedAt(v)
+	}
+	if _, ok := tc.mutation.UpdatedAt(); !ok {
+		if todo.DefaultUpdatedAt == nil {
+			return fmt.Errorf("ent: uninitialized todo.DefaultUpdatedAt (forgotten import ent/runtime?)")
+		}
+		v := todo.DefaultUpdatedAt()
+		tc.mutation.SetUpdatedAt(v)
+	}
+	if _, ok := tc.mutation.DeletedAt(); !ok {
+		v := todo.DefaultDeletedAt
+		tc.mutation.SetDeletedAt(v)
+	}
+	if _, ok := tc.mutation.Completed(); !ok {
+		v := todo.DefaultCompleted
+		tc.mutation.SetCompleted(v)
+	}
+	if _, ok := tc.mutation.Priority(); !ok {
+		v := todo.DefaultPriority
+		tc.mutation.SetPriority(v)
+	}
+	return nil
+}
+
 // check runs all checks and user-defined validators on the builder.
 func (tc *TodoCreate) check() error {
+	if _, ok := tc.mutation.CreatedAt(); !ok {
+		return &ValidationError{Name: "created_at", err: errors.New(`ent: missing required field "Todo.created_at"`)}
+	}
+	if _, ok := tc.mutation.UpdatedAt(); !ok {
+		return &ValidationError{Name: "updated_at", err: errors.New(`ent: missing required field "Todo.updated_at"`)}
+	}
+	if _, ok := tc.mutation.DeletedAt(); !ok {
+		return &ValidationError{Name: "deleted_at", err: errors.New(`ent: missing required field "Todo.deleted_at"`)}
+	}
+	if _, ok := tc.mutation.Title(); !ok {
+		return &ValidationError{Name: "title", err: errors.New(`ent: missing required field "Todo.title"`)}
+	}
+	if v, ok := tc.mutation.Title(); ok {
+		if err := todo.TitleValidator(v); err != nil {
+			return &ValidationError{Name: "title", err: fmt.Errorf(`ent: validator failed for field "Todo.title": %w`, err)}
+		}
+	}
+	if _, ok := tc.mutation.Completed(); !ok {
+		return &ValidationError{Name: "completed", err: errors.New(`ent: missing required field "Todo.completed"`)}
+	}
+	if _, ok := tc.mutation.Priority(); !ok {
+		return &ValidationError{Name: "priority", err: errors.New(`ent: missing required field "Todo.priority"`)}
+	}
+	if v, ok := tc.mutation.Priority(); ok {
+		if err := todo.PriorityValidator(v); err != nil {
+			return &ValidationError{Name: "priority", err: fmt.Errorf(`ent: validator failed for field "Todo.priority": %w`, err)}
+		}
+	}
+	if v, ok := tc.mutation.ID(); ok {
+		if err := todo.IDValidator(v); err != nil {
+			return &ValidationError{Name: "id", err: fmt.Errorf(`ent: validator failed for field "Todo.id": %w`, err)}
+		}
+	}
 	return nil
 }
 
@@ -66,8 +245,13 @@ func (tc *TodoCreate) sqlSave(ctx context.Context) (*Todo, error) {
 		}
 		return nil, err
 	}
-	id := _spec.ID.Value.(int64)
-	_node.ID = int(id)
+	if _spec.ID.Value != nil {
+		if id, ok := _spec.ID.Value.(string); ok {
+			_node.ID = id
+		} else {
+			return nil, fmt.Errorf("unexpected Todo.ID type: %T", _spec.ID.Value)
+		}
+	}
 	tc.mutation.id = &_node.ID
 	tc.mutation.done = true
 	return _node, nil
@@ -76,8 +260,44 @@ func (tc *TodoCreate) sqlSave(ctx context.Context) (*Todo, error) {
 func (tc *TodoCreate) createSpec() (*Todo, *sqlgraph.CreateSpec) {
 	var (
 		_node = &Todo{config: tc.config}
-		_spec = sqlgraph.NewCreateSpec(todo.Table, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeInt))
+		_spec = sqlgraph.NewCreateSpec(todo.Table, sqlgraph.NewFieldSpec(todo.FieldID, field.TypeString))
 	)
+	if id, ok := tc.mutation.ID(); ok {
+		_node.ID = id
+		_spec.ID.Value = id
+	}
+	if value, ok := tc.mutation.CreatedAt(); ok {
+		_spec.SetField(todo.FieldCreatedAt, field.TypeTime, value)
+		_node.CreatedAt = value
+	}
+	if value, ok := tc.mutation.UpdatedAt(); ok {
+		_spec.SetField(todo.FieldUpdatedAt, field.TypeTime, value)
+		_node.UpdatedAt = value
+	}
+	if value, ok := tc.mutation.DeletedAt(); ok {
+		_spec.SetField(todo.FieldDeletedAt, field.TypeInt64, value)
+		_node.DeletedAt = value
+	}
+	if value, ok := tc.mutation.Title(); ok {
+		_spec.SetField(todo.FieldTitle, field.TypeString, value)
+		_node.Title = value
+	}
+	if value, ok := tc.mutation.Description(); ok {
+		_spec.SetField(todo.FieldDescription, field.TypeString, value)
+		_node.Description = value
+	}
+	if value, ok := tc.mutation.Completed(); ok {
+		_spec.SetField(todo.FieldCompleted, field.TypeBool, value)
+		_node.Completed = value
+	}
+	if value, ok := tc.mutation.Priority(); ok {
+		_spec.SetField(todo.FieldPriority, field.TypeEnum, value)
+		_node.Priority = value
+	}
+	if value, ok := tc.mutation.DueDate(); ok {
+		_spec.SetField(todo.FieldDueDate, field.TypeTime, value)
+		_node.DueDate = &value
+	}
 	return _node, _spec
 }
 
@@ -99,6 +319,7 @@ func (tcb *TodoCreateBulk) Save(ctx context.Context) ([]*Todo, error) {
 	for i := range tcb.builders {
 		func(i int, root context.Context) {
 			builder := tcb.builders[i]
+			builder.defaults()
 			var mut Mutator = MutateFunc(func(ctx context.Context, m Mutation) (Value, error) {
 				mutation, ok := m.(*TodoMutation)
 				if !ok {
@@ -125,10 +346,6 @@ func (tcb *TodoCreateBulk) Save(ctx context.Context) ([]*Todo, error) {
 					return nil, err
 				}
 				mutation.id = &nodes[i].ID
-				if specs[i].ID.Value != nil {
-					id := specs[i].ID.Value.(int64)
-					nodes[i].ID = int(id)
-				}
 				mutation.done = true
 				return nodes[i], nil
 			})

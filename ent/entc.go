@@ -12,7 +12,11 @@ import (
 
 func main() {
 	err := entc.Generate("./schema",
-		&gen.Config{},
+		&gen.Config{
+			Features: []gen.Feature{
+				gen.FeatureIntercept,
+			},
+		},
 	)
 	if err != nil {
 		log.Fatal("running ent codegen:", err)

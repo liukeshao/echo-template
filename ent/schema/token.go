@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"entgo.io/ent"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
@@ -14,18 +12,16 @@ type Token struct {
 	ent.Schema
 }
 
+// Mixin 返回Token实体使用的mixin
+func (Token) Mixin() []ent.Mixin {
+	return []ent.Mixin{
+		DefaultMixin{},
+	}
+}
+
 // Fields of the Token.
 func (Token) Fields() []ent.Field {
 	return []ent.Field{
-		// 主键：使用ULID
-		field.String("id").
-			MaxLen(26).
-			MinLen(26).
-			NotEmpty().
-			Unique().
-			Immutable().
-			Comment("Token唯一标识符，ULID格式"),
-
 		// 关联用户ID
 		field.String("user_id").
 			MaxLen(26).
@@ -58,23 +54,6 @@ func (Token) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("最后使用时间"),
-
-		// 创建时间
-		field.Time("created_at").
-			Default(time.Now).
-			Immutable().
-			Comment("创建时间"),
-
-		// 更新时间
-		field.Time("updated_at").
-			Default(time.Now).
-			UpdateDefault(time.Now).
-			Comment("更新时间"),
-
-		// 逻辑删除时间戳
-		field.Int64("deleted_at").
-			Default(0).
-			Comment("逻辑删除时间戳，0表示未删除"),
 	}
 }
 
@@ -107,10 +86,8 @@ func (Token) Indexes() []ent.Index {
 		index.Fields("expires_at"),
 
 		// 查询优化索引
-		index.Fields("deleted_at"),
 		index.Fields("is_revoked"),
 		index.Fields("type"),
-		index.Fields("created_at"),
 
 		// 复合索引（用户ID + 删除状态）
 		index.Fields("user_id", "deleted_at"),

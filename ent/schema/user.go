@@ -1,8 +1,6 @@
 package schema
 
 import (
-	"time"
-
 	"entgo.io/ent"
 	"entgo.io/ent/schema/edge"
 	"entgo.io/ent/schema/field"
@@ -14,18 +12,16 @@ type User struct {
 	ent.Schema
 }
 
+// Mixin 返回User实体使用的mixin
+func (User) Mixin() []ent.Mixin {
+	return []ent.Mixin{
+		DefaultMixin{},
+	}
+}
+
 // Fields of the User.
 func (User) Fields() []ent.Field {
 	return []ent.Field{
-		// 主键：使用ULID
-		field.String("id").
-			MaxLen(26).
-			MinLen(26).
-			NotEmpty().
-			Unique().
-			Immutable().
-			Comment("用户唯一标识符，ULID格式"),
-
 		// 用户名
 		field.String("username").
 			MaxLen(50).
@@ -56,23 +52,6 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Nillable().
 			Comment("最后登录时间"),
-
-		// 创建时间
-		field.Time("created_at").
-			Default(time.Now).
-			Immutable().
-			Comment("创建时间"),
-
-		// 更新时间
-		field.Time("updated_at").
-			Default(time.Now).
-			UpdateDefault(time.Now).
-			Comment("更新时间"),
-
-		// 逻辑删除时间戳
-		field.Int64("deleted_at").
-			Default(0).
-			Comment("逻辑删除时间戳，0表示未删除"),
 	}
 }
 
@@ -96,9 +75,7 @@ func (User) Indexes() []ent.Index {
 			Unique(),
 
 		// 查询优化索引
-		index.Fields("deleted_at"),
 		index.Fields("status"),
-		index.Fields("created_at"),
 		index.Fields("email"),
 		index.Fields("username"),
 	}

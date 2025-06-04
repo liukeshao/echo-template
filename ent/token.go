@@ -17,8 +17,14 @@ import (
 type Token struct {
 	config `json:"-"`
 	// ID of the ent.
-	// Token唯一标识符，ULID格式
+	// 唯一标识符，ULID格式
 	ID string `json:"id,omitempty"`
+	// 创建时间
+	CreatedAt time.Time `json:"created_at,omitempty"`
+	// 更新时间
+	UpdatedAt time.Time `json:"updated_at,omitempty"`
+	// 逻辑删除时间戳（毫秒），0表示未删除
+	DeletedAt int64 `json:"deleted_at,omitempty"`
 	// 关联的用户ID
 	UserID string `json:"user_id,omitempty"`
 	// JWT token值
@@ -31,12 +37,6 @@ type Token struct {
 	IsRevoked bool `json:"is_revoked,omitempty"`
 	// 最后使用时间
 	LastUsedAt *time.Time `json:"last_used_at,omitempty"`
-	// 创建时间
-	CreatedAt time.Time `json:"created_at,omitempty"`
-	// 更新时间
-	UpdatedAt time.Time `json:"updated_at,omitempty"`
-	// 逻辑删除时间戳，0表示未删除
-	DeletedAt int64 `json:"deleted_at,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the TokenQuery when eager-loading is set.
 	Edges        TokenEdges `json:"edges"`
@@ -74,7 +74,7 @@ func (*Token) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullInt64)
 		case token.FieldID, token.FieldUserID, token.FieldToken, token.FieldType:
 			values[i] = new(sql.NullString)
-		case token.FieldExpiresAt, token.FieldLastUsedAt, token.FieldCreatedAt, token.FieldUpdatedAt:
+		case token.FieldCreatedAt, token.FieldUpdatedAt, token.FieldExpiresAt, token.FieldLastUsedAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -96,6 +96,24 @@ func (t *Token) assignValues(columns []string, values []any) error {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				t.ID = value.String
+			}
+		case token.FieldCreatedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field created_at", values[i])
+			} else if value.Valid {
+				t.CreatedAt = value.Time
+			}
+		case token.FieldUpdatedAt:
+			if value, ok := values[i].(*sql.NullTime); !ok {
+				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
+			} else if value.Valid {
+				t.UpdatedAt = value.Time
+			}
+		case token.FieldDeletedAt:
+			if value, ok := values[i].(*sql.NullInt64); !ok {
+				return fmt.Errorf("unexpected type %T for field deleted_at", values[i])
+			} else if value.Valid {
+				t.DeletedAt = value.Int64
 			}
 		case token.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
@@ -133,24 +151,6 @@ func (t *Token) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				t.LastUsedAt = new(time.Time)
 				*t.LastUsedAt = value.Time
-			}
-		case token.FieldCreatedAt:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field created_at", values[i])
-			} else if value.Valid {
-				t.CreatedAt = value.Time
-			}
-		case token.FieldUpdatedAt:
-			if value, ok := values[i].(*sql.NullTime); !ok {
-				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
-			} else if value.Valid {
-				t.UpdatedAt = value.Time
-			}
-		case token.FieldDeletedAt:
-			if value, ok := values[i].(*sql.NullInt64); !ok {
-				return fmt.Errorf("unexpected type %T for field deleted_at", values[i])
-			} else if value.Valid {
-				t.DeletedAt = value.Int64
 			}
 		default:
 			t.selectValues.Set(columns[i], values[i])
@@ -193,6 +193,15 @@ func (t *Token) String() string {
 	var builder strings.Builder
 	builder.WriteString("Token(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", t.ID))
+	builder.WriteString("created_at=")
+	builder.WriteString(t.CreatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("updated_at=")
+	builder.WriteString(t.UpdatedAt.Format(time.ANSIC))
+	builder.WriteString(", ")
+	builder.WriteString("deleted_at=")
+	builder.WriteString(fmt.Sprintf("%v", t.DeletedAt))
+	builder.WriteString(", ")
 	builder.WriteString("user_id=")
 	builder.WriteString(t.UserID)
 	builder.WriteString(", ")
@@ -211,15 +220,6 @@ func (t *Token) String() string {
 		builder.WriteString("last_used_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
-	builder.WriteString(", ")
-	builder.WriteString("created_at=")
-	builder.WriteString(t.CreatedAt.Format(time.ANSIC))
-	builder.WriteString(", ")
-	builder.WriteString("updated_at=")
-	builder.WriteString(t.UpdatedAt.Format(time.ANSIC))
-	builder.WriteString(", ")
-	builder.WriteString("deleted_at=")
-	builder.WriteString(fmt.Sprintf("%v", t.DeletedAt))
 	builder.WriteByte(')')
 	return builder.String()
 }
