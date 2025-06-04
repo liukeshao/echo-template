@@ -36,8 +36,8 @@ func main() {
 			IdleTimeout:  c.Config.HTTP.IdleTimeout,
 		}
 
-		if err := c.Web.StartServer(&srv); errors.Is(err, http.ErrServerClosed) {
-			fatal("shutting down the server", err)
+		if err := c.Web.StartServer(&srv); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			fatal("failed to start server", err)
 		}
 	}()
 
