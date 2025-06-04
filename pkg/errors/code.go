@@ -1,33 +1,37 @@
 package errors
 
-// 标准错误码定义 - 基于HTTP状态码扩展
+// API状态码定义 - 5位数字错误码系统
+// 0: 成功
+// 1xxxx: 客户端错误
+// 2xxxx: 服务器错误
+// 3xxxx: 业务错误
 const (
 	// 成功
-	OK = 200
+	OK = 0
 
-	// 客户端错误 4xx
-	BadRequest          = 400
-	Unauthorized        = 401
-	Forbidden           = 403
-	NotFound            = 404
-	MethodNotAllowed    = 405
-	Conflict            = 409
-	UnprocessableEntity = 422
-	TooManyRequests     = 429
+	// 客户端错误 1xxxx
+	BadRequest          = 10400 // 请求参数错误
+	Unauthorized        = 10401 // 未授权
+	Forbidden           = 10403 // 禁止访问
+	NotFound            = 10404 // 资源不存在
+	MethodNotAllowed    = 10405 // 方法不允许
+	Conflict            = 10409 // 资源冲突
+	UnprocessableEntity = 10422 // 数据验证失败
+	TooManyRequests     = 10429 // 请求过于频繁
 
-	// 服务器错误 5xx
-	InternalServerError = 500
-	NotImplemented      = 501
-	BadGateway          = 502
-	ServiceUnavailable  = 503
-	GatewayTimeout      = 504
+	// 服务器错误 2xxxx
+	InternalServerError = 20500 // 内部服务器错误
+	NotImplemented      = 20501 // 功能未实现
+	BadGateway          = 20502 // 网关错误
+	ServiceUnavailable  = 20503 // 服务不可用
+	GatewayTimeout      = 20504 // 网关超时
 
-	// 业务错误码 6xxx
-	DatabaseError      = 6001
-	CacheError         = 6002
-	ExternalAPIError   = 6003
-	ValidationError    = 6004
-	BusinessLogicError = 6005
+	// 业务错误码 3xxxx
+	DatabaseError      = 30001 // 数据库错误
+	CacheError         = 30002 // 缓存错误
+	ExternalAPIError   = 30003 // 外部API错误
+	ValidationError    = 30004 // 业务验证错误
+	BusinessLogicError = 30005 // 业务逻辑错误
 )
 
 // 错误码到消息的映射

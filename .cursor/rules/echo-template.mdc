@@ -124,13 +124,12 @@ type ErrorDetail struct {
 ```go
 // pkg/handlers/response.go
 type Response struct {
-    Code      int                    `json:"code"`                 // 业务状态码
+    Code      int                    `json:"code"`                 // API状态码 (0=成功, 非0=失败)
     Message   string                 `json:"message"`              // 响应消息
     Data      interface{}            `json:"data"`                 // 响应数据
     Errors    []*errors.ErrorDetail  `json:"errors,omitempty"`     // 错误详情列表（指针类型）
     Timestamp int64                  `json:"timestamp"`            // 时间戳
     RequestID string                 `json:"request_id,omitempty"` // 请求ID
-    Success   bool                   `json:"success"`              // 是否成功
 }
 ```
 
@@ -252,7 +251,7 @@ return Success(data).JSON(c)
 
 // 验证错误响应 - 使用统一的ErrorDetail类型
 errorDetails := []*errors.ErrorDetail{
-    {Location: "email", Message: "邮箱格式不正确", Value: "INVALID_EMAIL"},
+    {Location: "email", Message: "邮箱格式不正确", Value: "输入的value"},
 }
 return ValidationError("验证失败", errorDetails).JSON(c)
 ```
@@ -267,6 +266,15 @@ import "log/slog"
 slog.InfoContext(ctx, "处理用户请求", "user_id", userID)
 slog.ErrorContext(ctx, "业务逻辑错误", "error", err)
 ```
+
+### 9. API 文档规范
+
+#### OpenAPI 规范
+- **文档位置**：API 文档统一存放在 `docs/openapi.yaml` 文件中
+- **规范版本**：使用 OpenAPI 3.1 规范定义 REST API 接口
+- **文档内容**：包含接口路径、请求参数、响应格式、错误码等完整信息
+- **类型映射**：确保文档中的数据类型与 `pkg/types/` 中的 Input/Output 类型保持一致
+- **自动化生成**：可通过代码注释或工具自动生成，减少手工维护成本
 
 ## 编码最佳实践
 
