@@ -15,6 +15,11 @@ app:
   # Change this on any live environments.
   encryptionKey: "?E(G+KbPeShVmYq3t6w9z$C&F)J@McQf"
   timeout: "20s"
+  # API文档配置
+  docs:
+    enabled: true  # 本地和开发环境启用，生产环境请设置为false
+    path: "/docs"
+    title: "Echo Template API Documentation"
 
 database:
   driver: "sqlite3"
