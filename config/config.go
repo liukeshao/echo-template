@@ -64,11 +64,6 @@ type (
 		Environment   environment
 		EncryptionKey string
 		Timeout       time.Duration
-		PasswordToken struct {
-			Expiration time.Duration
-			Length     int
-		}
-		EmailVerificationTokenExpiration time.Duration
 		// 文档配置
 		Docs DocsConfig
 	}

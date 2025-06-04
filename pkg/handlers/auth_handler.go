@@ -68,17 +68,17 @@ func (h *AuthHandler) Register(c echo.Context) error {
 	)
 
 	// 调用服务层
-	response, err := h.auth.Register(ctx, &in)
+	out, err := h.auth.Register(ctx, &in)
 	if err != nil {
 		return err
 	}
 
 	slog.InfoContext(ctx, "用户注册成功",
-		"user_id", response.User.ID,
-		"username", response.User.Username,
+		"user_id", out.User.ID,
+		"username", out.User.Username,
 	)
 
-	return Success(response).JSON(c)
+	return Success(out).JSON(c)
 }
 
 // Login 用户登录
@@ -99,17 +99,17 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	slog.InfoContext(ctx, "用户登录请求", "email", in.Email)
 
 	// 调用服务层
-	response, err := h.auth.Login(ctx, &in)
+	out, err := h.auth.Login(ctx, &in)
 	if err != nil {
 		return err
 	}
 
 	slog.InfoContext(ctx, "用户登录成功",
-		"user_id", response.User.ID,
-		"username", response.User.Username,
+		"user_id", out.User.ID,
+		"username", out.User.Username,
 	)
 
-	return Success(response).JSON(c)
+	return Success(out).JSON(c)
 }
 
 // RefreshToken 刷新访问令牌
@@ -130,14 +130,14 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	slog.InfoContext(ctx, "刷新令牌请求")
 
 	// 调用服务层
-	response, err := h.auth.RefreshToken(ctx, req.RefreshToken)
+	out, err := h.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		return err
 	}
 
-	slog.InfoContext(ctx, "令牌刷新成功", "user_id", response.User.ID)
+	slog.InfoContext(ctx, "令牌刷新成功", "user_id", out.User.ID)
 
-	return Success(response).JSON(c)
+	return Success(out).JSON(c)
 }
 
 // Logout 用户登出（撤销令牌）
