@@ -68,16 +68,16 @@ func (h *ExampleHandler) handleBusinessError(c echo.Context) error {
 // handleValidationError 处理验证错误
 func (h *ExampleHandler) handleValidationError(c echo.Context) error {
 	// 模拟验证错误
-	validationErrors := []ErrorDetail{
+	validationErrors := []*errors.ErrorDetail{
 		{
-			Field:   "email",
-			Message: "邮箱格式不正确",
-			Code:    "INVALID_EMAIL",
+			Location: "email",
+			Message:  "邮箱格式不正确",
+			Value:    "INVALID_EMAIL",
 		},
 		{
-			Field:   "password",
-			Message: "密码长度不能少于8位",
-			Code:    "PASSWORD_TOO_SHORT",
+			Location: "password",
+			Message:  "密码长度不能少于8位",
+			Value:    "PASSWORD_TOO_SHORT",
 		},
 	}
 

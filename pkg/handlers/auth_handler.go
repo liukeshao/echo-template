@@ -56,46 +56,9 @@ func (h *AuthHandler) Register(c echo.Context) error {
 			With("error", err.Error())
 	}
 
-	// 基本验证
-	var errorDetails []ErrorDetail
-	if in.Username == "" {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "username",
-			Message: "用户名不能为空",
-			Code:    "REQUIRED",
-		})
-	} else if len(in.Username) < 3 || len(in.Username) > 50 {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "username",
-			Message: "用户名长度必须在3-50个字符之间",
-			Code:    "INVALID_LENGTH",
-		})
-	}
-
-	if in.Email == "" {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "email",
-			Message: "邮箱不能为空",
-			Code:    "REQUIRED",
-		})
-	}
-
-	if in.Password == "" {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "password",
-			Message: "密码不能为空",
-			Code:    "REQUIRED",
-		})
-	} else if len(in.Password) < 8 {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "password",
-			Message: "密码长度至少8位",
-			Code:    "PASSWORD_TOO_SHORT",
-		})
-	}
-
-	if len(errorDetails) > 0 {
-		return ValidationError("验证失败", errorDetails).JSON(c)
+	errs := in.Validate()
+	if len(errs) > 0 {
+		return ValidationError("验证失败", errs).JSON(c)
 	}
 
 	slog.InfoContext(ctx, "开始用户注册",
@@ -127,26 +90,9 @@ func (h *AuthHandler) Login(c echo.Context) error {
 			With("error", err.Error())
 	}
 
-	// 基本验证
-	var errorDetails []ErrorDetail
-	if in.Email == "" {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "email",
-			Message: "邮箱不能为空",
-			Code:    "REQUIRED",
-		})
-	}
-
-	if in.Password == "" {
-		errorDetails = append(errorDetails, ErrorDetail{
-			Field:   "password",
-			Message: "密码不能为空",
-			Code:    "REQUIRED",
-		})
-	}
-
-	if len(errorDetails) > 0 {
-		return ValidationError("验证失败", errorDetails).JSON(c)
+	errs := in.Validate()
+	if len(errs) > 0 {
+		return ValidationError("验证失败", errs).JSON(c)
 	}
 
 	slog.InfoContext(ctx, "用户登录请求", "email", in.Email)
@@ -169,23 +115,15 @@ func (h *AuthHandler) Login(c echo.Context) error {
 func (h *AuthHandler) RefreshToken(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	var req struct {
-		RefreshToken string `json:"refresh_token"`
-	}
-
+	var req types.RefreshTokenInput
 	if err := c.Bind(&req); err != nil {
 		return errors.BadRequestError("请求参数格式错误").
 			With("error", err.Error())
 	}
 
-	if req.RefreshToken == "" {
-		return ValidationError("验证失败", []ErrorDetail{
-			{
-				Field:   "refresh_token",
-				Message: "刷新令牌不能为空",
-				Code:    "REQUIRED",
-			},
-		}).JSON(c)
+	// 验证输入
+	if errorDetails := req.Validate(); len(errorDetails) > 0 {
+		return ValidationError("验证失败", errorDetails).JSON(c)
 	}
 
 	slog.InfoContext(ctx, "刷新令牌请求")

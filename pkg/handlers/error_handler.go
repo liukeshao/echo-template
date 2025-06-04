@@ -63,11 +63,11 @@ func handleAppError(err *errors.AppError, requestID string) *ResponseBuilder {
 
 	// 将context字段转换为错误详情
 	if context := err.GetContext(); len(context) > 0 {
-		var errorDetails []ErrorDetail
+		var errorDetails []*errors.ErrorDetail
 		for field, value := range context {
-			errorDetails = append(errorDetails, ErrorDetail{
-				Field:   field,
-				Message: toString(value),
+			errorDetails = append(errorDetails, &errors.ErrorDetail{
+				Location: field,
+				Message:  toString(value),
 			})
 		}
 		response = response.WithErrors(errorDetails)
