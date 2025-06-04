@@ -10,20 +10,22 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
+	appContext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/utils"
-)
-
-// UserContext 用户上下文键
-type contextKey string
-
-const (
-	UserContextKey contextKey = "user"
 )
 
 // AuthMiddleware 认证中间件配置
 type AuthMiddleware struct {
 	orm *ent.Client
+}
+
+// AuthResult 认证结果
+type AuthResult struct {
+	User    *ent.User  // 认证成功的用户
+	Token   *ent.Token // 数据库中的token记录
+	Error   error      // 认证错误
+	IsValid bool       // 是否认证成功
 }
 
 // NewAuthMiddleware 创建新的认证中间件
@@ -33,50 +35,69 @@ func NewAuthMiddleware(orm *ent.Client) *AuthMiddleware {
 	}
 }
 
-// RequireAuth 要求用户认证的中间件
-func (m *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		ctx := c.Request().Context()
+// extractAndValidateToken 提取并验证token的公共逻辑
+func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool) *AuthResult {
+	ctx := c.Request().Context()
+	result := &AuthResult{IsValid: false}
 
-		// 从Authorization header获取token
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader == "" {
+	// 从Authorization header获取token
+	authHeader := c.Request().Header.Get("Authorization")
+	if authHeader == "" {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：缺少Authorization头")
-			return errors.UnauthorizedError("缺少Authorization头")
+			result.Error = errors.UnauthorizedError("缺少Authorization头")
 		}
+		return result
+	}
 
-		// 检查Bearer格式
-		if !strings.HasPrefix(authHeader, "Bearer ") {
+	// 检查Bearer格式
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：无效的Authorization格式")
-			return errors.UnauthorizedError("无效的Authorization格式")
+			result.Error = errors.UnauthorizedError("无效的Authorization格式")
 		}
+		return result
+	}
 
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == "" {
+	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
+	if tokenString == "" {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌为空")
-			return errors.UnauthorizedError("令牌不能为空")
+			result.Error = errors.UnauthorizedError("令牌不能为空")
 		}
+		return result
+	}
 
-		// 验证JWT token
-		claims, err := utils.ValidateToken(tokenString)
-		if err != nil {
+	// 验证JWT token
+	claims, err := utils.ValidateToken(tokenString)
+	if err != nil {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌验证失败", "error", err)
-			return errors.UnauthorizedError("无效的访问令牌")
+			result.Error = errors.UnauthorizedError("无效的访问令牌")
 		}
+		return result
+	}
 
-		// 检查token类型
-		if claims.TokenType != "access" {
+	// 检查token类型
+	if claims.TokenType != "access" {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌类型错误", "token_type", claims.TokenType)
-			return errors.UnauthorizedError("无效的令牌类型")
+			result.Error = errors.UnauthorizedError("无效的令牌类型")
 		}
+		return result
+	}
 
-		// 检查token是否过期
-		if utils.IsTokenExpired(claims) {
+	// 检查token是否过期
+	if utils.IsTokenExpired(claims) {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌已过期", "user_id", claims.UserID)
-			return errors.UnauthorizedError("访问令牌已过期")
+			result.Error = errors.UnauthorizedError("访问令牌已过期")
 		}
+		return result
+	}
 
-		// 检查数据库中的token是否存在且未撤销
+	// 严格模式下检查数据库中的token状态
+	if strictMode {
 		dbToken, err := m.orm.Token.Query().
 			Where(
 				token.Token(tokenString),
@@ -88,57 +109,104 @@ func (m *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
 		if err != nil {
 			if ent.IsNotFound(err) {
 				slog.WarnContext(ctx, "认证失败：令牌不存在或已撤销", "user_id", claims.UserID)
-				return errors.UnauthorizedError("访问令牌无效")
+				result.Error = errors.UnauthorizedError("访问令牌无效")
+			} else {
+				slog.ErrorContext(ctx, "认证失败：查询令牌失败", "error", err)
+				result.Error = errors.InternalError("系统错误")
 			}
-			slog.ErrorContext(ctx, "认证失败：查询令牌失败", "error", err)
-			return errors.InternalError("系统错误")
+			return result
 		}
+		result.Token = dbToken
+	}
 
-		// 查找用户
-		user, err := m.orm.User.Query().
-			Where(userEnt.ID(claims.UserID), userEnt.DeletedAt(0)).
-			Only(ctx)
-		if err != nil {
-			if ent.IsNotFound(err) {
+	// 查找用户
+	user, err := m.orm.User.Query().
+		Where(userEnt.ID(claims.UserID), userEnt.DeletedAt(0)).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			if strictMode {
 				slog.WarnContext(ctx, "认证失败：用户不存在", "user_id", claims.UserID)
-				return errors.UnauthorizedError("用户不存在")
+				result.Error = errors.UnauthorizedError("用户不存在")
 			}
-			slog.ErrorContext(ctx, "认证失败：查询用户失败", "error", err, "user_id", claims.UserID)
-			return errors.InternalError("系统错误")
+		} else {
+			if strictMode {
+				slog.ErrorContext(ctx, "认证失败：查询用户失败", "error", err, "user_id", claims.UserID)
+				result.Error = errors.InternalError("系统错误")
+			}
 		}
+		return result
+	}
 
-		// 检查用户状态
-		if user.Status != userEnt.StatusActive {
+	// 检查用户状态
+	if user.Status != userEnt.StatusActive {
+		if strictMode {
 			slog.WarnContext(ctx, "认证失败：用户状态异常",
 				"user_id", user.ID,
 				"status", user.Status,
 			)
-			return errors.ForbiddenError("账户已被停用")
+			result.Error = errors.ForbiddenError("账户已被停用")
+		}
+		return result
+	}
+
+	// 认证成功
+	result.User = user
+	result.IsValid = true
+	return result
+}
+
+// setUserContext 将用户信息存储到context中
+func (m *AuthMiddleware) setUserContext(c echo.Context, user *ent.User) {
+	ctx := c.Request().Context()
+	userCtx := appContext.WithUser(ctx, user)
+	c.SetRequest(c.Request().WithContext(userCtx))
+}
+
+// updateTokenUsage 异步更新token使用时间
+func (m *AuthMiddleware) updateTokenUsage(token *ent.Token) {
+	if token == nil {
+		return
+	}
+
+	go func() {
+		// 使用新的context以避免父context被取消时影响更新
+		bgCtx := context.Background()
+		now := time.Now()
+		_, err := m.orm.Token.UpdateOne(token).
+			SetLastUsedAt(now).
+			Save(bgCtx)
+		if err != nil {
+			slog.ErrorContext(bgCtx, "更新token使用时间失败",
+				"error", err,
+				"token_id", token.ID,
+			)
+		}
+	}()
+}
+
+// RequireAuth 要求用户认证的中间件
+func (m *AuthMiddleware) RequireAuth(next echo.HandlerFunc) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
+		// 使用严格模式进行认证验证
+		result := m.extractAndValidateToken(c, true)
+
+		// 认证失败，返回错误
+		if !result.IsValid {
+			return result.Error
 		}
 
-		// 更新token最后使用时间（异步处理，不影响请求性能）
-		go func() {
-			// 使用新的context以避免父context被取消时影响更新
-			bgCtx := context.Background()
-			now := time.Now()
-			_, err := m.orm.Token.UpdateOne(dbToken).
-				SetLastUsedAt(now).
-				Save(bgCtx)
-			if err != nil {
-				slog.ErrorContext(bgCtx, "更新token使用时间失败",
-					"error", err,
-					"token_id", dbToken.ID,
-				)
-			}
-		}()
+		// 更新token使用时间（仅在严格模式下有token记录时）
+		m.updateTokenUsage(result.Token)
 
 		// 将用户信息存储到context中
-		userCtx := context.WithValue(ctx, UserContextKey, user)
-		c.SetRequest(c.Request().WithContext(userCtx))
+		m.setUserContext(c, result.User)
 
 		slog.DebugContext(ctx, "用户认证成功",
-			"user_id", user.ID,
-			"username", user.Username,
+			"user_id", result.User.ID,
+			"username", result.User.Username,
 		)
 
 		return next(c)
@@ -150,82 +218,20 @@ func (m *AuthMiddleware) OptionalAuth(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
-		// 从Authorization header获取token
-		authHeader := c.Request().Header.Get("Authorization")
-		if authHeader == "" {
-			// 没有认证信息，继续处理请求
-			return next(c)
+		// 使用非严格模式进行认证验证
+		result := m.extractAndValidateToken(c, false)
+
+		// 认证成功时，将用户信息存储到context中
+		if result.IsValid {
+			m.setUserContext(c, result.User)
+
+			slog.DebugContext(ctx, "可选认证成功",
+				"user_id", result.User.ID,
+				"username", result.User.Username,
+			)
 		}
 
-		// 检查Bearer格式
-		if !strings.HasPrefix(authHeader, "Bearer ") {
-			// 格式不正确，继续处理请求（不返回错误）
-			return next(c)
-		}
-
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
-		if tokenString == "" {
-			// 令牌为空，继续处理请求
-			return next(c)
-		}
-
-		// 验证JWT token
-		claims, err := utils.ValidateToken(tokenString)
-		if err != nil {
-			// 令牌无效，继续处理请求（不返回错误）
-			return next(c)
-		}
-
-		// 检查token类型和过期时间
-		if claims.TokenType != "access" || utils.IsTokenExpired(claims) {
-			// 令牌类型错误或已过期，继续处理请求
-			return next(c)
-		}
-
-		// 查找用户（简化版本，不检查token在数据库中的状态）
-		user, err := m.orm.User.Query().
-			Where(userEnt.ID(claims.UserID), userEnt.DeletedAt(0)).
-			Only(ctx)
-		if err != nil {
-			// 用户不存在，继续处理请求
-			return next(c)
-		}
-
-		// 检查用户状态
-		if user.Status != userEnt.StatusActive {
-			// 用户状态异常，继续处理请求
-			return next(c)
-		}
-
-		// 将用户信息存储到context中
-		userCtx := context.WithValue(ctx, UserContextKey, user)
-		c.SetRequest(c.Request().WithContext(userCtx))
-
-		slog.DebugContext(ctx, "可选认证成功",
-			"user_id", user.ID,
-			"username", user.Username,
-		)
-
+		// 无论认证是否成功，都继续处理请求
 		return next(c)
 	}
-}
-
-// GetUserFromContext 从context中获取当前用户
-func GetUserFromContext(ctx context.Context) (*ent.User, bool) {
-	user, ok := ctx.Value(UserContextKey).(*ent.User)
-	return user, ok
-}
-
-// GetUserFromEcho 从Echo context中获取当前用户
-func GetUserFromEcho(c echo.Context) (*ent.User, bool) {
-	return GetUserFromContext(c.Request().Context())
-}
-
-// MustGetUser 从context中获取用户，如果不存在则panic（用于必须有用户的地方）
-func MustGetUser(ctx context.Context) *ent.User {
-	user, ok := GetUserFromContext(ctx)
-	if !ok {
-		panic("user not found in context")
-	}
-	return user
 }

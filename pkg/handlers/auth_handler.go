@@ -6,6 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/liukeshao/echo-template/ent"
+	appContext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
@@ -144,7 +145,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从认证中间件获取当前用户
-	user, ok := middleware.GetUserFromEcho(c)
+	user, ok := appContext.GetUserFromEcho(c)
 	if !ok {
 		return errors.UnauthorizedError("用户未登录")
 	}
