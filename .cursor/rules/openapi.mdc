@@ -7,44 +7,20 @@ alwaysApply: false
 
 ## 概述
 
-本项目的 OpenAPI 文档采用模块化的多文件结构，通过 `$ref` 引用实现文档的拆分和复用。这种结构便于维护、扩展和团队协作。
+本项目采用 OpenAPI 3.1 规范。
 
 ## 目录结构
 
 ```
 docs/
-├── openapi.yaml              # 主入口文件
-├── paths/                    # API路径定义目录
-│   ├── auth.yaml             # 认证相关API路径
-│   └── users.yaml            # 用户管理API路径
-└── schemas/                  # Schema定义目录
-    ├── common.yaml           # 通用Schema和响应定义
-    ├── auth.yaml             # 认证相关Schema定义
-    └── user.yaml             # 用户管理Schema定义
+└── openapi.yaml              # 主入口文件
 ```
 
 ## 核心原则
 
-### 1. 文件对应关系
-| Handler文件 | 路径文件 | Schema文件 | 说明 |
-|---|---|-----|---|
-| `auth_handler.go` | `paths/auth.yaml` | `schemas/auth.yaml` | 认证相关接口 |
-| `user_handler.go` | `paths/users.yaml` | `schemas/user.yaml` | 用户管理接口 |
-
-### 2. 引用语法
-```yaml
-# 引用其他文件中的Schema
-$ref: './schemas/auth.yaml#/RegisterInput'
-
-# 引用路径定义
-$ref: './paths/users.yaml#/users'
-
-# 引用专门的响应类型
-$ref: './schemas/common.yaml#/UsersResponse'
-```
-
-### 3. 响应类型设计
-为每种数据类型创建专门的响应类型，避免使用复杂的 `allOf` 组合：
+### 1. 响应类型设计
+为每种数据类型创建专门的响应类型
+禁止使用复杂的 `allOf` 组合：
 
 | 响应类型 | 用途 | data字段类型 |
 |---------|------|-------------|
@@ -54,38 +30,16 @@ $ref: './schemas/common.yaml#/UsersResponse'
 | `MessageResponse` | 操作消息 | `MessageResponse` |
 | `AuthResponse` | 认证信息 | `AuthData` |
 
-### 4. 忽略docs_handler.go 和 example_handler.go
+### 2. 忽略docs_handler.go 和 example_handler.go
+
 ## 开发工作流
 
 ### 添加新的API接口
-1. 在对应的Schema文件中定义数据类型
-2. 在 `docs/schemas/common.yaml` 中添加专门的响应类型
-3. 在对应的路径文件中定义API接口
-4. 在 `docs/openapi.yaml` 中添加路径引用和Schema引用
-5. 确保Schema定义与 `pkg/types/` 下的Go类型一致
+
+1. 在 `docs/openapi.yaml` 完善相关信息
 
 ### Schema与Go类型对应
 - Schema定义必须与 `pkg/types/` 中的Go类型严格对应
 - 验证规则与Go struct tag保持一致
 - 为每个字段提供清楚的描述和示例
 
-## 最佳实践
-
-1. **明确性优于简洁性**: 每个响应类型都完整定义所有字段
-2. **按Handler分组**: 每个Handler对应一个路径文件
-3. **Schema复用**: 通用Schema放在 `common.yaml` 中
-4. **同步更新**: 修改Go类型时同步更新对应Schema
-5. **命名规范**: 文件名使用小写，Schema名使用PascalCase
-
-## 常用命令
-
-```bash
-# 检查OpenAPI JSON输出
-curl -s http://localhost:8000/openapi.json | jq '.'
-
-# 验证YAML语法
-yamllint docs/openapi.yaml
-
-# 在线验证工具
-# https://editor.swagger.io/
-```

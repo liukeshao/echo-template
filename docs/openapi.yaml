@@ -1,0 +1,919 @@
+openapi: 3.1.0
+info:
+  title: Echo Template API
+  description: Echo Template 项目的 RESTful API 文档
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8000
+    description: 开发环境
+  - url: https://api.example.com
+    description: 生产环境
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: 认证
+    description: 用户认证相关接口
+  - name: 用户
+    description: 用户管理相关接口
+
+paths:
+  # 认证相关路径
+  /api/v1/auth/register:
+    post:
+      tags:
+        - 认证
+      summary: 用户注册
+      description: 新用户注册账号
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterInput'
+      responses:
+        '200':
+          description: 注册请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - 认证
+      summary: 用户登录
+      description: 用户使用邮箱和密码登录
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginInput'
+      responses:
+        '200':
+          description: 登录请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/v1/auth/refresh:
+    post:
+      tags:
+        - 认证
+      summary: 刷新访问令牌
+      description: 使用刷新令牌获取新的访问令牌
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenInput'
+      responses:
+        '200':
+          description: 刷新令牌请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /api/v1/auth/logout:
+    post:
+      tags:
+        - 认证
+      summary: 用户登出
+      description: 用户登出并使令牌失效
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 登出请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # 用户管理相关路径
+  /api/v1/users:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户列表
+      description: 分页获取用户列表，支持状态过滤和关键词搜索
+      operationId: getUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          description: 用户状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive, suspended]
+        - name: keyword
+          in: query
+          description: 搜索关键词（用于搜索用户名或邮箱）
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取用户列表请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+
+    post:
+      tags:
+        - 用户
+      summary: 创建用户
+      description: 管理员创建新用户
+      operationId: createUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserInput'
+      responses:
+        '200':
+          description: 创建用户请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /api/v1/users/stats:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户统计
+      description: 获取各状态用户的统计信息
+      operationId: getUserStats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取用户统计请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatsResponse'
+
+  /api/v1/users/{id}:
+    get:
+      tags:
+        - 用户
+      summary: 获取用户信息
+      description: 根据用户ID获取用户详细信息
+      operationId: getUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: 获取用户信息请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+    put:
+      tags:
+        - 用户
+      summary: 更新用户信息
+      description: 根据用户ID更新用户信息
+      operationId: updateUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserInput'
+      responses:
+        '200':
+          description: 更新用户信息请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+    delete:
+      tags:
+        - 用户
+      summary: 删除用户
+      description: 根据用户ID删除用户
+      operationId: deleteUserById
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      responses:
+        '200':
+          description: 删除用户请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/users/{id}/change-password:
+    post:
+      tags:
+        - 用户
+      summary: 修改指定用户密码
+      description: 管理员修改指定用户的密码
+      operationId: changeUserPassword
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/UserIdParam'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                new_password:
+                  type: string
+                  description: 新密码
+                  minLength: 8
+                  example: "newpassword123"
+              required:
+                - new_password
+      responses:
+        '200':
+          description: 修改用户密码请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/users/me:
+    get:
+      tags:
+        - 用户
+      summary: 获取当前用户信息
+      description: 获取当前登录用户的详细信息
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取当前用户信息请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+    put:
+      tags:
+        - 用户
+      summary: 更新当前用户信息
+      description: 用户更新自己的信息
+      operationId: updateCurrentUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                username:
+                  type: string
+                  description: 用户名
+                  minLength: 3
+                  maxLength: 50
+                  example: "johndoe"
+                  nullable: true
+                email:
+                  type: string
+                  format: email
+                  description: 邮箱地址
+                  example: "john@example.com"
+                  nullable: true
+      responses:
+        '200':
+          description: 更新当前用户信息请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+
+  /api/v1/users/me/change-password:
+    post:
+      tags:
+        - 用户
+      summary: 修改当前用户密码
+      description: 用户修改自己的密码
+      operationId: changeCurrentUserPassword
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordInput'
+      responses:
+        '200':
+          description: 修改当前用户密码请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT 访问令牌
+
+  schemas:
+    # 通用Schema定义
+    
+    # 错误详情
+    ErrorDetail:
+      title: 错误详情
+      type: object
+      description: 错误详情
+      properties:
+        message:
+          type: string
+          description: 错误消息
+          example: "用户名长度不能小于3"
+        location:
+          type: string
+          description: 错误位置
+          example: "username"
+        value:
+          type: string
+          description: 错误的值
+          example: "ab"
+      required:
+        - message
+
+    # 消息数据
+    MessageData:
+      title: 消息数据
+      type: object
+      description: 消息数据
+      properties:
+        message:
+          type: string
+          description: 消息内容
+          example: "操作成功"
+      required:
+        - message
+
+    # 用户信息
+    UserInfo:
+      title: 用户信息
+      type: object
+      description: 用户基本信息
+      properties:
+        id:
+          type: string
+          description: 用户ID
+          example: "usr_123456"
+        username:
+          type: string
+          description: 用户名
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态
+          example: "active"
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最后登录时间
+          example: "2023-12-31T23:59:59Z"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2023-01-01T00:00:00Z"
+      required:
+        - id
+        - username
+        - email
+        - status
+        - created_at
+
+    # 认证数据输出
+    AuthData:
+      title: 认证数据
+      type: object
+      description: 认证数据输出
+      properties:
+        user:
+          $ref: '#/components/schemas/UserInfo'
+        access_token:
+          type: string
+          description: 访问令牌
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        refresh_token:
+          type: string
+          description: 刷新令牌
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        expires_at:
+          type: integer
+          format: int64
+          description: 访问令牌过期时间戳
+          example: 1640995200
+      required:
+        - user
+        - access_token
+        - refresh_token
+        - expires_at
+
+    # 认证相关Schema定义
+    
+    # 用户注册输入
+    RegisterInput:
+      title: 用户注册请求
+      type: object
+      description: 用户注册输入
+      properties:
+        username:
+          type: string
+          description: 用户名
+          minLength: 3
+          maxLength: 50
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        password:
+          type: string
+          description: 密码
+          minLength: 8
+          example: "password123"
+      required:
+        - username
+        - email
+        - password
+
+    # 用户登录输入
+    LoginInput:
+      title: 用户登录请求
+      type: object
+      description: 用户登录输入
+      properties:
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        password:
+          type: string
+          description: 密码
+          example: "password123"
+      required:
+        - email
+        - password
+
+    # 刷新令牌输入
+    RefreshTokenInput:
+      title: 刷新令牌请求
+      type: object
+      description: 刷新令牌输入
+      properties:
+        refresh_token:
+          type: string
+          description: 刷新令牌
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+      required:
+        - refresh_token
+
+    # 用户相关Schema定义
+    
+    # 创建用户输入
+    CreateUserInput:
+      title: 创建用户请求
+      type: object
+      description: 创建用户输入
+      properties:
+        username:
+          type: string
+          description: 用户名
+          minLength: 3
+          maxLength: 50
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        password:
+          type: string
+          description: 密码
+          minLength: 8
+          example: "password123"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态（可选，默认为active）
+          default: "active"
+          example: "active"
+      required:
+        - username
+        - email
+        - password
+
+    # 更新用户输入
+    UpdateUserInput:
+      title: 更新用户请求
+      type: object
+      description: 更新用户输入
+      properties:
+        username:
+          type: string
+          description: 用户名
+          minLength: 3
+          maxLength: 50
+          example: "johndoe"
+          nullable: true
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态
+          example: "active"
+          nullable: true
+
+    # 修改密码输入
+    ChangePasswordInput:
+      title: 修改密码请求
+      type: object
+      description: 修改密码输入
+      properties:
+        old_password:
+          type: string
+          description: 旧密码
+          example: "oldpassword123"
+        new_password:
+          type: string
+          description: 新密码
+          minLength: 8
+          example: "newpassword123"
+      required:
+        - old_password
+        - new_password
+
+    # 获取用户列表输入
+    ListUsersInput:
+      title: 用户列表查询参数
+      type: object
+      description: 获取用户列表输入
+      properties:
+        page:
+          type: integer
+          description: 页码（从1开始）
+          minimum: 1
+          default: 1
+          example: 1
+        page_size:
+          type: integer
+          description: 每页数量
+          minimum: 1
+          maximum: 100
+          default: 20
+          example: 20
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态过滤
+          example: "active"
+        keyword:
+          type: string
+          description: 搜索关键词（用于搜索用户名或邮箱）
+          example: "john"
+
+    # 用户输出
+    UserOutput:
+      title: 用户详情
+      $ref: '#/components/schemas/UserInfo'
+
+    # 用户列表输出
+    ListUsersOutput:
+      title: 用户列表数据
+      type: object
+      description: 用户列表输出
+      properties:
+        users:
+          type: array
+          description: 用户列表
+          items:
+            $ref: '#/components/schemas/UserInfo'
+        total:
+          type: integer
+          format: int64
+          description: 总记录数
+          example: 100
+        page:
+          type: integer
+          description: 当前页码
+          example: 1
+        page_size:
+          type: integer
+          description: 每页数量
+          example: 20
+        total_pages:
+          type: integer
+          description: 总页数
+          example: 5
+      required:
+        - users
+        - total
+        - page
+        - page_size
+        - total_pages
+
+    # 用户统计输出
+    UserStatsOutput:
+      title: 用户统计数据
+      type: object
+      description: 用户统计输出
+      properties:
+        total_users:
+          type: integer
+          format: int64
+          description: 总用户数
+          example: 1000
+        active_users:
+          type: integer
+          format: int64
+          description: 活跃用户数
+          example: 800
+        inactive_users:
+          type: integer
+          format: int64
+          description: 非活跃用户数
+          example: 150
+        suspended_users:
+          type: integer
+          format: int64
+          description: 被暂停用户数
+          example: 50
+      required:
+        - total_users
+        - active_users
+        - inactive_users
+        - suspended_users
+
+    # 响应类型定义
+    
+    # 认证响应
+    AuthResponse:
+      title: 认证响应
+      type: object
+      description: 认证操作响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "登录成功"
+        data:
+          $ref: '#/components/schemas/AuthData'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 用户响应
+    UserResponse:
+      title: 用户信息响应
+      type: object
+      description: 单个用户信息响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取用户信息成功"
+        data:
+          $ref: '#/components/schemas/UserOutput'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 用户列表响应
+    UsersResponse:
+      title: 用户列表响应
+      type: object
+      description: 用户列表响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取用户列表成功"
+        data:
+          $ref: '#/components/schemas/ListUsersOutput'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 用户统计响应
+    UserStatsResponse:
+      title: 用户统计响应
+      type: object
+      description: 用户统计响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取用户统计成功"
+        data:
+          $ref: '#/components/schemas/UserStatsOutput'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 消息响应
+    MessageResponse:
+      title: 操作结果响应
+      type: object
+      description: 操作消息响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "操作成功"
+        data:
+          $ref: '#/components/schemas/MessageData'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: 页码（从1开始）
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    PageSizeParam:
+      name: page_size
+      in: query
+      description: 每页数量
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+    UserIdParam:
+      name: id
+      in: path
+      description: 用户ID
+      required: true
+      schema:
+        type: string
