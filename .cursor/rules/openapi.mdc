@@ -15,14 +15,12 @@ alwaysApply: false
 docs/
 ├── openapi.yaml              # 主入口文件
 ├── paths/                    # API路径定义目录
-│   ├── auth.yaml            # 认证相关API路径
-│   ├── users.yaml           # 用户管理API路径
-│   ├── examples.yaml        # 示例API路径
-│   └── docs.yaml            # 文档相关API路径
+│   ├── auth.yaml             # 认证相关API路径
+│   └── users.yaml            # 用户管理API路径
 └── schemas/                  # Schema定义目录
-    ├── common.yaml          # 通用Schema和响应定义
-    ├── auth.yaml            # 认证相关Schema定义
-    └── user.yaml            # 用户管理Schema定义
+    ├── common.yaml           # 通用Schema和响应定义
+    ├── auth.yaml             # 认证相关Schema定义
+    └── user.yaml             # 用户管理Schema定义
 ```
 
 ## 核心原则
@@ -32,8 +30,6 @@ docs/
 |---|---|-----|---|
 | `auth_handler.go` | `paths/auth.yaml` | `schemas/auth.yaml` | 认证相关接口 |
 | `user_handler.go` | `paths/users.yaml` | `schemas/user.yaml` | 用户管理接口 |
-| `example_handler.go` | `paths/examples.yaml` | `schemas/common.yaml` | 示例接口 |
-| `docs_handler.go` | `paths/docs.yaml` | 无特定Schema | 文档接口 |
 
 ### 2. 引用语法
 ```yaml
@@ -58,6 +54,7 @@ $ref: './schemas/common.yaml#/UsersResponse'
 | `MessageResponse` | 操作消息 | `MessageResponse` |
 | `AuthResponse` | 认证信息 | `AuthData` |
 
+### 4. 忽略docs_handler.go 和 example_handler.go
 ## 开发工作流
 
 ### 添加新的API接口

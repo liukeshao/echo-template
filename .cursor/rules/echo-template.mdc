@@ -267,14 +267,48 @@ slog.InfoContext(ctx, "处理用户请求", "user_id", userID)
 slog.ErrorContext(ctx, "业务逻辑错误", "error", err)
 ```
 
-### 9. API 文档规范
+### 9. OpenAPI 文档规范
 
-#### OpenAPI 规范
-- **文档位置**：API 文档统一存放在 `docs/openapi.yaml` 文件中
+#### Handler开发完成后必须编写OpenAPI文档
+- **文档优先原则**：Handler开发完成后，**必须立即编写OpenAPI文档**，不编写md文档
+- **文档位置**：API文档采用多文件结构，主入口文件为 `docs/openapi.yaml`
 - **规范版本**：使用 OpenAPI 3.1 规范定义 REST API 接口
-- **文档内容**：包含接口路径、请求参数、响应格式、错误码等完整信息
-- **类型映射**：确保文档中的数据类型与 `pkg/types/` 中的 Input/Output 类型保持一致
-- **自动化生成**：可通过代码注释或工具自动生成，减少手工维护成本
+- **模块化管理**：按Handler模块拆分文档，便于维护和团队协作
+
+#### 文档结构规范
+```
+docs/
+├── openapi.yaml              # 主入口文件
+├── paths/                    # API路径定义目录
+│   ├── auth.yaml            # 认证相关API路径
+│   ├── users.yaml           # 用户管理API路径
+│   └── [handler_name].yaml  # 对应Handler的路径定义
+└── schemas/                  # Schema定义目录
+    ├── common.yaml          # 通用Schema和响应定义
+    ├── auth.yaml            # 认证相关Schema定义
+    └── [module_name].yaml   # 对应模块的Schema定义
+```
+
+#### Handler与文档对应关系
+| Handler文件 | 路径文件 | Schema文件 | 说明 |
+|---|---|-----|---|
+| `auth_handler.go` | `paths/auth.yaml` | `schemas/auth.yaml` | 认证相关接口 |
+| `user_handler.go` | `paths/users.yaml` | `schemas/user.yaml` | 用户管理接口 |
+| `[name]_handler.go` | `paths/[name].yaml` | `schemas/[module].yaml` | 其他业务接口 |
+
+#### 文档编写要求
+- **Schema同步**：确保文档中的数据类型与 `pkg/types/` 中的 Input/Output 类型严格对应
+- **完整性**：包含接口路径、请求参数、响应格式、错误码等完整信息
+- **专门响应类型**：为每种数据类型创建专门的响应类型，避免使用复杂的 `allOf` 组合
+- **引用规范**：使用 `$ref` 引用实现文档的拆分和复用
+
+#### 开发工作流中的文档规范
+1. **Handler开发完成** → **立即编写对应的OpenAPI文档**
+2. 在对应的Schema文件中定义数据类型
+3. 在 `docs/schemas/common.yaml` 中添加专门的响应类型
+4. 在对应的路径文件中定义API接口
+5. 在 `docs/openapi.yaml` 中添加路径引用和Schema引用
+6. **不再编写单独的md文档**，所有API文档信息都在OpenAPI中维护
 
 ## 编码最佳实践
 
@@ -301,8 +335,9 @@ slog.ErrorContext(ctx, "业务逻辑错误", "error", err)
 2. 如需新服务，先在服务容器中注册
 3. 创建 Handler 文件，通过Init()方法注入依赖
 4. 定义路由和处理逻辑
-5. 如需新实体，创建 Ent schema
-6. 编写测试
+5. **Handler开发完成后，立即编写OpenAPI文档**
+6. 如需新实体，创建 Ent schema
+7. 编写测试
 
 ## 常用命令
 ```bash
@@ -314,6 +349,10 @@ make ent-gen      # 生成 Ent 代码
 go run cmd/main.go  # 启动应用
 go test ./...       # 运行所有测试
 go build ./...      # 编译项目
+
+# OpenAPI 文档验证
+curl -s http://localhost:8000/openapi.json | jq '.'  # 检查OpenAPI JSON输出
+yamllint docs/openapi.yaml                          # 验证YAML语法
 ```
 
 ## 核心原则
@@ -330,4 +369,10 @@ go build ./...      # 编译项目
 - **容器管理**：所有依赖通过容器统一管理
 - **生命周期控制**：容器负责服务的创建和销毁
 
-记住：这个项目的目标是快速、简单的开发。保持代码简洁，优先选择简单的解决方案。中间件应该专注单一职责，便于组合和测试。服务通过容器注入，保持松耦合和高可测试性。验证逻辑统一化，确保数据安全和类型安全。
+### 文档优先原则
+- **Handler开发完成后立即编写OpenAPI文档**
+- **不编写单独的md文档，API信息统一在OpenAPI中维护**
+- **确保文档与代码类型定义同步**
+- **采用模块化文档结构，便于维护**
+
+记住：这个项目的目标是快速、简单的开发。保持代码简洁，优先选择简单的解决方案。中间件应该专注单一职责，便于组合和测试。服务通过容器注入，保持松耦合和高可测试性。验证逻辑统一化，确保数据安全和类型安全。Handler开发完成后必须立即编写OpenAPI文档，确保API文档的完整性和时效性。
