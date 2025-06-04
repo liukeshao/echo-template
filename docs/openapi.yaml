@@ -58,7 +58,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
               examples:
                 success:
                   summary: 注册成功
@@ -121,7 +121,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
               examples:
                 success:
                   summary: 登录成功
@@ -170,7 +170,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
               examples:
                 success:
                   summary: 刷新成功
@@ -207,7 +207,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
               examples:
                 success:
                   summary: 登出成功
@@ -239,7 +239,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
 
   /api/v1/business-error:
     get:
@@ -254,7 +254,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
 
   /api/v1/validation-error:
     post:
@@ -275,7 +275,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
 
   /api/v1/http-error:
     get:
@@ -308,7 +308,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UnifiedResponse'
+                $ref: '#/components/schemas/Response'
 
   /openapi.json:
     get:
@@ -512,7 +512,7 @@ components:
             - 1704067200
       additionalProperties: false
 
-    UnifiedResponse:
+    Response:
       type: object
       title: 统一响应格式
       description: 所有API的统一响应格式，HTTP状态码统一为200，API状态码在code字段中
