@@ -577,6 +577,31 @@ var (
 			},
 		},
 	}
+	// RoleMenusColumns holds the columns for the "role_menus" table.
+	RoleMenusColumns = []*schema.Column{
+		{Name: "role_id", Type: field.TypeString, Size: 26},
+		{Name: "menu_id", Type: field.TypeString, Size: 26},
+	}
+	// RoleMenusTable holds the schema information for the "role_menus" table.
+	RoleMenusTable = &schema.Table{
+		Name:       "role_menus",
+		Columns:    RoleMenusColumns,
+		PrimaryKey: []*schema.Column{RoleMenusColumns[0], RoleMenusColumns[1]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "role_menus_role_id",
+				Columns:    []*schema.Column{RoleMenusColumns[0]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+			{
+				Symbol:     "role_menus_menu_id",
+				Columns:    []*schema.Column{RoleMenusColumns[1]},
+				RefColumns: []*schema.Column{MenusColumns[0]},
+				OnDelete:   schema.Cascade,
+			},
+		},
+	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		MenusTable,
@@ -588,6 +613,7 @@ var (
 		UserRolesTable,
 		RolePermissionsTable,
 		RoleUsersTable,
+		RoleMenusTable,
 	}
 )
 
@@ -601,4 +627,6 @@ func init() {
 	RolePermissionsTable.ForeignKeys[1].RefTable = PermissionsTable
 	RoleUsersTable.ForeignKeys[0].RefTable = RolesTable
 	RoleUsersTable.ForeignKeys[1].RefTable = UsersTable
+	RoleMenusTable.ForeignKeys[0].RefTable = RolesTable
+	RoleMenusTable.ForeignKeys[1].RefTable = MenusTable
 }

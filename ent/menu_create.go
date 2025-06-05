@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/menu"
+	"github.com/liukeshao/echo-template/ent/role"
 )
 
 // MenuCreate is the builder for creating a Menu entity.
@@ -294,6 +295,21 @@ func (mc *MenuCreate) AddChildren(m ...*Menu) *MenuCreate {
 		ids[i] = m[i].ID
 	}
 	return mc.AddChildIDs(ids...)
+}
+
+// AddRoleIDs adds the "roles" edge to the Role entity by IDs.
+func (mc *MenuCreate) AddRoleIDs(ids ...string) *MenuCreate {
+	mc.mutation.AddRoleIDs(ids...)
+	return mc
+}
+
+// AddRoles adds the "roles" edges to the Role entity.
+func (mc *MenuCreate) AddRoles(r ...*Role) *MenuCreate {
+	ids := make([]string, len(r))
+	for i := range r {
+		ids[i] = r[i].ID
+	}
+	return mc.AddRoleIDs(ids...)
 }
 
 // Mutation returns the MenuMutation object of the builder.
@@ -613,6 +629,22 @@ func (mc *MenuCreate) createSpec() (*Menu, *sqlgraph.CreateSpec) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(menu.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := mc.mutation.RolesIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2M,
+			Inverse: true,
+			Table:   menu.RolesTable,
+			Columns: menu.RolesPrimaryKey,
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(role.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

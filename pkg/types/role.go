@@ -193,3 +193,74 @@ type ListUserRolesOutput struct {
 	Page  int               `json:"page"`  // 当前页码
 	Size  int               `json:"size"`  // 每页数量
 }
+
+// AssignRoleMenusInput 为角色分配菜单输入
+type AssignRoleMenusInput struct {
+	RoleID  string   `json:"role_id"`  // 角色ID
+	MenuIDs []string `json:"menu_ids"` // 菜单ID列表
+}
+
+// Validate 验证为角色分配菜单输入
+func (i *AssignRoleMenusInput) Validate() []*errors.ErrorDetail {
+	issuesMap := z.Struct(z.Shape{
+		"RoleID": z.String().
+			Min(26, z.Message("角色ID格式不正确")).
+			Max(26, z.Message("角色ID格式不正确")).
+			Required(z.Message("角色ID是必填项")),
+		"MenuIDs": z.Slice(z.String().
+			Min(26, z.Message("菜单ID格式不正确")).
+			Max(26, z.Message("菜单ID格式不正确"))).
+			Min(1, z.Message("至少需要选择一个菜单")).
+			Required(z.Message("菜单ID列表是必填项")),
+	}).Validate(i)
+
+	return ConvertZogIssues(issuesMap)
+}
+
+// GetUserMenusInput 获取用户菜单输入
+type GetUserMenusInput struct {
+	UserID   string `query:"user_id"`   // 用户ID
+	TreeMode bool   `query:"tree_mode"` // 是否返回树形结构
+	OnlyMenu bool   `query:"only_menu"` // 是否只返回菜单类型（排除按钮）
+}
+
+// Validate 验证获取用户菜单输入
+func (i *GetUserMenusInput) Validate() []*errors.ErrorDetail {
+	issuesMap := z.Struct(z.Shape{
+		"UserID": z.String().
+			Min(26, z.Message("用户ID格式不正确")).
+			Max(26, z.Message("用户ID格式不正确")).
+			Required(z.Message("用户ID是必填项")),
+		"TreeMode": z.Bool().Default(true),
+		"OnlyMenu": z.Bool().Default(true),
+	}).Validate(i)
+
+	return ConvertZogIssues(issuesMap)
+}
+
+// RoleMenuOutput 角色菜单输出
+type RoleMenuOutput struct {
+	RoleID   string      `json:"role_id"`   // 角色ID
+	RoleName string      `json:"role_name"` // 角色名称
+	Menus    []*MenuInfo `json:"menus"`     // 菜单列表
+}
+
+// UserMenuOutput 用户菜单输出
+type UserMenuOutput struct {
+	UserID string      `json:"user_id"` // 用户ID
+	Menus  []*MenuInfo `json:"menus"`   // 用户可访问的菜单列表
+}
+
+// MenuPermissionInfo 菜单权限信息
+type MenuPermissionInfo struct {
+	*MenuInfo
+	Permissions []string `json:"permissions"` // 菜单关联的权限列表
+}
+
+// RoleMenuPermissionOutput 角色菜单权限输出
+type RoleMenuPermissionOutput struct {
+	RoleID      string                `json:"role_id"`     // 角色ID
+	RoleName    string                `json:"role_name"`   // 角色名称
+	Menus       []*MenuPermissionInfo `json:"menus"`       // 菜单列表（包含权限）
+	Permissions []string              `json:"permissions"` // 角色的所有权限
+}

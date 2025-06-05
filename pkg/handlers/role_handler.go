@@ -48,6 +48,14 @@ func (h *RoleHandler) Routes(g *echo.Group) {
 	// 角色权限管理
 	roles.POST("/:id/permissions", h.AssignPermissions)
 	roles.GET("/:id/permissions", h.GetRolePermissions)
+
+	// 角色菜单管理
+	roles.POST("/:id/menus", h.AssignRoleMenus)
+	roles.GET("/:id/menus", h.GetRoleMenus)
+	roles.GET("/:id/menus/permissions", h.GetRoleMenuPermissions)
+
+	// 用户菜单查询
+	roles.GET("/users/menus", h.GetUserMenus)
 }
 
 // CreateRole 创建角色
@@ -253,4 +261,84 @@ func SuccessWithMessage(message string) *ResponseBuilder {
 		WithCode(errors.OK).
 		WithMessage(message).
 		WithData(nil)
+}
+
+// AssignRoleMenus 为角色分配菜单
+func (h *RoleHandler) AssignRoleMenus(c echo.Context) error {
+	ctx := c.Request().Context()
+	roleID := c.Param("id")
+
+	var input types.AssignRoleMenusInput
+	if err := c.Bind(&input); err != nil {
+		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+	}
+
+	// 设置角色ID
+	input.RoleID = roleID
+
+	if errorDetails := input.Validate(); len(errorDetails) > 0 {
+		return ValidationError("验证失败", errorDetails).JSON(c)
+	}
+
+	err := h.roleService.AssignRoleMenus(ctx, &input)
+	if err != nil {
+		return err
+	}
+
+	return SuccessWithMessage("角色菜单分配成功").JSON(c)
+}
+
+// GetRoleMenus 获取角色菜单列表
+func (h *RoleHandler) GetRoleMenus(c echo.Context) error {
+	ctx := c.Request().Context()
+	roleID := c.Param("id")
+
+	if roleID == "" {
+		return errors.BadRequestError("角色ID不能为空")
+	}
+
+	result, err := h.roleService.GetRoleMenus(ctx, roleID)
+	if err != nil {
+		return err
+	}
+
+	return Success(result).JSON(c)
+}
+
+// GetRoleMenuPermissions 获取角色菜单权限详情
+func (h *RoleHandler) GetRoleMenuPermissions(c echo.Context) error {
+	ctx := c.Request().Context()
+	roleID := c.Param("id")
+
+	if roleID == "" {
+		return errors.BadRequestError("角色ID不能为空")
+	}
+
+	result, err := h.roleService.GetRoleMenuPermissions(ctx, roleID)
+	if err != nil {
+		return err
+	}
+
+	return Success(result).JSON(c)
+}
+
+// GetUserMenus 获取用户可访问的菜单
+func (h *RoleHandler) GetUserMenus(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var input types.GetUserMenusInput
+	if err := c.Bind(&input); err != nil {
+		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+	}
+
+	if errorDetails := input.Validate(); len(errorDetails) > 0 {
+		return ValidationError("验证失败", errorDetails).JSON(c)
+	}
+
+	result, err := h.roleService.GetUserMenus(ctx, &input)
+	if err != nil {
+		return err
+	}
+
+	return Success(result).JSON(c)
 }

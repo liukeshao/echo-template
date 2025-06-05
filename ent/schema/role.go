@@ -67,6 +67,9 @@ func (Role) Edges() []ent.Edge {
 
 		// 拥有此角色的用户（多对多，通过UserRole表）
 		edge.To("users", User.Type),
+
+		// 角色拥有的菜单（多对多）
+		edge.To("menus", Menu.Type),
 	}
 }
 

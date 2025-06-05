@@ -546,6 +546,29 @@ func HasUsersWith(preds ...predicate.User) predicate.Role {
 	})
 }
 
+// HasMenus applies the HasEdge predicate on the "menus" edge.
+func HasMenus() predicate.Role {
+	return predicate.Role(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2M, false, MenusTable, MenusPrimaryKey...),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasMenusWith applies the HasEdge predicate on the "menus" edge with a given conditions (other predicates).
+func HasMenusWith(preds ...predicate.Menu) predicate.Role {
+	return predicate.Role(func(s *sql.Selector) {
+		step := newMenusStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
 // And groups predicates with the AND operator between them.
 func And(predicates ...predicate.Role) predicate.Role {
 	return predicate.Role(sql.AndPredicates(predicates...))

@@ -861,6 +861,129 @@ paths:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
 
+  /api/v1/roles/{id}/menus:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取角色菜单列表
+      description: 获取指定角色的所有菜单
+      operationId: getRoleMenus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取角色菜单请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleMenuResponse'
+
+    post:
+      tags:
+        - 角色管理
+      summary: 为角色分配菜单
+      description: 为指定角色分配一个或多个菜单
+      operationId: assignMenusToRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleMenusInput'
+      responses:
+        '200':
+          description: 分配菜单请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/roles/{id}/menus/permissions:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取角色菜单权限详情
+      description: 获取指定角色的菜单列表及相关权限信息
+      operationId: getRoleMenuPermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取角色菜单权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleMenuPermissionResponse'
+
+  /api/v1/roles/users/menus:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取用户可访问菜单
+      description: 根据用户角色获取用户可访问的菜单列表
+      operationId: getUserMenus
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: query
+          description: 用户ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+        - name: tree_mode
+          in: query
+          description: 是否返回树形结构
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: only_menu
+          in: query
+          description: 是否只返回菜单类型（排除按钮）
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: 获取用户菜单请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserMenuResponse'
+
   # 权限管理相关路径
   /api/v1/permissions:
     get:
@@ -2881,6 +3004,225 @@ components:
           description: 权限分组列表
           items:
             $ref: '#/components/schemas/PermissionGroupInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 角色菜单管理相关Schema定义
+
+    # 分配角色菜单输入
+    AssignRoleMenusInput:
+      title: 分配角色菜单请求
+      type: object
+      description: 为角色分配菜单的输入
+      properties:
+        menu_ids:
+          type: array
+          description: 菜单ID列表
+          items:
+            type: string
+            minLength: 26
+            maxLength: 26
+          example: ["01HQZX123456789ABCDEFGHIJ", "01HQZX123456789ABCDEFGHIK"]
+      required:
+        - menu_ids
+
+    # 角色菜单输出
+    RoleMenuOutput:
+      title: 角色菜单输出
+      type: object
+      description: 角色菜单信息
+      properties:
+        role_id:
+          type: string
+          description: 角色ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        role_name:
+          type: string
+          description: 角色名称
+          example: "管理员"
+        menus:
+          type: array
+          description: 菜单列表
+          items:
+            $ref: '#/components/schemas/MenuInfo'
+      required:
+        - role_id
+        - role_name
+        - menus
+
+    # 用户菜单输出
+    UserMenuOutput:
+      title: 用户菜单输出
+      type: object
+      description: 用户可访问的菜单信息
+      properties:
+        user_id:
+          type: string
+          description: 用户ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        menus:
+          type: array
+          description: 用户可访问的菜单列表（树形结构）
+          items:
+            $ref: '#/components/schemas/MenuInfo'
+      required:
+        - user_id
+        - menus
+
+    # 菜单权限信息
+    MenuPermissionInfo:
+      title: 菜单权限信息
+      type: object
+      description: 菜单及其关联权限信息
+      allOf:
+        - $ref: '#/components/schemas/MenuInfo'
+        - type: object
+          properties:
+            permissions:
+              type: array
+              description: 菜单关联的权限列表
+              items:
+                type: string
+              example: ["menu.view", "menu.manage"]
+          required:
+            - permissions
+
+    # 角色菜单权限输出
+    RoleMenuPermissionOutput:
+      title: 角色菜单权限输出
+      type: object
+      description: 角色菜单权限详细信息
+      properties:
+        role_id:
+          type: string
+          description: 角色ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        role_name:
+          type: string
+          description: 角色名称
+          example: "管理员"
+        menus:
+          type: array
+          description: 菜单列表（包含权限信息）
+          items:
+            $ref: '#/components/schemas/MenuPermissionInfo'
+        permissions:
+          type: array
+          description: 角色的所有权限
+          items:
+            type: string
+          example: ["user.create", "user.update", "menu.view"]
+      required:
+        - role_id
+        - role_name
+        - menus
+        - permissions
+
+    # 角色菜单响应
+    RoleMenuResponse:
+      title: 角色菜单响应
+      type: object
+      description: 角色菜单响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取角色菜单成功"
+        data:
+          $ref: '#/components/schemas/RoleMenuOutput'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 用户菜单响应
+    UserMenuResponse:
+      title: 用户菜单响应
+      type: object
+      description: 用户菜单响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取用户菜单成功"
+        data:
+          $ref: '#/components/schemas/UserMenuOutput'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 角色菜单权限响应
+    RoleMenuPermissionResponse:
+      title: 角色菜单权限响应
+      type: object
+      description: 角色菜单权限响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取角色菜单权限成功"
+        data:
+          $ref: '#/components/schemas/RoleMenuPermissionOutput'
         errors:
           type: array
           description: 错误详情列表

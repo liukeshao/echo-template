@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sort"
 	"time"
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/permission"
 	"github.com/liukeshao/echo-template/ent/role"
 	"github.com/liukeshao/echo-template/ent/userrole"
@@ -537,4 +539,321 @@ func (s *RoleService) toRoleOutput(r *ent.Role, permissions []string) *types.Rol
 		UpdatedAt:   r.UpdatedAt,
 		Permissions: permissions,
 	}
+}
+
+// AssignRoleMenus 为角色分配菜单
+func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRoleMenusInput) error {
+	slog.InfoContext(ctx, "开始为角色分配菜单", "role_id", input.RoleID, "menu_ids", input.MenuIDs)
+
+	// 检查角色是否存在
+	role, err := s.orm.Role.Query().
+		Where(role.IDEQ(input.RoleID), role.DeletedAtEQ(0)).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return errors.NotFoundError("角色不存在").With("role_id", input.RoleID)
+		}
+		slog.ErrorContext(ctx, "查询角色失败", "error", err)
+		return errors.InternalError("查询角色失败").With("error", err.Error())
+	}
+
+	// 检查系统角色是否可修改
+	if role.IsSystem {
+		return errors.ForbiddenError("系统角色不允许修改菜单权限")
+	}
+
+	// 检查菜单是否存在
+	menuCount, err := s.orm.Menu.Query().
+		Where(menu.IDIn(input.MenuIDs...), menu.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "查询菜单失败", "error", err)
+		return errors.InternalError("查询菜单失败").With("error", err.Error())
+	}
+	if menuCount != len(input.MenuIDs) {
+		return errors.BadRequestError("部分菜单不存在或已被删除")
+	}
+
+	// 清除角色现有的菜单关联
+	err = s.orm.Role.UpdateOne(role).
+		ClearMenus().
+		Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "清除角色菜单关联失败", "error", err)
+		return errors.InternalError("清除角色菜单关联失败").With("error", err.Error())
+	}
+
+	// 添加新的菜单关联
+	if len(input.MenuIDs) > 0 {
+		err = s.orm.Role.UpdateOne(role).
+			AddMenuIDs(input.MenuIDs...).
+			Exec(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "分配角色菜单失败", "error", err)
+			return errors.InternalError("分配角色菜单失败").With("error", err.Error())
+		}
+	}
+
+	slog.InfoContext(ctx, "角色菜单分配成功", "role_id", input.RoleID, "menu_count", len(input.MenuIDs))
+
+	return nil
+}
+
+// GetRoleMenus 获取角色菜单列表
+func (s *RoleService) GetRoleMenus(ctx context.Context, roleID string) (*types.RoleMenuOutput, error) {
+	slog.InfoContext(ctx, "获取角色菜单列表", "role_id", roleID)
+
+	// 获取角色及其菜单
+	role, err := s.orm.Role.Query().
+		Where(role.IDEQ(roleID), role.DeletedAtEQ(0)).
+		WithMenus(func(q *ent.MenuQuery) {
+			q.Where(menu.DeletedAtEQ(0)).
+				Order(ent.Asc(menu.FieldSortOrder), ent.Asc(menu.FieldCreatedAt))
+		}).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, errors.NotFoundError("角色不存在").With("role_id", roleID)
+		}
+		slog.ErrorContext(ctx, "查询角色菜单失败", "error", err)
+		return nil, errors.InternalError("查询角色菜单失败").With("error", err.Error())
+	}
+
+	// 转换菜单数据
+	menus := make([]*types.MenuInfo, len(role.Edges.Menus))
+	for i, m := range role.Edges.Menus {
+		menus[i] = s.toMenuInfo(m)
+	}
+
+	result := &types.RoleMenuOutput{
+		RoleID:   role.ID,
+		RoleName: role.Name,
+		Menus:    menus,
+	}
+
+	return result, nil
+}
+
+// GetUserMenus 获取用户可访问的菜单
+func (s *RoleService) GetUserMenus(ctx context.Context, input *types.GetUserMenusInput) (*types.UserMenuOutput, error) {
+	slog.InfoContext(ctx, "获取用户菜单", "user_id", input.UserID, "tree_mode", input.TreeMode, "only_menu", input.OnlyMenu)
+
+	// 查询用户活跃角色的菜单
+	menuQuery := s.orm.UserRole.Query().
+		Where(
+			userrole.UserIDEQ(input.UserID),
+			userrole.StatusEQ(userrole.StatusActive),
+			userrole.DeletedAtEQ(0),
+			func(selector *sql.Selector) {
+				// 检查过期时间
+				selector.Where(sql.Or(
+					sql.IsNull(userrole.FieldExpiresAt),
+					sql.GT(userrole.FieldExpiresAt, time.Now()),
+				))
+			},
+		).
+		QueryRole().
+		Where(role.StatusEQ(role.StatusActive), role.DeletedAtEQ(0)).
+		QueryMenus().
+		Where(
+			menu.StatusEQ(menu.StatusActive),
+			menu.DeletedAtEQ(0),
+			menu.HiddenEQ(false),
+		)
+
+	// 如果只返回菜单类型，排除按钮
+	if input.OnlyMenu {
+		menuQuery = menuQuery.Where(menu.TypeIn(menu.TypeMenu, menu.TypeLink))
+	}
+
+	menus, err := menuQuery.Order(ent.Asc(menu.FieldSortOrder), ent.Asc(menu.FieldCreatedAt)).
+		All(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "查询用户菜单失败", "error", err)
+		return nil, errors.InternalError("查询用户菜单失败").With("error", err.Error())
+	}
+
+	// 去重（用户可能有多个角色，菜单可能重复）
+	menuMap := make(map[string]*ent.Menu)
+	for _, m := range menus {
+		menuMap[m.ID] = m
+	}
+
+	// 转换为菜单信息列表
+	menuList := make([]*types.MenuInfo, 0, len(menuMap))
+	for _, m := range menuMap {
+		menuList = append(menuList, s.toMenuInfo(m))
+	}
+
+	// 如果需要树形结构，构建菜单树
+	if input.TreeMode {
+		menuList = s.buildMenuTree(menuList)
+	} else {
+		// 非树形结构，按排序字段排序
+		sort.Slice(menuList, func(i, j int) bool {
+			if menuList[i].SortOrder != menuList[j].SortOrder {
+				return menuList[i].SortOrder < menuList[j].SortOrder
+			}
+			return menuList[i].CreatedAt.Before(menuList[j].CreatedAt)
+		})
+	}
+
+	result := &types.UserMenuOutput{
+		UserID: input.UserID,
+		Menus:  menuList,
+	}
+
+	return result, nil
+}
+
+// GetRoleMenuPermissions 获取角色菜单权限详情
+func (s *RoleService) GetRoleMenuPermissions(ctx context.Context, roleID string) (*types.RoleMenuPermissionOutput, error) {
+	slog.InfoContext(ctx, "获取角色菜单权限详情", "role_id", roleID)
+
+	// 获取角色及其菜单和权限
+	role, err := s.orm.Role.Query().
+		Where(role.IDEQ(roleID), role.DeletedAtEQ(0)).
+		WithMenus(func(q *ent.MenuQuery) {
+			q.Where(menu.DeletedAtEQ(0)).
+				Order(ent.Asc(menu.FieldSortOrder), ent.Asc(menu.FieldCreatedAt))
+		}).
+		WithPermissions(func(q *ent.PermissionQuery) {
+			q.Where(permission.StatusEQ(permission.StatusActive), permission.DeletedAtEQ(0)).
+				Order(ent.Asc(permission.FieldSortOrder), ent.Asc(permission.FieldCreatedAt))
+		}).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, errors.NotFoundError("角色不存在").With("role_id", roleID)
+		}
+		slog.ErrorContext(ctx, "查询角色菜单权限失败", "error", err)
+		return nil, errors.InternalError("查询角色菜单权限失败").With("error", err.Error())
+	}
+
+	// 构建权限映射
+	rolePermissions := make([]string, len(role.Edges.Permissions))
+	permissionMap := make(map[string]bool)
+	for i, p := range role.Edges.Permissions {
+		rolePermissions[i] = p.Code
+		permissionMap[p.Code] = true
+	}
+
+	// 转换菜单数据，并匹配权限
+	menus := make([]*types.MenuPermissionInfo, len(role.Edges.Menus))
+	for i, m := range role.Edges.Menus {
+		menuInfo := s.toMenuInfo(m)
+		permissions := []string{}
+
+		// 如果菜单有权限标识，检查角色是否拥有此权限
+		if m.Permission != "" {
+			if permissionMap[m.Permission] {
+				permissions = append(permissions, m.Permission)
+			}
+		}
+
+		menus[i] = &types.MenuPermissionInfo{
+			MenuInfo:    menuInfo,
+			Permissions: permissions,
+		}
+	}
+
+	result := &types.RoleMenuPermissionOutput{
+		RoleID:      role.ID,
+		RoleName:    role.Name,
+		Menus:       menus,
+		Permissions: rolePermissions,
+	}
+
+	return result, nil
+}
+
+// toMenuInfo 转换菜单实体为菜单信息
+func (s *RoleService) toMenuInfo(m *ent.Menu) *types.MenuInfo {
+	var icon, path, component, permission, description, externalLink *string
+
+	// 转换string字段为*string，如果字段不为空
+	if m.Icon != "" {
+		icon = &m.Icon
+	}
+	if m.Path != "" {
+		path = &m.Path
+	}
+	if m.Component != "" {
+		component = &m.Component
+	}
+	if m.Permission != "" {
+		permission = &m.Permission
+	}
+	if m.Description != "" {
+		description = &m.Description
+	}
+	if m.ExternalLink != "" {
+		externalLink = &m.ExternalLink
+	}
+
+	return &types.MenuInfo{
+		ID:             m.ID,
+		Name:           m.Name,
+		Title:          m.Title,
+		Icon:           icon,
+		Path:           path,
+		Component:      component,
+		ParentID:       m.ParentID,
+		Type:           string(m.Type),
+		Status:         string(m.Status),
+		Hidden:         m.Hidden,
+		SortOrder:      m.SortOrder,
+		Permission:     permission,
+		Description:    description,
+		ExternalLink:   externalLink,
+		KeepAlive:      m.KeepAlive,
+		HideBreadcrumb: m.HideBreadcrumb,
+		AlwaysShow:     m.AlwaysShow,
+		CreatedAt:      m.CreatedAt,
+		UpdatedAt:      m.UpdatedAt,
+	}
+}
+
+// buildMenuTree 构建菜单树结构
+func (s *RoleService) buildMenuTree(menus []*types.MenuInfo) []*types.MenuInfo {
+	// 创建菜单映射
+	menuMap := make(map[string]*types.MenuInfo)
+	for _, menu := range menus {
+		menuMap[menu.ID] = menu
+		menu.Children = []*types.MenuInfo{} // 初始化子菜单切片
+	}
+
+	// 构建树结构
+	var roots []*types.MenuInfo
+	for _, menu := range menus {
+		if menu.ParentID == nil || *menu.ParentID == "" {
+			roots = append(roots, menu)
+		} else {
+			if parent, exists := menuMap[*menu.ParentID]; exists {
+				parent.Children = append(parent.Children, menu)
+			} else {
+				// 父菜单不存在，作为根节点处理
+				roots = append(roots, menu)
+			}
+		}
+	}
+
+	// 对每个层级的菜单进行排序
+	var sortMenus func([]*types.MenuInfo)
+	sortMenus = func(menuList []*types.MenuInfo) {
+		sort.Slice(menuList, func(i, j int) bool {
+			if menuList[i].SortOrder != menuList[j].SortOrder {
+				return menuList[i].SortOrder < menuList[j].SortOrder
+			}
+			return menuList[i].CreatedAt.Before(menuList[j].CreatedAt)
+		})
+		for _, menu := range menuList {
+			if len(menu.Children) > 0 {
+				sortMenus(menu.Children)
+			}
+		}
+	}
+
+	sortMenus(roots)
+	return roots
 }
