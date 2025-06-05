@@ -256,7 +256,215 @@ errorDetails := []*errors.ErrorDetail{
 return ValidationError("验证失败", errorDetails).JSON(c)
 ```
 
-### 8. 日志规范
+### 8. OpenAPI 文档规范
+
+#### 文档优先开发原则
+**核心规则：Handler开发完成后立即编写OpenAPI文档，无需编写任何md文档或handler注释**
+
+```yaml
+# docs/openapi.yaml 统一维护所有API文档
+openapi: 3.1.0
+info:
+  title: Echo Template API
+  description: Echo Template 项目的 RESTful API 文档
+  version: 1.0.0
+
+paths:
+  /api/v1/users:
+    get:
+      tags:
+        - 用户管理
+      summary: 获取用户列表
+      description: 分页获取用户列表，支持状态过滤和关键词搜索
+      operationId: getUsers
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+      responses:
+        '200':
+          description: 获取用户列表成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersResponse'
+
+components:
+  schemas:
+    # Input Schema定义
+    CreateUserInput:
+      title: 创建用户请求
+      type: object
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+      required:
+        - username
+        - email
+
+    # Output Schema定义
+    UserOutput:
+      title: 用户信息
+      type: object
+      properties:
+        id:
+          type: string
+          example: "01HQZX123456789ABCDEFGHIJ"
+        username:
+          type: string
+          example: "johndoe"
+        email:
+          type: string
+          example: "john@example.com"
+      required:
+        - id
+        - username
+        - email
+```
+
+#### Handler注释规范
+**Handler函数只需要简短的中文注释，无需swagger注释**：
+
+```go
+// CreateUser 创建用户
+func (h *UserHandler) CreateUser(c echo.Context) error {
+    // 实现逻辑...
+}
+
+// ListUsers 获取用户列表
+func (h *UserHandler) ListUsers(c echo.Context) error {
+    // 实现逻辑...
+}
+
+// 绝对不需要以下内容：
+// ❌ @Summary
+// ❌ @Description  
+// ❌ @Tags
+// ❌ @Accept
+// ❌ @Produce
+// ❌ @Param
+// ❌ @Success
+// ❌ @Failure
+// ❌ @Router
+```
+
+#### OpenAPI文档结构规范
+
+**1. Tags组织**
+```yaml
+tags:
+  - name: 认证
+    description: 用户认证相关接口
+  - name: 用户管理
+    description: 用户管理相关接口
+  - name: 角色管理
+    description: 角色管理相关接口
+  - name: 权限管理
+    description: 权限管理相关接口
+```
+
+**2. Schema命名约定**
+- Input类型：`CreateUserInput`、`UpdateUserInput`、`ListUsersInput`
+- Output类型：`UserOutput`、`ListUsersOutput`、`UserRoleOutput`
+- Response类型：`UserResponse`、`UsersResponse`、`MessageResponse`
+
+**3. 统一响应格式**
+```yaml
+UserResponse:
+  type: object
+  properties:
+    code:
+      type: integer
+      description: API状态码（0=成功，非0=失败）
+      example: 0
+    message:
+      type: string
+      description: 响应消息
+      example: "获取用户成功"
+    data:
+      $ref: '#/components/schemas/UserOutput'
+    errors:
+      type: array
+      items:
+        $ref: '#/components/schemas/ErrorDetail'
+    timestamp:
+      type: integer
+      format: int64
+      example: 1640995200
+    request_id:
+      type: string
+      example: "req-123456"
+  required:
+    - code
+    - message
+    - data
+    - timestamp
+```
+
+**4. 错误处理文档化**
+```yaml
+ErrorDetail:
+  type: object
+  properties:
+    message:
+      type: string
+      description: 错误消息
+      example: "邮箱格式不正确"
+    location:
+      type: string
+      description: 错误位置
+      example: "email"
+    value:
+      type: string
+      description: 错误的值
+      example: "invalid-email"
+```
+
+#### 文档维护流程
+
+**1. 新API开发流程**
+```bash
+# 1. 开发Handler（只写简单中文注释）
+func (h *UserHandler) CreateUser(c echo.Context) error {
+    // 创建用户实现...
+}
+
+# 2. 立即在docs/openapi.yaml中添加对应的API文档
+# 3. 验证文档语法
+yamllint docs/openapi.yaml
+
+# 4. 启动服务验证API可访问
+curl http://localhost:8000/openapi.json
+```
+
+**2. 文档与代码同步**
+- Input/Output类型定义在`pkg/types/`中与OpenAPI schema保持一致
+- 验证规则在Zog验证器中与OpenAPI constraints保持一致
+- 响应格式在`pkg/handlers/response.go`中与OpenAPI response保持一致
+
+**3. 文档质量标准**
+- ✅ 每个API都有完整的请求/响应示例
+- ✅ 所有参数都有类型、约束和描述
+- ✅ 错误响应包含完整的错误格式说明
+- ✅ 认证要求明确标注
+- ✅ YAML语法正确，可以正常解析
+
+#### 禁止事项
+- ❌ **禁止编写任何.md格式的API文档**
+- ❌ **禁止在Handler函数中写swagger注释**
+- ❌ **禁止在代码注释中描述API行为**
+- ❌ **禁止维护多份文档（只维护OpenAPI）**
+- ❌ **禁止在README中描述API接口**
+
+### 9. 日志规范
 
 #### 使用结构化日志
 ```go
@@ -291,10 +499,14 @@ slog.ErrorContext(ctx, "业务逻辑错误", "error", err)
 1. 如需新的输入类型，在pkg/types中定义，实现Validate()方法
 2. 如需新服务，先在服务容器中注册
 3. 创建 Handler 文件，通过Init()方法注入依赖
-4. 定义路由和处理逻辑
-5. **Handler开发完成后，立即编写OpenAPI文档**，无需编写md文档
-6. 如需新实体，创建 Ent schema
-7. 编写测试
+4. 定义路由和处理逻辑（Handler函数只需简短中文注释）
+5. **强制要求：Handler开发完成后立即编写OpenAPI文档**
+   - 在`docs/openapi.yaml`中添加完整的API定义
+   - 包含请求/响应schema、参数约束、错误处理
+   - **绝对禁止编写任何.md文档或swagger注释**
+6. 验证文档语法：`yamllint docs/openapi.yaml`
+7. 如需新实体，创建 Ent schema
+8. 编写测试
 
 ## 常用命令
 ```bash
@@ -327,9 +539,25 @@ yamllint docs/openapi.yaml                          # 验证YAML语法
 - **生命周期控制**：容器负责服务的创建和销毁
 
 ### 文档优先原则
-- **Handler开发完成后立即编写OpenAPI文档**
-- **不编写单独的md文档，API信息统一在OpenAPI中维护**
-- **确保文档与代码类型定义同步**
-- **采用模块化文档结构，便于维护**
+- **Handler开发完成后强制立即编写OpenAPI文档**
+- **绝对禁止编写任何.md格式的API文档**
+- **绝对禁止在Handler函数中编写swagger注释**
+- **所有API信息统一在docs/openapi.yaml中维护**
+- **确保OpenAPI schema与pkg/types类型定义完全同步**
+- **采用模块化文档结构，便于维护和扩展**
+- **文档是强制要求，非可选项**
 
-记住：这个项目的目标是快速、简单的开发。保持代码简洁，优先选择简单的解决方案。中间件应该专注单一职责，便于组合和测试。服务通过容器注入，保持松耦合和高可测试性。验证逻辑统一化，确保数据安全和类型安全。Handler开发完成后必须立即编写OpenAPI文档，确保API文档的完整性和时效性。
+## 项目开发总结
+
+记住：这个项目的目标是快速、简洁的开发。保持代码简洁，优先选择简单的解决方案。
+
+### 关键要求
+- **代码层面**：中间件专注单一职责，服务通过容器注入，验证逻辑统一化
+- **文档层面**：Handler开发完成后**强制**立即编写OpenAPI文档
+- **禁止事项**：绝对禁止编写.md文档，绝对禁止在Handler中写swagger注释
+
+### 开发效率原则
+- 类型安全：所有Input类型都有验证方法，使用统一的ErrorDetail类型
+- 松耦合：通过容器管理依赖关系，保持高可测试性  
+- 文档一体化：只维护OpenAPI一份文档，确保与代码同步
+- 简单至上：避免过度工程化，专注业务逻辑实现
