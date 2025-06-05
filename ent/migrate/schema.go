@@ -8,6 +8,95 @@ import (
 )
 
 var (
+	// MenusColumns holds the columns for the "menus" table.
+	MenusColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "title", Type: field.TypeString, Size: 100},
+		{Name: "icon", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "path", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "component", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"menu", "button", "link"}, Default: "menu"},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
+		{Name: "hidden", Type: field.TypeBool, Default: false},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "permission", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "description", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "external_link", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "keep_alive", Type: field.TypeBool, Default: false},
+		{Name: "hide_breadcrumb", Type: field.TypeBool, Default: false},
+		{Name: "always_show", Type: field.TypeBool, Default: false},
+		{Name: "parent_id", Type: field.TypeString, Nullable: true, Size: 26},
+	}
+	// MenusTable holds the schema information for the "menus" table.
+	MenusTable = &schema.Table{
+		Name:       "menus",
+		Columns:    MenusColumns,
+		PrimaryKey: []*schema.Column{MenusColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "menus_menus_parent",
+				Columns:    []*schema.Column{MenusColumns[19]},
+				RefColumns: []*schema.Column{MenusColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "menu_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[3]},
+			},
+			{
+				Name:    "menu_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[1]},
+			},
+			{
+				Name:    "menu_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[2]},
+			},
+			{
+				Name:    "menu_parent_id",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[19]},
+			},
+			{
+				Name:    "menu_status",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[10]},
+			},
+			{
+				Name:    "menu_type",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[9]},
+			},
+			{
+				Name:    "menu_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[12]},
+			},
+			{
+				Name:    "menu_parent_id_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[19], MenusColumns[12]},
+			},
+			{
+				Name:    "menu_status_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[10], MenusColumns[12]},
+			},
+			{
+				Name:    "menu_name_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{MenusColumns[4], MenusColumns[3]},
+			},
+		},
+	}
 	// TodosColumns holds the columns for the "todos" table.
 	TodosColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
@@ -214,6 +303,7 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		MenusTable,
 		TodosTable,
 		TokensTable,
 		UsersTable,
@@ -221,5 +311,6 @@ var (
 )
 
 func init() {
+	MenusTable.ForeignKeys[0].RefTable = MenusTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 }

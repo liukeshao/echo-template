@@ -36,6 +36,7 @@ type Container struct {
 
 	Auth *AuthService
 	User *UserService
+	Menu *MenuService
 
 	// Docs stores the documentation service.
 	Docs *DocsService
@@ -50,6 +51,7 @@ func NewContainer() *Container {
 	c.initORM()
 	c.initAuth()
 	c.initUser()
+	c.initMenu()
 	c.initDocs()
 	return c
 }
@@ -130,6 +132,10 @@ func (c *Container) initAuth() {
 
 func (c *Container) initUser() {
 	c.User = NewUserService(c.ORM)
+}
+
+func (c *Container) initMenu() {
+	c.Menu = NewMenuService(c.ORM)
 }
 
 // initDocs initializes the documentation service.

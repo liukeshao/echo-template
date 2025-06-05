@@ -5,6 +5,7 @@ package runtime
 import (
 	"time"
 
+	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/schema"
 	"github.com/liukeshao/echo-template/ent/todo"
 	"github.com/liukeshao/echo-template/ent/token"
@@ -15,6 +16,132 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	menuMixin := schema.Menu{}.Mixin()
+	menuMixinHooks0 := menuMixin[0].Hooks()
+	menu.Hooks[0] = menuMixinHooks0[0]
+	menuMixinInters0 := menuMixin[0].Interceptors()
+	menu.Interceptors[0] = menuMixinInters0[0]
+	menuMixinFields0 := menuMixin[0].Fields()
+	_ = menuMixinFields0
+	menuFields := schema.Menu{}.Fields()
+	_ = menuFields
+	// menuDescCreatedAt is the schema descriptor for created_at field.
+	menuDescCreatedAt := menuMixinFields0[1].Descriptor()
+	// menu.DefaultCreatedAt holds the default value on creation for the created_at field.
+	menu.DefaultCreatedAt = menuDescCreatedAt.Default.(func() time.Time)
+	// menuDescUpdatedAt is the schema descriptor for updated_at field.
+	menuDescUpdatedAt := menuMixinFields0[2].Descriptor()
+	// menu.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	menu.DefaultUpdatedAt = menuDescUpdatedAt.Default.(func() time.Time)
+	// menu.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	menu.UpdateDefaultUpdatedAt = menuDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// menuDescDeletedAt is the schema descriptor for deleted_at field.
+	menuDescDeletedAt := menuMixinFields0[3].Descriptor()
+	// menu.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	menu.DefaultDeletedAt = menuDescDeletedAt.Default.(int64)
+	// menuDescName is the schema descriptor for name field.
+	menuDescName := menuFields[0].Descriptor()
+	// menu.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	menu.NameValidator = func() func(string) error {
+		validators := menuDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// menuDescTitle is the schema descriptor for title field.
+	menuDescTitle := menuFields[1].Descriptor()
+	// menu.TitleValidator is a validator for the "title" field. It is called by the builders before save.
+	menu.TitleValidator = func() func(string) error {
+		validators := menuDescTitle.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(title string) error {
+			for _, fn := range fns {
+				if err := fn(title); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// menuDescIcon is the schema descriptor for icon field.
+	menuDescIcon := menuFields[2].Descriptor()
+	// menu.IconValidator is a validator for the "icon" field. It is called by the builders before save.
+	menu.IconValidator = menuDescIcon.Validators[0].(func(string) error)
+	// menuDescPath is the schema descriptor for path field.
+	menuDescPath := menuFields[3].Descriptor()
+	// menu.PathValidator is a validator for the "path" field. It is called by the builders before save.
+	menu.PathValidator = menuDescPath.Validators[0].(func(string) error)
+	// menuDescComponent is the schema descriptor for component field.
+	menuDescComponent := menuFields[4].Descriptor()
+	// menu.ComponentValidator is a validator for the "component" field. It is called by the builders before save.
+	menu.ComponentValidator = menuDescComponent.Validators[0].(func(string) error)
+	// menuDescParentID is the schema descriptor for parent_id field.
+	menuDescParentID := menuFields[5].Descriptor()
+	// menu.ParentIDValidator is a validator for the "parent_id" field. It is called by the builders before save.
+	menu.ParentIDValidator = menuDescParentID.Validators[0].(func(string) error)
+	// menuDescHidden is the schema descriptor for hidden field.
+	menuDescHidden := menuFields[8].Descriptor()
+	// menu.DefaultHidden holds the default value on creation for the hidden field.
+	menu.DefaultHidden = menuDescHidden.Default.(bool)
+	// menuDescSortOrder is the schema descriptor for sort_order field.
+	menuDescSortOrder := menuFields[9].Descriptor()
+	// menu.DefaultSortOrder holds the default value on creation for the sort_order field.
+	menu.DefaultSortOrder = menuDescSortOrder.Default.(int)
+	// menuDescPermission is the schema descriptor for permission field.
+	menuDescPermission := menuFields[10].Descriptor()
+	// menu.PermissionValidator is a validator for the "permission" field. It is called by the builders before save.
+	menu.PermissionValidator = menuDescPermission.Validators[0].(func(string) error)
+	// menuDescDescription is the schema descriptor for description field.
+	menuDescDescription := menuFields[11].Descriptor()
+	// menu.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
+	menu.DescriptionValidator = menuDescDescription.Validators[0].(func(string) error)
+	// menuDescExternalLink is the schema descriptor for external_link field.
+	menuDescExternalLink := menuFields[12].Descriptor()
+	// menu.ExternalLinkValidator is a validator for the "external_link" field. It is called by the builders before save.
+	menu.ExternalLinkValidator = menuDescExternalLink.Validators[0].(func(string) error)
+	// menuDescKeepAlive is the schema descriptor for keep_alive field.
+	menuDescKeepAlive := menuFields[13].Descriptor()
+	// menu.DefaultKeepAlive holds the default value on creation for the keep_alive field.
+	menu.DefaultKeepAlive = menuDescKeepAlive.Default.(bool)
+	// menuDescHideBreadcrumb is the schema descriptor for hide_breadcrumb field.
+	menuDescHideBreadcrumb := menuFields[14].Descriptor()
+	// menu.DefaultHideBreadcrumb holds the default value on creation for the hide_breadcrumb field.
+	menu.DefaultHideBreadcrumb = menuDescHideBreadcrumb.Default.(bool)
+	// menuDescAlwaysShow is the schema descriptor for always_show field.
+	menuDescAlwaysShow := menuFields[15].Descriptor()
+	// menu.DefaultAlwaysShow holds the default value on creation for the always_show field.
+	menu.DefaultAlwaysShow = menuDescAlwaysShow.Default.(bool)
+	// menuDescID is the schema descriptor for id field.
+	menuDescID := menuMixinFields0[0].Descriptor()
+	// menu.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	menu.IDValidator = func() func(string) error {
+		validators := menuDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	todoMixin := schema.Todo{}.Mixin()
 	todoMixinHooks0 := todoMixin[0].Hooks()
 	todo.Hooks[0] = todoMixinHooks0[0]

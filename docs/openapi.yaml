@@ -24,6 +24,8 @@ tags:
     description: 用户认证相关接口
   - name: 用户
     description: 用户管理相关接口
+  - name: 菜单
+    description: 菜单管理相关接口
 
 paths:
   # 认证相关路径
@@ -345,6 +347,244 @@ paths:
       responses:
         '200':
           description: 修改当前用户密码请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # 菜单管理相关路径
+  /api/v1/menus:
+    get:
+      tags:
+        - 菜单
+      summary: 获取菜单列表
+      description: 分页获取菜单列表，支持父菜单、类型、状态过滤和关键词搜索
+      operationId: getMenus
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: parent_id
+          in: query
+          description: 父菜单ID
+          required: false
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+        - name: type
+          in: query
+          description: 菜单类型过滤
+          required: false
+          schema:
+            type: string
+            enum: [menu, button, link]
+        - name: status
+          in: query
+          description: 菜单状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: keyword
+          in: query
+          description: 搜索关键词（用于搜索菜单名称或标题）
+          required: false
+          schema:
+            type: string
+        - name: tree_mode
+          in: query
+          description: 是否返回树形结构
+          required: false
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: 获取菜单列表请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenusResponse'
+
+    post:
+      tags:
+        - 菜单
+      summary: 创建菜单
+      description: 创建新菜单
+      operationId: createMenu
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMenuInput'
+      responses:
+        '200':
+          description: 创建菜单请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+
+  /api/v1/menus/tree:
+    get:
+      tags:
+        - 菜单
+      summary: 获取菜单树
+      description: 获取完整的菜单树形结构
+      operationId: getMenuTree
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          description: 菜单类型过滤
+          required: false
+          schema:
+            type: string
+            enum: [menu, button, link]
+        - name: status
+          in: query
+          description: 菜单状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: keyword
+          in: query
+          description: 搜索关键词（用于搜索菜单名称或标题）
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取菜单树请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuTreeResponse'
+
+  /api/v1/menus/stats:
+    get:
+      tags:
+        - 菜单
+      summary: 获取菜单统计
+      description: 获取各状态和类型菜单的统计信息
+      operationId: getMenuStats
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取菜单统计请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuStatsResponse'
+
+  /api/v1/menus/order:
+    put:
+      tags:
+        - 菜单
+      summary: 更新菜单排序
+      description: 批量更新菜单的排序和父子关系
+      operationId: updateMenuOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMenuOrderInput'
+      responses:
+        '200':
+          description: 更新菜单排序请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/menus/{id}:
+    get:
+      tags:
+        - 菜单
+      summary: 获取菜单信息
+      description: 根据菜单ID获取菜单详细信息
+      operationId: getMenuById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 菜单ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取菜单信息请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+
+    put:
+      tags:
+        - 菜单
+      summary: 更新菜单
+      description: 更新菜单信息
+      operationId: updateMenu
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 菜单ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMenuInput'
+      responses:
+        '200':
+          description: 更新菜单请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+
+    delete:
+      tags:
+        - 菜单
+      summary: 删除菜单
+      description: 删除指定菜单（软删除）
+      operationId: deleteMenu
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 菜单ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 删除菜单请求响应
           content:
             application/json:
               schema:
@@ -912,6 +1152,562 @@ components:
               example: "操作成功"
           required:
             - message
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 菜单相关Schema定义
+
+    # 创建菜单输入
+    CreateMenuInput:
+      title: 创建菜单请求
+      type: object
+      description: 创建菜单输入
+      properties:
+        name:
+          type: string
+          description: 菜单名称
+          minLength: 1
+          maxLength: 100
+          example: "user-management"
+        title:
+          type: string
+          description: 菜单标题
+          minLength: 1
+          maxLength: 100
+          example: "用户管理"
+        icon:
+          type: string
+          description: 菜单图标
+          nullable: true
+          example: "users"
+        path:
+          type: string
+          description: 菜单路径
+          nullable: true
+          example: "/admin/users"
+        component:
+          type: string
+          description: 组件路径
+          nullable: true
+          example: "views/admin/UserManagement"
+        parent_id:
+          type: string
+          description: 父菜单ID
+          nullable: true
+          minLength: 26
+          maxLength: 26
+          example: null
+        type:
+          type: string
+          enum: [menu, button, link]
+          description: 菜单类型
+          example: "menu"
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 菜单状态
+          example: "active"
+        hidden:
+          type: boolean
+          description: 是否隐藏
+          example: false
+        sort_order:
+          type: integer
+          description: 排序序号
+          minimum: 0
+          example: 1
+        permission:
+          type: string
+          description: 权限标识
+          nullable: true
+          example: "user:list"
+        description:
+          type: string
+          description: 菜单描述
+          nullable: true
+          example: "用户管理模块"
+        external_link:
+          type: string
+          description: 外部链接
+          nullable: true
+          example: "https://example.com"
+        keep_alive:
+          type: boolean
+          description: 是否缓存
+          example: false
+        hide_breadcrumb:
+          type: boolean
+          description: 是否隐藏面包屑
+          example: false
+        always_show:
+          type: boolean
+          description: 是否总是显示
+          example: false
+      required:
+        - name
+        - title
+        - type
+        - status
+        - hidden
+        - sort_order
+        - keep_alive
+        - hide_breadcrumb
+        - always_show
+
+    # 更新菜单输入
+    UpdateMenuInput:
+      title: 更新菜单请求
+      type: object
+      description: 更新菜单输入
+      properties:
+        name:
+          type: string
+          description: 菜单名称
+          minLength: 1
+          maxLength: 100
+          example: "user-management"
+        title:
+          type: string
+          description: 菜单标题
+          minLength: 1
+          maxLength: 100
+          example: "用户管理"
+        icon:
+          type: string
+          description: 菜单图标
+          nullable: true
+          example: "users"
+        path:
+          type: string
+          description: 菜单路径
+          nullable: true
+          example: "/admin/users"
+        component:
+          type: string
+          description: 组件路径
+          nullable: true
+          example: "views/admin/UserManagement"
+        parent_id:
+          type: string
+          description: 父菜单ID
+          nullable: true
+          minLength: 26
+          maxLength: 26
+          example: null
+        type:
+          type: string
+          enum: [menu, button, link]
+          description: 菜单类型
+          example: "menu"
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 菜单状态
+          example: "active"
+        hidden:
+          type: boolean
+          description: 是否隐藏
+          example: false
+        sort_order:
+          type: integer
+          description: 排序序号
+          minimum: 0
+          example: 1
+        permission:
+          type: string
+          description: 权限标识
+          nullable: true
+          example: "user:list"
+        description:
+          type: string
+          description: 菜单描述
+          nullable: true
+          example: "用户管理模块"
+        external_link:
+          type: string
+          description: 外部链接
+          nullable: true
+          example: "https://example.com"
+        keep_alive:
+          type: boolean
+          description: 是否缓存
+          example: false
+        hide_breadcrumb:
+          type: boolean
+          description: 是否隐藏面包屑
+          example: false
+        always_show:
+          type: boolean
+          description: 是否总是显示
+          example: false
+
+    # 更新菜单排序输入
+    UpdateMenuOrderInput:
+      title: 更新菜单排序请求
+      type: object
+      description: 更新菜单排序输入
+      properties:
+        menu_orders:
+          type: array
+          description: 菜单排序列表
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+                description: 菜单ID
+                minLength: 26
+                maxLength: 26
+                example: "01HQZK8QJXVP4Y9K2M5N7R8T6W"
+              parent_id:
+                type: string
+                description: 父菜单ID
+                nullable: true
+                minLength: 26
+                maxLength: 26
+                example: null
+              sort_order:
+                type: integer
+                description: 排序序号
+                minimum: 0
+                example: 1
+            required:
+              - id
+              - sort_order
+      required:
+        - menu_orders
+
+    # 菜单信息
+    MenuInfo:
+      title: 菜单信息
+      type: object
+      description: 菜单信息
+      properties:
+        id:
+          type: string
+          description: 菜单ID
+          example: "01HQZK8QJXVP4Y9K2M5N7R8T6W"
+        name:
+          type: string
+          description: 菜单名称
+          example: "user-management"
+        title:
+          type: string
+          description: 菜单标题
+          example: "用户管理"
+        icon:
+          type: string
+          description: 菜单图标
+          nullable: true
+          example: "users"
+        path:
+          type: string
+          description: 菜单路径
+          nullable: true
+          example: "/admin/users"
+        component:
+          type: string
+          description: 组件路径
+          nullable: true
+          example: "views/admin/UserManagement"
+        parent_id:
+          type: string
+          description: 父菜单ID
+          nullable: true
+          example: null
+        type:
+          type: string
+          enum: [menu, button, link]
+          description: 菜单类型
+          example: "menu"
+        status:
+          type: string
+          enum: [active, inactive]
+          description: 菜单状态
+          example: "active"
+        hidden:
+          type: boolean
+          description: 是否隐藏
+          example: false
+        sort_order:
+          type: integer
+          description: 排序序号
+          example: 1
+        permission:
+          type: string
+          description: 权限标识
+          nullable: true
+          example: "user:list"
+        description:
+          type: string
+          description: 菜单描述
+          nullable: true
+          example: "用户管理模块"
+        external_link:
+          type: string
+          description: 外部链接
+          nullable: true
+          example: "https://example.com"
+        keep_alive:
+          type: boolean
+          description: 是否缓存
+          example: false
+        hide_breadcrumb:
+          type: boolean
+          description: 是否隐藏面包屑
+          example: false
+        always_show:
+          type: boolean
+          description: 是否总是显示
+          example: false
+        children:
+          type: array
+          description: 子菜单列表
+          items:
+            $ref: '#/components/schemas/MenuInfo'
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2023-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2023-01-01T00:00:00Z"
+      required:
+        - id
+        - name
+        - title
+        - type
+        - status
+        - hidden
+        - sort_order
+        - keep_alive
+        - hide_breadcrumb
+        - always_show
+        - created_at
+        - updated_at
+
+    # 菜单响应
+    MenuResponse:
+      title: 菜单响应
+      type: object
+      description: 菜单响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取菜单成功"
+        data:
+          $ref: '#/components/schemas/MenuInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 菜单列表响应
+    MenusResponse:
+      title: 菜单列表响应
+      type: object
+      description: 菜单列表响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取菜单列表成功"
+        data:
+          type: object
+          description: 菜单列表数据
+          properties:
+            menus:
+              type: array
+              description: 菜单列表
+              items:
+                $ref: '#/components/schemas/MenuInfo'
+            total:
+              type: integer
+              format: int64
+              description: 总记录数
+              example: 50
+            page:
+              type: integer
+              description: 当前页码
+              example: 1
+            page_size:
+              type: integer
+              description: 每页数量
+              example: 20
+            total_pages:
+              type: integer
+              description: 总页数
+              example: 3
+          required:
+            - menus
+            - total
+            - page
+            - page_size
+            - total_pages
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 菜单树响应
+    MenuTreeResponse:
+      title: 菜单树响应
+      type: object
+      description: 菜单树响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取菜单树成功"
+        data:
+          type: object
+          description: 菜单树数据
+          properties:
+            menus:
+              type: array
+              description: 菜单树列表
+              items:
+                $ref: '#/components/schemas/MenuInfo'
+          required:
+            - menus
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 菜单统计响应
+    MenuStatsResponse:
+      title: 菜单统计响应
+      type: object
+      description: 菜单统计响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取菜单统计成功"
+        data:
+          type: object
+          description: 菜单统计数据
+          properties:
+            total_menus:
+              type: integer
+              format: int64
+              description: 总菜单数
+              example: 50
+            active_menus:
+              type: integer
+              format: int64
+              description: 活跃菜单数
+              example: 45
+            inactive_menus:
+              type: integer
+              format: int64
+              description: 非活跃菜单数
+              example: 5
+            menu_menus:
+              type: integer
+              format: int64
+              description: 菜单类型数量
+              example: 30
+            button_menus:
+              type: integer
+              format: int64
+              description: 按钮类型数量
+              example: 15
+            link_menus:
+              type: integer
+              format: int64
+              description: 链接类型数量
+              example: 5
+          required:
+            - total_menus
+            - active_menus
+            - inactive_menus
+            - menu_menus
+            - button_menus
+            - link_menus
         errors:
           type: array
           description: 错误详情列表
