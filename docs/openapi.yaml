@@ -26,6 +26,10 @@ tags:
     description: 用户管理相关接口
   - name: 菜单
     description: 菜单管理相关接口
+  - name: 角色管理
+    description: 角色管理相关接口
+  - name: 权限管理
+    description: 权限管理相关接口
 
 paths:
   # 认证相关路径
@@ -589,6 +593,434 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MessageResponse'
+
+  # 角色管理相关路径
+  /api/v1/roles:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取角色列表
+      description: 分页获取角色列表，支持状态过滤和搜索
+      operationId: getRoles
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          description: 角色状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: search
+          in: query
+          description: 搜索关键词（角色名称、代码或描述）
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取角色列表请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolesResponse'
+
+    post:
+      tags:
+        - 角色管理
+      summary: 创建角色
+      description: 创建新的角色
+      operationId: createRole
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRoleInput'
+      responses:
+        '200':
+          description: 创建角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+  /api/v1/roles/{id}:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取角色详情
+      description: 根据角色ID获取角色详细信息
+      operationId: getRoleById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取角色详情请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+    put:
+      tags:
+        - 角色管理
+      summary: 更新角色
+      description: 更新角色信息
+      operationId: updateRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleInput'
+      responses:
+        '200':
+          description: 更新角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoleResponse'
+
+    delete:
+      tags:
+        - 角色管理
+      summary: 删除角色
+      description: 删除指定角色（软删除）
+      operationId: deleteRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 删除角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/roles/assign:
+    post:
+      tags:
+        - 角色管理
+      summary: 分配角色给用户
+      description: 为用户分配一个或多个角色
+      operationId: assignRoles
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignRoleInput'
+      responses:
+        '200':
+          description: 分配角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/roles/revoke:
+    post:
+      tags:
+        - 角色管理
+      summary: 撤销用户角色
+      description: 撤销用户的一个或多个角色
+      operationId: revokeRoles
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RevokeRoleInput'
+      responses:
+        '200':
+          description: 撤销角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/roles/users/{user_id}:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取用户角色列表
+      description: 获取指定用户的所有角色
+      operationId: getUserRoles
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: user_id
+          in: path
+          description: 用户ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取用户角色请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserRolesResponse'
+
+  /api/v1/roles/{id}/permissions:
+    get:
+      tags:
+        - 角色管理
+      summary: 获取角色权限列表
+      description: 获取指定角色的所有权限
+      operationId: getRolePermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取角色权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RolePermissionsResponse'
+
+    post:
+      tags:
+        - 角色管理
+      summary: 为角色分配权限
+      description: 为指定角色分配一个或多个权限
+      operationId: assignPermissionsToRole
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 角色ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignPermissionInput'
+      responses:
+        '200':
+          description: 分配权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  # 权限管理相关路径
+  /api/v1/permissions:
+    get:
+      tags:
+        - 权限管理
+      summary: 获取权限列表
+      description: 分页获取权限列表，支持状态和资源过滤
+      operationId: getPermissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/PageSizeParam'
+        - name: status
+          in: query
+          description: 权限状态过滤
+          required: false
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: resource
+          in: query
+          description: 资源过滤
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: 搜索关键词（权限名称、代码或描述）
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: 获取权限列表请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionsResponse'
+
+    post:
+      tags:
+        - 权限管理
+      summary: 创建权限
+      description: 创建新的权限
+      operationId: createPermission
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePermissionInput'
+      responses:
+        '200':
+          description: 创建权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionResponse'
+
+  /api/v1/permissions/{id}:
+    get:
+      tags:
+        - 权限管理
+      summary: 获取权限详情
+      description: 根据权限ID获取权限详细信息
+      operationId: getPermissionById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 权限ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 获取权限详情请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionResponse'
+
+    put:
+      tags:
+        - 权限管理
+      summary: 更新权限
+      description: 更新权限信息
+      operationId: updatePermission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 权限ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePermissionInput'
+      responses:
+        '200':
+          description: 更新权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionResponse'
+
+    delete:
+      tags:
+        - 权限管理
+      summary: 删除权限
+      description: 删除指定权限（软删除）
+      operationId: deletePermission
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          description: 权限ID
+          required: true
+          schema:
+            type: string
+            minLength: 26
+            maxLength: 26
+      responses:
+        '200':
+          description: 删除权限请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+
+  /api/v1/permissions/groups:
+    get:
+      tags:
+        - 权限管理
+      summary: 获取权限分组
+      description: 按资源对权限进行分组展示
+      operationId: getPermissionGroups
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: 获取权限分组请求响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PermissionGroupsResponse'
 
 components:
   securitySchemes:
@@ -1708,6 +2140,747 @@ components:
             - menu_menus
             - button_menus
             - link_menus
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 角色管理相关Schema定义
+
+    # 创建角色输入
+    CreateRoleInput:
+      title: 创建角色请求
+      type: object
+      description: 创建角色输入
+      properties:
+        name:
+          type: string
+          description: 角色名称
+          minLength: 1
+          maxLength: 50
+          example: "管理员"
+        code:
+          type: string
+          description: 角色代码
+          pattern: '^[A-Z_]+$'
+          minLength: 1
+          maxLength: 50
+          example: "ADMIN"
+        description:
+          type: string
+          description: 角色描述
+          maxLength: 500
+          example: "系统管理员角色"
+        status:
+          type: string
+          description: 角色状态
+          enum: [active, inactive]
+          default: active
+          example: "active"
+        sort_order:
+          type: integer
+          description: 排序顺序
+          minimum: 0
+          example: 1
+      required:
+        - name
+        - code
+
+    # 更新角色输入
+    UpdateRoleInput:
+      title: 更新角色请求
+      type: object
+      description: 更新角色输入
+      properties:
+        name:
+          type: string
+          description: 角色名称
+          minLength: 1
+          maxLength: 50
+          example: "管理员"
+        description:
+          type: string
+          description: 角色描述
+          maxLength: 500
+          example: "系统管理员角色"
+        status:
+          type: string
+          description: 角色状态
+          enum: [active, inactive]
+          example: "active"
+        sort_order:
+          type: integer
+          description: 排序顺序
+          minimum: 0
+          example: 1
+
+    # 分配角色输入
+    AssignRoleInput:
+      title: 分配角色请求
+      type: object
+      description: 分配角色输入
+      properties:
+        user_id:
+          type: string
+          description: 用户ID
+          minLength: 26
+          maxLength: 26
+          example: "01HQZX123456789ABCDEFGHIJ"
+        role_ids:
+          type: array
+          description: 角色ID列表
+          items:
+            type: string
+            minLength: 26
+            maxLength: 26
+          example: ["01HQZX123456789ABCDEFGHIJ", "01HQZX123456789ABCDEFGHIK"]
+        expires_at:
+          type: string
+          format: date-time
+          description: 过期时间（可选）
+          example: "2024-12-31T23:59:59Z"
+        remark:
+          type: string
+          description: 备注
+          maxLength: 500
+          example: "临时分配管理员权限"
+      required:
+        - user_id
+        - role_ids
+
+    # 撤销角色输入
+    RevokeRoleInput:
+      title: 撤销角色请求
+      type: object
+      description: 撤销角色输入
+      properties:
+        user_id:
+          type: string
+          description: 用户ID
+          minLength: 26
+          maxLength: 26
+          example: "01HQZX123456789ABCDEFGHIJ"
+        role_ids:
+          type: array
+          description: 角色ID列表
+          items:
+            type: string
+            minLength: 26
+            maxLength: 26
+          example: ["01HQZX123456789ABCDEFGHIJ", "01HQZX123456789ABCDEFGHIK"]
+      required:
+        - user_id
+        - role_ids
+
+    # 分配权限输入
+    AssignPermissionInput:
+      title: 分配权限请求
+      type: object
+      description: 分配权限输入
+      properties:
+        permission_ids:
+          type: array
+          description: 权限ID列表
+          items:
+            type: string
+            minLength: 26
+            maxLength: 26
+          example: ["01HQZX123456789ABCDEFGHIJ", "01HQZX123456789ABCDEFGHIK"]
+      required:
+        - permission_ids
+
+    # 角色信息
+    RoleInfo:
+      title: 角色信息
+      type: object
+      description: 角色信息
+      properties:
+        id:
+          type: string
+          description: 角色ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        name:
+          type: string
+          description: 角色名称
+          example: "管理员"
+        code:
+          type: string
+          description: 角色代码
+          example: "ADMIN"
+        description:
+          type: string
+          description: 角色描述
+          example: "系统管理员角色"
+        status:
+          type: string
+          description: 角色状态
+          enum: [active, inactive]
+          example: "active"
+        is_system:
+          type: boolean
+          description: 是否为系统角色
+          example: true
+        sort_order:
+          type: integer
+          description: 排序顺序
+          example: 1
+        permissions:
+          type: array
+          description: 角色权限列表
+          items:
+            type: string
+          example: ["user.create", "user.update", "user.delete"]
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2024-01-01T00:00:00Z"
+      required:
+        - id
+        - name
+        - code
+        - status
+        - is_system
+        - sort_order
+        - permissions
+        - created_at
+        - updated_at
+
+    # 用户角色信息
+    UserRoleInfo:
+      title: 用户角色信息
+      type: object
+      description: 用户角色信息
+      properties:
+        id:
+          type: string
+          description: 用户角色关联ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        role:
+          $ref: '#/components/schemas/RoleInfo'
+        granted_by:
+          type: string
+          description: 授权者ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        granted_at:
+          type: string
+          format: date-time
+          description: 授权时间
+          example: "2024-01-01T00:00:00Z"
+        expires_at:
+          type: string
+          format: date-time
+          description: 过期时间
+          example: "2024-12-31T23:59:59Z"
+        status:
+          type: string
+          description: 状态
+          enum: [active, inactive, expired]
+          example: "active"
+        remark:
+          type: string
+          description: 备注
+          example: "临时分配管理员权限"
+      required:
+        - id
+        - role
+        - granted_at
+        - status
+
+    # 权限管理相关Schema定义
+
+    # 创建权限输入
+    CreatePermissionInput:
+      title: 创建权限请求
+      type: object
+      description: 创建权限输入
+      properties:
+        name:
+          type: string
+          description: 权限名称
+          minLength: 1
+          maxLength: 50
+          example: "创建用户"
+        code:
+          type: string
+          description: 权限代码
+          pattern: '^[a-z_.]+$'
+          minLength: 1
+          maxLength: 100
+          example: "user.create"
+        resource:
+          type: string
+          description: 资源
+          minLength: 1
+          maxLength: 50
+          example: "user"
+        action:
+          type: string
+          description: 操作
+          minLength: 1
+          maxLength: 50
+          example: "create"
+        description:
+          type: string
+          description: 权限描述
+          maxLength: 500
+          example: "允许创建新用户"
+        status:
+          type: string
+          description: 权限状态
+          enum: [active, inactive]
+          default: active
+          example: "active"
+        sort_order:
+          type: integer
+          description: 排序顺序
+          minimum: 0
+          example: 1
+      required:
+        - name
+        - code
+        - resource
+        - action
+
+    # 更新权限输入
+    UpdatePermissionInput:
+      title: 更新权限请求
+      type: object
+      description: 更新权限输入
+      properties:
+        name:
+          type: string
+          description: 权限名称
+          minLength: 1
+          maxLength: 50
+          example: "创建用户"
+        description:
+          type: string
+          description: 权限描述
+          maxLength: 500
+          example: "允许创建新用户"
+        status:
+          type: string
+          description: 权限状态
+          enum: [active, inactive]
+          example: "active"
+        sort_order:
+          type: integer
+          description: 排序顺序
+          minimum: 0
+          example: 1
+
+    # 权限信息
+    PermissionInfo:
+      title: 权限信息
+      type: object
+      description: 权限信息
+      properties:
+        id:
+          type: string
+          description: 权限ID
+          example: "01HQZX123456789ABCDEFGHIJ"
+        name:
+          type: string
+          description: 权限名称
+          example: "创建用户"
+        code:
+          type: string
+          description: 权限代码
+          example: "user.create"
+        resource:
+          type: string
+          description: 资源
+          example: "user"
+        action:
+          type: string
+          description: 操作
+          example: "create"
+        description:
+          type: string
+          description: 权限描述
+          example: "允许创建新用户"
+        status:
+          type: string
+          description: 权限状态
+          enum: [active, inactive]
+          example: "active"
+        is_system:
+          type: boolean
+          description: 是否为系统权限
+          example: true
+        sort_order:
+          type: integer
+          description: 排序顺序
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2024-01-01T00:00:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: 更新时间
+          example: "2024-01-01T00:00:00Z"
+      required:
+        - id
+        - name
+        - code
+        - resource
+        - action
+        - status
+        - is_system
+        - sort_order
+        - created_at
+        - updated_at
+
+    # 权限分组信息
+    PermissionGroupInfo:
+      title: 权限分组信息
+      type: object
+      description: 权限分组信息
+      properties:
+        resource:
+          type: string
+          description: 资源名称
+          example: "user"
+        permissions:
+          type: array
+          description: 权限列表
+          items:
+            $ref: '#/components/schemas/PermissionInfo'
+      required:
+        - resource
+        - permissions
+
+    # 角色权限信息
+    RolePermissionInfo:
+      title: 角色权限信息
+      type: object
+      description: 角色权限信息
+      properties:
+        role:
+          $ref: '#/components/schemas/RoleInfo'
+        permissions:
+          type: array
+          description: 权限列表
+          items:
+            $ref: '#/components/schemas/PermissionInfo'
+      required:
+        - role
+        - permissions
+
+    # 响应Schema定义
+
+    # 角色响应
+    RoleResponse:
+      title: 角色响应
+      type: object
+      description: 角色响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取角色成功"
+        data:
+          $ref: '#/components/schemas/RoleInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 角色列表响应
+    RolesResponse:
+      title: 角色列表响应
+      type: object
+      description: 角色列表响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取角色列表成功"
+        data:
+          type: object
+          description: 角色列表数据
+          properties:
+            list:
+              type: array
+              description: 角色列表
+              items:
+                $ref: '#/components/schemas/RoleInfo'
+            total:
+              type: integer
+              format: int64
+              description: 总记录数
+              example: 10
+            page:
+              type: integer
+              description: 当前页码
+              example: 1
+            size:
+              type: integer
+              description: 每页数量
+              example: 20
+          required:
+            - list
+            - total
+            - page
+            - size
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 用户角色列表响应
+    UserRolesResponse:
+      title: 用户角色列表响应
+      type: object
+      description: 用户角色列表响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取用户角色成功"
+        data:
+          type: array
+          description: 用户角色列表
+          items:
+            $ref: '#/components/schemas/UserRoleInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 角色权限响应
+    RolePermissionsResponse:
+      title: 角色权限响应
+      type: object
+      description: 角色权限响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取角色权限成功"
+        data:
+          $ref: '#/components/schemas/RolePermissionInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 权限响应
+    PermissionResponse:
+      title: 权限响应
+      type: object
+      description: 权限响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取权限成功"
+        data:
+          $ref: '#/components/schemas/PermissionInfo'
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 权限列表响应
+    PermissionsResponse:
+      title: 权限列表响应
+      type: object
+      description: 权限列表响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取权限列表成功"
+        data:
+          type: object
+          description: 权限列表数据
+          properties:
+            list:
+              type: array
+              description: 权限列表
+              items:
+                $ref: '#/components/schemas/PermissionInfo'
+            total:
+              type: integer
+              format: int64
+              description: 总记录数
+              example: 50
+            page:
+              type: integer
+              description: 当前页码
+              example: 1
+            size:
+              type: integer
+              description: 每页数量
+              example: 20
+          required:
+            - list
+            - total
+            - page
+            - size
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - data
+        - timestamp
+
+    # 权限分组响应
+    PermissionGroupsResponse:
+      title: 权限分组响应
+      type: object
+      description: 权限分组响应
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "获取权限分组成功"
+        data:
+          type: array
+          description: 权限分组列表
+          items:
+            $ref: '#/components/schemas/PermissionGroupInfo'
         errors:
           type: array
           description: 错误详情列表

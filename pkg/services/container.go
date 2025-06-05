@@ -34,9 +34,11 @@ type Container struct {
 	// ORM stores a client to the ORM.
 	ORM *ent.Client
 
-	Auth *AuthService
-	User *UserService
-	Menu *MenuService
+	Auth       *AuthService
+	User       *UserService
+	Menu       *MenuService
+	Role       *RoleService
+	Permission *PermissionService
 
 	// Docs stores the documentation service.
 	Docs *DocsService
@@ -52,6 +54,8 @@ func NewContainer() *Container {
 	c.initAuth()
 	c.initUser()
 	c.initMenu()
+	c.initRole()
+	c.initPermission()
 	c.initDocs()
 	return c
 }
@@ -136,6 +140,14 @@ func (c *Container) initUser() {
 
 func (c *Container) initMenu() {
 	c.Menu = NewMenuService(c.ORM)
+}
+
+func (c *Container) initRole() {
+	c.Role = NewRoleService(c.ORM)
+}
+
+func (c *Container) initPermission() {
+	c.Permission = NewPermissionService(c.ORM)
 }
 
 // initDocs initializes the documentation service.
