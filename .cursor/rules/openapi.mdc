@@ -3,43 +3,177 @@ description: openapi规范文档
 globs: 
 alwaysApply: false
 ---
-# OpenAPI 多文件结构规范
+# OpenAPI 3.1 规范文档
 
 ## 概述
 
-本项目采用 OpenAPI 3.1 规范。
+本项目使用 OpenAPI 3.1 规范来定义和描述 RESTful API。API 文档位于 `docs/openapi.yaml`。
 
-## 目录结构
+## 规范版本
 
+- **OpenAPI 版本**: 3.1.0
+- **文档格式**: YAML
+- **位置**: `docs/openapi.yaml`
+
+## 基本结构
+
+### 1. 文档信息
+```yaml
+openapi: 3.1.0
+info:
+  title: Echo Template API
+  description: Echo Template 项目的 RESTful API 文档
+  version: 1.0.0
 ```
-docs/
-└── openapi.yaml              # 主入口文件
+
+### 2. 服务器配置
+```yaml
+servers:
+  - url: http://localhost:8000
+    description: 开发环境
+  - url: https://api.example.com
+    description: 生产环境
 ```
 
-## 核心原则
+### 3. 认证方式
+```yaml
+security:
+  - BearerAuth: []
 
-### 1. 响应类型设计
-为每种数据类型创建专门的响应类型
-禁止使用复杂的 `allOf` 组合：
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+```
 
-| 响应类型 | 用途 | data字段类型 |
-|---------|------|-------------|
-| `UserResponse` | 单个用户信息 | `UserOutput` |
-| `UsersResponse` | 用户列表 | `ListUsersOutput` |
-| `UserStatsResponse` | 用户统计 | `UserStatsOutput` |
-| `MessageResponse` | 操作消息 | `MessageResponse` |
-| `AuthResponse` | 认证信息 | `AuthData` |
+## 操作步骤
 
-### 2. 忽略docs_handler.go 和 example_handler.go
+### 1. 添加新的API端点
+在 `paths` 部分添加新的路径和操作：
+```yaml
+paths:
+  /api/v1/your-endpoint:
+    post:
+      tags:
+        - 标签名
+      summary: 端点描述
+      operationId: operationName
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InputSchema'
+      responses:
+        '200':
+          description: 成功响应
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResponseSchema'
+```
 
-## 开发工作流
+### 2. 定义数据模型
+在 `components/schemas` 部分定义数据结构：
+```yaml
+components:
+  schemas:
+    YourModel:
+      title: 模型标题
+      type: object
+      description: 模型描述
+      properties:
+        field_name:
+          type: string
+          description: 字段描述
+          example: "示例值"
+      required:
+        - field_name
+```
 
-### 添加新的API接口
+### 3. 参数定义
+在 `components/parameters` 部分定义可复用参数：
+```yaml
+components:
+  parameters:
+    PageParam:
+      name: page
+      in: query
+      description: 页码（从1开始）
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+```
 
-1. 在 `docs/openapi.yaml` 完善相关信息
+## 规范要求
 
-### Schema与Go类型对应
-- Schema定义必须与 `pkg/types/` 中的Go类型严格对应
-- 验证规则与Go struct tag保持一致
-- 为每个字段提供清楚的描述和示例
+### 1. 命名规范
+- **路径**: 使用小写字母和连字符，如 `/api/v1/user-management`
+- **Schema名称**: 使用 PascalCase，如 `UserInfo`
+- **字段名称**: 使用 snake_case，如 `user_name`
 
+### 2. 必填字段
+每个 Schema 必须包含：
+- `title`: 模型标题
+- `type`: 数据类型  
+- `description`: 模型描述
+- `properties`: 属性定义
+- `required`: 必填字段列表
+
+### 3. 响应格式
+所有响应必须遵循统一格式：
+```yaml
+ResponseFormat:
+  type: object
+  properties:
+    code:
+      type: integer
+      description: API状态码（0=成功，非0=失败）
+    message:
+      type: string
+      description: 响应消息
+    data:
+      type: object
+      description: 响应数据
+    errors:
+      type: array
+      description: 错误详情列表
+    timestamp:
+      type: integer
+      format: int64
+      description: 时间戳
+    request_id:
+      type: string
+      description: 请求ID
+  required:
+    - code
+    - message
+    - data
+    - timestamp
+```
+
+## 验证和生成
+
+### 1. 语法验证
+确保 YAML 语法正确，所有引用的 Schema 都已定义。
+
+### 2. 文档生成
+运行以下命令生成 API 文档：
+```bash
+make swagger
+```
+
+### 3. 在线查看
+启动服务后访问：`http://localhost:8000/swagger/index.html`
+
+## 注意事项
+
+1. **版本控制**: API 版本通过路径管理，如 `/api/v1/`
+2. **中文支持**: 描述和示例可使用中文
+3. **类型安全**: 严格定义字段类型和验证规则
+4. **示例完整**: 为所有字段提供合适的示例值
+5. **引用一致**: 确保所有 `$ref` 引用都能正确解析
