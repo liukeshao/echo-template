@@ -51,6 +51,9 @@ func (h *DocsHandler) Routes(g *echo.Group) {
 	// API规范路由
 	docs.GET("/openapi.json", h.GetOpenAPISpec)
 
+	// 静态文件服务路由（用于文档相关的CSS/JS文件）
+	docs.Static("/static/docs", "static/docs")
+
 	// 文档页面路由
 	docs.GET("/docs", h.GetDocsPage)
 	docs.GET("/docs/*", h.GetDocsPage) // 处理子路径
@@ -93,7 +96,7 @@ func (h *DocsHandler) GetDocsPage(c echo.Context) error {
 		envDisplay = "开发环境"
 	}
 
-	// 使用 Stoplight Elements 的 Web Components 版本
+	// 使用 Stoplight Elements 的 Web Components 版本（本地资源）
 	html := fmt.Sprintf(`<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -101,8 +104,8 @@ func (h *DocsHandler) GetDocsPage(c echo.Context) error {
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
     <title>Echo Template API 文档</title>
     
-    <!-- Stoplight Elements CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/@stoplight/elements/styles.min.css">
+    <!-- Stoplight Elements CSS (本地) -->
+    <link rel="stylesheet" href="/static/docs/css/elements.min.css">
     
     <style>
         body {
@@ -148,6 +151,20 @@ func (h *DocsHandler) GetDocsPage(c echo.Context) error {
             backdrop-filter: blur(10px);
             z-index: 1000;
         }
+        
+        /* 本地资源加载指示器 */
+        .local-resources {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(46, 204, 113, 0.9);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 500;
+            z-index: 1000;
+        }
     </style>
 </head>
 <body>
@@ -157,6 +174,7 @@ func (h *DocsHandler) GetDocsPage(c echo.Context) error {
     </div>
     
     <div class="env-badge">%s</div>
+    <div class="local-resources">本地资源</div>
     
     <div class="docs-container">
         <elements-api
@@ -169,17 +187,25 @@ func (h *DocsHandler) GetDocsPage(c echo.Context) error {
         ></elements-api>
     </div>
 
-    <!-- Stoplight Elements JS -->
-    <script src="https://unpkg.com/@stoplight/elements/web-components.min.js"></script>
+    <!-- Stoplight Elements JS (本地) -->
+    <script src="/static/docs/js/elements.min.js"></script>
     
     <script>
         // 添加一些自定义交互
         document.addEventListener('DOMContentLoaded', function() {
-            console.log('Echo Template API 文档加载完成');
+            console.log('Echo Template API 文档加载完成 (本地资源)');
             console.log('当前环境: %s');
             
             // 可以在这里添加自定义的 JavaScript 逻辑
             // 例如：统计、用户行为追踪等
+            
+            // 资源加载状态检查
+            const cssLoaded = document.querySelector('link[href="/static/docs/css/elements.min.css"]');
+            const jsLoaded = document.querySelector('script[src="/static/docs/js/elements.min.js"]');
+            
+            if (cssLoaded && jsLoaded) {
+                console.log('✅ 所有本地资源加载成功');
+            }
         });
     </script>
 </body>
