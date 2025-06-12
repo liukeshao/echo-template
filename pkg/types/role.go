@@ -123,10 +123,10 @@ func (i *RevokeRoleInput) Validate() []*errors.ErrorDetail {
 
 // ListRolesInput 获取角色列表输入
 type ListRolesInput struct {
-	Page     int    `query:"page"`     // 页码
-	PageSize int    `query:"pageSize"` // 每页数量
-	Status   string `query:"status"`   // 状态过滤
-	Search   string `query:"search"`   // 搜索关键词
+	Page     int    `query:"page"`      // 页码
+	PageSize int    `query:"page_size"` // 每页数量
+	Status   string `query:"status"`    // 状态过滤
+	Search   string `query:"search"`    // 搜索关键词
 }
 
 // Validate 验证获取角色列表输入
@@ -135,7 +135,7 @@ func (i *ListRolesInput) Validate() []*errors.ErrorDetail {
 		"Page": z.Int().
 			GTE(1, z.Message("页码不能小于1")).
 			Default(1),
-		"PageSize": z.Int().
+		"page_size": z.Int().
 			GTE(1, z.Message("每页数量不能小于1")).
 			LTE(100, z.Message("每页数量不能大于100")).
 			Default(20),
@@ -166,10 +166,11 @@ type RoleOutput struct {
 
 // ListRolesOutput 角色列表输出
 type ListRolesOutput struct {
-	List  []*RoleOutput `json:"list"`  // 角色列表
-	Total int64         `json:"total"` // 总数
-	Page  int           `json:"page"`  // 当前页码
-	Size  int           `json:"size"`  // 每页数量
+	Roles      []*RoleOutput `json:"roles"`       // 角色列表
+	Total      int64         `json:"total"`       // 总数
+	Page       int           `json:"page"`        // 当前页码
+	PageSize   int           `json:"page_size"`   // 每页数量
+	TotalPages int           `json:"total_pages"` // 总页数
 }
 
 // UserRoleOutput 用户角色输出
@@ -188,10 +189,11 @@ type UserRoleOutput struct {
 
 // ListUserRolesOutput 用户角色列表输出
 type ListUserRolesOutput struct {
-	List  []*UserRoleOutput `json:"list"`  // 用户角色列表
-	Total int64             `json:"total"` // 总数
-	Page  int               `json:"page"`  // 当前页码
-	Size  int               `json:"size"`  // 每页数量
+	UserRoles  []*UserRoleOutput `json:"user_roles"`  // 用户角色列表
+	Total      int64             `json:"total"`       // 总数
+	Page       int               `json:"page"`        // 当前页码
+	PageSize   int               `json:"page_size"`   // 每页数量
+	TotalPages int               `json:"total_pages"` // 总页数
 }
 
 // AssignRoleMenusInput 为角色分配菜单输入

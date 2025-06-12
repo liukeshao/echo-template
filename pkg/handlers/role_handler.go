@@ -5,6 +5,7 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	appContext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
@@ -31,31 +32,36 @@ func (h *RoleHandler) Init(c *services.Container) error {
 
 // Routes 注册路由
 func (h *RoleHandler) Routes(g *echo.Group) {
+	// 需要认证的路由组
+	authMw := middleware.NewAuthMiddleware(h.orm)
+	permMw := middleware.NewPermissionMiddleware(h.orm, h.roleService)
+
 	roles := g.Group("/api/v1/roles")
+	roles.Use(authMw.RequireAuth) // 先验证用户身份
 
-	// 角色基本操作
-	roles.POST("", h.CreateRole)
-	roles.GET("", h.ListRoles)
-	roles.GET("/:id", h.GetRole)
-	roles.PUT("/:id", h.UpdateRole)
-	roles.DELETE("/:id", h.DeleteRole)
+	// 角色基本操作（需要对应权限）
+	roles.POST("", h.CreateRole, permMw.RequirePermission("role.create"))
+	roles.GET("", h.ListRoles, permMw.RequirePermission("role.list"))
+	roles.GET("/:id", h.GetRole, permMw.RequirePermission("role.view"))
+	roles.PUT("/:id", h.UpdateRole, permMw.RequirePermission("role.update"))
+	roles.DELETE("/:id", h.DeleteRole, permMw.RequirePermission("role.delete"))
 
-	// 用户角色管理
-	roles.POST("/assign", h.AssignRoles)
-	roles.POST("/revoke", h.RevokeRoles)
-	roles.GET("/users/:user_id", h.GetUserRoles)
+	// 用户角色管理（需要用户管理权限）
+	roles.POST("/assign", h.AssignRoles, permMw.RequirePermission("user.role.assign"))
+	roles.POST("/revoke", h.RevokeRoles, permMw.RequirePermission("user.role.revoke"))
+	roles.GET("/users/:user_id", h.GetUserRoles, permMw.RequirePermission("user.role.view"))
 
-	// 角色权限管理
-	roles.POST("/:id/permissions", h.AssignPermissions)
-	roles.GET("/:id/permissions", h.GetRolePermissions)
+	// 角色权限管理（需要权限管理权限）
+	roles.POST("/:id/permissions", h.AssignPermissions, permMw.RequirePermission("role.permission.assign"))
+	roles.GET("/:id/permissions", h.GetRolePermissions, permMw.RequirePermission("role.permission.view"))
 
-	// 角色菜单管理
-	roles.POST("/:id/menus", h.AssignRoleMenus)
-	roles.GET("/:id/menus", h.GetRoleMenus)
-	roles.GET("/:id/menus/permissions", h.GetRoleMenuPermissions)
+	// 角色菜单管理（需要菜单管理权限）
+	roles.POST("/:id/menus", h.AssignRoleMenus, permMw.RequirePermission("role.menu.assign"))
+	roles.GET("/:id/menus", h.GetRoleMenus, permMw.RequirePermission("role.menu.view"))
+	roles.GET("/:id/menus/permissions", h.GetRoleMenuPermissions, permMw.RequirePermission("role.menu.view"))
 
-	// 用户菜单查询
-	roles.GET("/users/menus", h.GetUserMenus)
+	// 用户菜单查询（需要菜单查看权限）
+	roles.GET("/users/menus", h.GetUserMenus, permMw.RequirePermission("menu.view"))
 }
 
 // CreateRole 创建角色

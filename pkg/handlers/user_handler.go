@@ -14,6 +14,7 @@ import (
 type UserHandler struct {
 	orm         *ent.Client
 	userService *services.UserService
+	roleService *services.RoleService
 }
 
 // init 注册handler
@@ -25,6 +26,7 @@ func init() {
 func (h *UserHandler) Init(c *services.Container) error {
 	h.orm = c.ORM
 	h.userService = c.User
+	h.roleService = c.Role
 	return nil
 }
 
@@ -32,19 +34,21 @@ func (h *UserHandler) Init(c *services.Container) error {
 func (h *UserHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
 	authMw := middleware.NewAuthMiddleware(h.orm)
+	permMw := middleware.NewPermissionMiddleware(h.orm, h.roleService)
+
 	protected := g.Group("/api/v1/users")
-	protected.Use(authMw.RequireAuth)
+	protected.Use(authMw.RequireAuth) // 先验证用户身份
 
-	// 用户管理路由（需要认证）
-	protected.POST("", h.CreateUser)                         // 创建用户
-	protected.GET("", h.ListUsers)                           // 获取用户列表
-	protected.GET("/stats", h.GetUserStats)                  // 获取用户统计
-	protected.GET("/:id", h.GetUserByID)                     // 根据ID获取用户
-	protected.PUT("/:id", h.UpdateUser)                      // 更新用户
-	protected.DELETE("/:id", h.DeleteUser)                   // 删除用户
-	protected.POST("/:id/change-password", h.ChangePassword) // 修改密码
+	// 用户管理路由（需要对应权限）
+	protected.POST("", h.CreateUser, permMw.RequirePermission("user.create"))                           // 需要创建用户权限
+	protected.GET("", h.ListUsers, permMw.RequirePermission("user.list"))                               // 需要查看用户列表权限
+	protected.GET("/stats", h.GetUserStats, permMw.RequirePermission("user.view"))                      // 需要查看用户权限
+	protected.GET("/:id", h.GetUserByID, permMw.RequirePermission("user.view"))                         // 需要查看用户权限
+	protected.PUT("/:id", h.UpdateUser, permMw.RequirePermission("user.update"))                        // 需要更新用户权限
+	protected.DELETE("/:id", h.DeleteUser, permMw.RequirePermission("user.delete"))                     // 需要删除用户权限
+	protected.POST("/:id/change-password", h.ChangePassword, permMw.RequirePermission("user.password")) // 需要修改密码权限
 
-	// 当前用户相关路由
+	// 当前用户相关路由（不需要额外权限，只要登录即可）
 	protected.GET("/me", h.GetCurrentUser)                             // 获取当前用户信息
 	protected.PUT("/me", h.UpdateCurrentUser)                          // 更新当前用户信息
 	protected.POST("/me/change-password", h.ChangeCurrentUserPassword) // 修改当前用户密码

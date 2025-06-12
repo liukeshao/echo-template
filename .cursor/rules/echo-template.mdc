@@ -18,10 +18,35 @@ alwaysApply: false
 
 ### 1. 数据传输对象 (DTO) 命名规范
 
+
 #### Input/Output 命名约定
 所有API数据传输对象必须遵循以下命名规范：
 - **输入类型**：使用 `xxxInput` 后缀，例如：`RegisterInput`、`LoginInput`、`CreateUserInput`
 - **输出类型**：使用 `xxxOutput` 后缀，例如：`AuthOutput`、`UserOutput`、`ListUsersOutput`
+- **列表输入类型**：使用 `List{Entities}Input` 格式，例如：`ListUsersInput`、`ListRolesInput`、`ListPermissionsInput`
+- **列表输出类型**：使用 `List{Entities}Output` 格式，例如：`ListUsersOutput`、`ListRolesOutput`、`ListPermissionsOutput`
+
+#### 统一List输出字段规范
+**所有列表输出必须遵循统一的字段结构**：
+
+```go
+type List{Entities}Output struct {
+    {Entities}  []*{Entity}Output `json:"{entities}"` // 数据列表，使用复数实体名
+    Total       int64             `json:"total"`      // 总记录数
+    Page        int               `json:"page"`       // 当前页码  
+    PageSize    int               `json:"page_size"`  // 每页大小
+    TotalPages  int               `json:"total_pages"` // 总页数
+}
+```
+
+**字段规范说明**：
+- **数据字段**：使用复数实体名（`Users`、`Roles`、`Permissions`、`Menus`）
+- **`Total`**：必须使用 `int64` 类型，支持大数据量
+- **`Page`**：使用 `int` 类型，页码从1开始
+- **`PageSize`**：使用 `int` 类型，每页记录数（不使用 `Size`）
+- **`TotalPages`**：使用 `int` 类型，总页数（前端分页组件需要）
+- **数据列表**：使用指针切片 `[]*Type`，提高内存效率
+
 
 #### 类型定义位置
 - 所有输入输出类型统一定义在 `pkg/types/` 目录下

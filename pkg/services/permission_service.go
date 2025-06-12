@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"log/slog"
+	"math"
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/liukeshao/echo-template/ent"
@@ -251,11 +252,15 @@ func (s *PermissionService) ListPermissions(ctx context.Context, input *types.Li
 		list[i] = s.toPermissionOutput(p)
 	}
 
+	// 计算总页数
+	totalPages := int(math.Ceil(float64(total) / float64(input.PageSize)))
+
 	return &types.ListPermissionsOutput{
-		List:  list,
-		Total: int64(total),
-		Page:  input.Page,
-		Size:  input.PageSize,
+		Permissions: list,
+		Total:       int64(total),
+		Page:        input.Page,
+		PageSize:    input.PageSize,
+		TotalPages:  totalPages,
 	}, nil
 }
 

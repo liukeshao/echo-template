@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"sort"
 	"time"
 
@@ -270,11 +271,15 @@ func (s *RoleService) ListRoles(ctx context.Context, input *types.ListRolesInput
 		list[i] = s.toRoleOutput(r, permissions)
 	}
 
+	// 计算总页数
+	totalPages := int(math.Ceil(float64(total) / float64(input.PageSize)))
+
 	return &types.ListRolesOutput{
-		List:  list,
-		Total: int64(total),
-		Page:  input.Page,
-		Size:  input.PageSize,
+		Roles:      list,
+		Total:      int64(total),
+		Page:       input.Page,
+		PageSize:   input.PageSize,
+		TotalPages: totalPages,
 	}, nil
 }
 

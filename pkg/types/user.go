@@ -71,10 +71,10 @@ type ListUsersInput struct {
 // Validate 验证获取用户列表输入
 func (i *ListUsersInput) Validate() []*errors.ErrorDetail {
 	issuesMap := z.Struct(z.Shape{
-		"page":     z.Int().GTE(1).Default(1),
-		"pageSize": z.Int().GTE(1).LTE(100).Default(20),
-		"Status":   z.String().OneOf([]string{"active", "inactive", "suspended"}, z.Message("状态必须是 active, inactive 或 suspended")).Optional(),
-		"Keyword":  z.String().Optional(),
+		"page":      z.Int().GTE(1).Default(1),
+		"page_size": z.Int().GTE(1).LTE(100).Default(20),
+		"Status":    z.String().OneOf([]string{"active", "inactive", "suspended"}, z.Message("状态必须是 active, inactive 或 suspended")).Optional(),
+		"Keyword":   z.String().Optional(),
 	}).Validate(i)
 
 	return ConvertZogIssues(issuesMap)

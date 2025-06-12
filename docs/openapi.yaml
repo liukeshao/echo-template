@@ -2241,28 +2241,34 @@ components:
               format: int64
               description: 非活跃菜单数
               example: 5
-            menu_menus:
-              type: integer
-              format: int64
-              description: 菜单类型数量
-              example: 30
-            button_menus:
-              type: integer
-              format: int64
-              description: 按钮类型数量
-              example: 15
-            link_menus:
-              type: integer
-              format: int64
-              description: 链接类型数量
-              example: 5
+            menus_by_type:
+              type: object
+              description: 按类型分组的菜单数量
+              properties:
+                menu:
+                  type: integer
+                  format: int64
+                  description: 菜单类型数量
+                  example: 30
+                button:
+                  type: integer
+                  format: int64
+                  description: 按钮类型数量
+                  example: 15
+                link:
+                  type: integer
+                  format: int64
+                  description: 链接类型数量
+                  example: 5
+              required:
+                - menu
+                - button
+                - link
           required:
             - total_menus
             - active_menus
             - inactive_menus
-            - menu_menus
-            - button_menus
-            - link_menus
+            - menus_by_type
         errors:
           type: array
           description: 错误详情列表
@@ -2770,7 +2776,7 @@ components:
           type: object
           description: 角色列表数据
           properties:
-            list:
+            roles:
               type: array
               description: 角色列表
               items:
@@ -2784,15 +2790,20 @@ components:
               type: integer
               description: 当前页码
               example: 1
-            size:
+            page_size:
               type: integer
               description: 每页数量
               example: 20
+            total_pages:
+              type: integer
+              description: 总页数
+              example: 1
           required:
-            - list
+            - roles
             - total
             - page
-            - size
+            - page_size
+            - total_pages
         errors:
           type: array
           description: 错误详情列表
@@ -2942,7 +2953,7 @@ components:
           type: object
           description: 权限列表数据
           properties:
-            list:
+            permissions:
               type: array
               description: 权限列表
               items:
@@ -2956,15 +2967,20 @@ components:
               type: integer
               description: 当前页码
               example: 1
-            size:
+            page_size:
               type: integer
               description: 每页数量
               example: 20
+            total_pages:
+              type: integer
+              description: 总页数
+              example: 3
           required:
-            - list
+            - permissions
             - total
             - page
-            - size
+            - page_size
+            - total_pages
         errors:
           type: array
           description: 错误详情列表

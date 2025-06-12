@@ -109,13 +109,13 @@ type ListMenusInput struct {
 // Validate 验证获取菜单列表输入
 func (i *ListMenusInput) Validate() []*errors.ErrorDetail {
 	issuesMap := z.Struct(z.Shape{
-		"Page":     z.Int().GTE(1, z.Message("页码必须大于0")).Default(1),
-		"PageSize": z.Int().GTE(1, z.Message("每页数量必须大于0")).LTE(100, z.Message("每页数量不能超过100")).Default(20),
-		"ParentID": z.String().Len(26, z.Message("父菜单ID格式错误")).Optional(),
-		"Type":     z.String().OneOf([]string{"menu", "button", "link"}, z.Message("菜单类型必须是 menu, button 或 link")).Optional(),
-		"Status":   z.String().OneOf([]string{"active", "inactive"}, z.Message("菜单状态必须是 active 或 inactive")).Optional(),
-		"Keyword":  z.String().Optional(),
-		"TreeMode": z.Bool().Default(false),
+		"Page":      z.Int().GTE(1, z.Message("页码必须大于0")).Default(1),
+		"page_size": z.Int().GTE(1, z.Message("每页数量必须大于0")).LTE(100, z.Message("每页数量不能超过100")).Default(20),
+		"ParentID":  z.String().Len(26, z.Message("父菜单ID格式错误")).Optional(),
+		"Type":      z.String().OneOf([]string{"menu", "button", "link"}, z.Message("菜单类型必须是 menu, button 或 link")).Optional(),
+		"Status":    z.String().OneOf([]string{"active", "inactive"}, z.Message("菜单状态必须是 active 或 inactive")).Optional(),
+		"Keyword":   z.String().Optional(),
+		"TreeMode":  z.Bool().Default(false),
 	}).Validate(i)
 
 	return ConvertZogIssues(issuesMap)

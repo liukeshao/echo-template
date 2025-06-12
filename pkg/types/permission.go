@@ -104,12 +104,12 @@ func (i *AssignPermissionInput) Validate() []*errors.ErrorDetail {
 
 // ListPermissionsInput 获取权限列表输入
 type ListPermissionsInput struct {
-	Page     int    `query:"page"`     // 页码
-	PageSize int    `query:"pageSize"` // 每页数量
-	Resource string `query:"resource"` // 资源类型过滤
-	Action   string `query:"action"`   // 操作类型过滤
-	Status   string `query:"status"`   // 状态过滤
-	Search   string `query:"search"`   // 搜索关键词
+	Page     int    `query:"page"`      // 页码
+	PageSize int    `query:"page_size"` // 每页数量
+	Resource string `query:"resource"`  // 资源类型过滤
+	Action   string `query:"action"`    // 操作类型过滤
+	Status   string `query:"status"`    // 状态过滤
+	Search   string `query:"search"`    // 搜索关键词
 }
 
 // Validate 验证获取权限列表输入
@@ -118,7 +118,7 @@ func (i *ListPermissionsInput) Validate() []*errors.ErrorDetail {
 		"Page": z.Int().
 			GTE(1, z.Message("页码不能小于1")).
 			Default(1),
-		"PageSize": z.Int().
+		"page_size": z.Int().
 			GTE(1, z.Message("每页数量不能小于1")).
 			LTE(100, z.Message("每页数量不能大于100")).
 			Default(20),
@@ -156,10 +156,11 @@ type PermissionOutput struct {
 
 // ListPermissionsOutput 权限列表输出
 type ListPermissionsOutput struct {
-	List  []*PermissionOutput `json:"list"`  // 权限列表
-	Total int64               `json:"total"` // 总数
-	Page  int                 `json:"page"`  // 当前页码
-	Size  int                 `json:"size"`  // 每页数量
+	Permissions []*PermissionOutput `json:"permissions"` // 权限列表
+	Total       int64               `json:"total"`       // 总数
+	Page        int                 `json:"page"`        // 当前页码
+	PageSize    int                 `json:"page_size"`   // 每页数量
+	TotalPages  int                 `json:"total_pages"` // 总页数
 }
 
 // RolePermissionOutput 角色权限输出
