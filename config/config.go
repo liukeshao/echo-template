@@ -77,9 +77,8 @@ type (
 
 	// DatabaseConfig stores the database configuration.
 	DatabaseConfig struct {
-		Driver         string
-		Connection     string
-		TestConnection string
+		Driver     string
+		Connection string
 	}
 )
 
@@ -89,7 +88,7 @@ func GetConfig() (Config, error) {
 
 	// Load the config file.
 	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
+	viper.SetConfigType("toml")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("config")
 	viper.AddConfigPath("../config")

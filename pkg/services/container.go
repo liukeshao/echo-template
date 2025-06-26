@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"math/rand"
 	"os"
 	"strings"
 
@@ -103,17 +102,7 @@ func (c *Container) initWeb() {
 // initDatabase initializes the database.
 func (c *Container) initDatabase() {
 	var err error
-	var connection string
-
-	switch c.Config.App.Environment {
-	case config.EnvTest:
-		// TODO: Drop/recreate the DB, if this isn't in memory?
-		connection = c.Config.Database.TestConnection
-	default:
-		connection = c.Config.Database.Connection
-	}
-
-	c.Database, err = openDB(c.Config.Database.Driver, connection)
+	c.Database, err = openDB(c.Config.Database.Driver, c.Config.Database.Connection)
 	if err != nil {
 		panic(err)
 	}
@@ -168,9 +157,6 @@ func openDB(driver, connection string) (*sql.DB, error) {
 				return nil, err
 			}
 		}
-
-		// Check if a random value is required, which is often used for in-memory test databases.
-		connection = strings.Replace(connection, "$RAND", fmt.Sprint(rand.Int()), 1)
 	}
 
 	return sql.Open(driver, connection)
