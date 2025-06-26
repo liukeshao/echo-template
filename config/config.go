@@ -1,7 +1,6 @@
 package config
 
 import (
-	"os"
 	"strings"
 	"time"
 
@@ -29,15 +28,6 @@ const (
 	// EnvProduction represents the production environment.
 	EnvProduction environment = "prod"
 )
-
-// SwitchEnvironment sets the environment variable used to dictate which environment the application is
-// currently running in.
-// This must be called prior to loading the configuration in order for it to take effect.
-func SwitchEnvironment(env environment) {
-	if err := os.Setenv("ECHO_TEMPLATE_APP_ENVIRONMENT", string(env)); err != nil {
-		panic(err)
-	}
-}
 
 type (
 	// Config stores complete configuration.
