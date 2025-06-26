@@ -100,7 +100,8 @@ func (e *AppError) Is(target error) bool {
 		return false
 	}
 
-	if appErr, ok := target.(*AppError); ok {
+	var appErr *AppError
+	if errors.As(target, &appErr) {
 		return e.Code == appErr.Code
 	}
 
@@ -151,52 +152,30 @@ func (e *AppError) GetCause() error {
 
 // 便捷构造函数
 
-// BadRequestError 创建400错误
-func BadRequestError(message string) *AppError {
+func ErrBadRequest(message string) *AppError {
 	return New(BadRequest, message)
 }
 
-// UnauthorizedError 创建401错误
-func UnauthorizedError(message string) *AppError {
+func ErrUnauthorized(message string) *AppError {
 	return New(Unauthorized, message)
 }
 
-// ForbiddenError 创建403错误
-func ForbiddenError(message string) *AppError {
+func ErrForbidden(message string) *AppError {
 	return New(Forbidden, message)
 }
 
-// NotFoundError 创建404错误
-func NotFoundError(message string) *AppError {
+func ErrNotFound(message string) *AppError {
 	return New(NotFound, message)
 }
 
-// InternalError 创建500错误
-func InternalError(message string) *AppError {
+func ErrInternal(message string) *AppError {
 	return New(InternalServerError, message)
 }
 
-// ConflictError 创建409错误
-func ConflictError(message string) *AppError {
+func ErrConflict(message string) *AppError {
 	return New(Conflict, message)
 }
 
-// NewDatabaseError 创建数据库错误
-func NewDatabaseError(message string) *AppError {
+func ErrDatabase(message string) *AppError {
 	return New(DatabaseError, message)
-}
-
-// DatabaseErrorf 创建数据库错误
-func DatabaseErrorf(format string, args ...any) *AppError {
-	return New(DatabaseError, fmt.Sprintf(format, args...))
-}
-
-// ValidationErrorf 创建验证错误
-func ValidationErrorf(format string, args ...any) *AppError {
-	return New(ValidationError, fmt.Sprintf(format, args...))
-}
-
-// NewValidationError 创建验证错误
-func NewValidationError(message string) *AppError {
-	return New(ValidationError, message)
 }

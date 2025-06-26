@@ -72,7 +72,7 @@ func (h *RoleHandler) CreateRole(c echo.Context) error {
 
 	var input types.CreateRoleInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -94,7 +94,7 @@ func (h *RoleHandler) UpdateRole(c echo.Context) error {
 
 	var input types.UpdateRoleInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -141,7 +141,7 @@ func (h *RoleHandler) ListRoles(c echo.Context) error {
 
 	var input types.ListRolesInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -162,7 +162,7 @@ func (h *RoleHandler) AssignRoles(c echo.Context) error {
 
 	var input types.AssignRoleInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -189,7 +189,7 @@ func (h *RoleHandler) RevokeRoles(c echo.Context) error {
 
 	var input types.RevokeRoleInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -210,7 +210,7 @@ func (h *RoleHandler) GetUserRoles(c echo.Context) error {
 	userID := c.Param("user_id")
 
 	if userID == "" {
-		return errors.BadRequestError("用户ID不能为空")
+		return errors.ErrBadRequest("用户ID不能为空")
 	}
 
 	roles, err := h.roleService.GetUserRoles(ctx, userID)
@@ -228,7 +228,7 @@ func (h *RoleHandler) AssignPermissions(c echo.Context) error {
 
 	var input types.AssignPermissionInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 设置角色ID
@@ -252,7 +252,7 @@ func (h *RoleHandler) GetRolePermissions(c echo.Context) error {
 	roleID := c.Param("id")
 
 	if roleID == "" {
-		return errors.BadRequestError("角色ID不能为空")
+		return errors.ErrBadRequest("角色ID不能为空")
 	}
 
 	permissions, err := h.permissionService.GetRolePermissions(ctx, roleID)
@@ -278,7 +278,7 @@ func (h *RoleHandler) AssignRoleMenus(c echo.Context) error {
 
 	var input types.AssignRoleMenusInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 设置角色ID
@@ -302,7 +302,7 @@ func (h *RoleHandler) GetRoleMenus(c echo.Context) error {
 	roleID := c.Param("id")
 
 	if roleID == "" {
-		return errors.BadRequestError("角色ID不能为空")
+		return errors.ErrBadRequest("角色ID不能为空")
 	}
 
 	result, err := h.roleService.GetRoleMenus(ctx, roleID)
@@ -319,7 +319,7 @@ func (h *RoleHandler) GetRoleMenuPermissions(c echo.Context) error {
 	roleID := c.Param("id")
 
 	if roleID == "" {
-		return errors.BadRequestError("角色ID不能为空")
+		return errors.ErrBadRequest("角色ID不能为空")
 	}
 
 	result, err := h.roleService.GetRoleMenuPermissions(ctx, roleID)
@@ -336,7 +336,7 @@ func (h *RoleHandler) GetUserMenus(c echo.Context) error {
 
 	var input types.GetUserMenusInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {

@@ -38,10 +38,10 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
-		return nil, errors.InternalError("检查用户名失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查用户名失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("用户名已存在").With("username", input.Username)
+		return nil, errors.ErrConflict("用户名已存在").With("username", input.Username)
 	}
 
 	// 检查邮箱是否已存在
@@ -50,17 +50,17 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
-		return nil, errors.InternalError("检查邮箱失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查邮箱失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("邮箱已存在").With("email", input.Email)
+		return nil, errors.ErrConflict("邮箱已存在").With("email", input.Email)
 	}
 
 	// 生成密码哈希
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成密码哈希失败", "error", err)
-		return nil, errors.InternalError("密码加密失败").With("error", err.Error())
+		return nil, errors.ErrInternal("密码加密失败").With("error", err.Error())
 	}
 
 	// 设置默认状态
@@ -79,7 +79,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建用户失败", "error", err)
-		return nil, errors.InternalError("创建用户失败").With("error", err.Error())
+		return nil, errors.ErrInternal("创建用户失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "用户创建成功", "user_id", u.ID, "username", u.Username)
@@ -106,10 +106,10 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.Us
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return nil, errors.NotFoundError("用户不存在").With("user_id", userID)
+			return nil, errors.ErrNotFound("用户不存在").With("user_id", userID)
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
-		return nil, errors.InternalError("获取用户失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户失败").With("error", err.Error())
 	}
 
 	return &types.UserOutput{
@@ -151,7 +151,7 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 	total, err := query.Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户总数失败", "error", err)
-		return nil, errors.InternalError("获取用户总数失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户总数失败").With("error", err.Error())
 	}
 
 	// 计算分页
@@ -166,7 +166,7 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户列表失败", "error", err)
-		return nil, errors.InternalError("获取用户列表失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户列表失败").With("error", err.Error())
 	}
 
 	// 转换为输出格式
@@ -202,10 +202,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return nil, errors.NotFoundError("用户不存在").With("user_id", userID)
+			return nil, errors.ErrNotFound("用户不存在").With("user_id", userID)
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
-		return nil, errors.InternalError("获取用户失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户失败").With("error", err.Error())
 	}
 
 	// 构建更新查询
@@ -223,10 +223,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
-			return nil, errors.InternalError("检查用户名失败").With("error", err.Error())
+			return nil, errors.ErrInternal("检查用户名失败").With("error", err.Error())
 		}
 		if exists {
-			return nil, errors.ConflictError("用户名已存在").With("username", *input.Username)
+			return nil, errors.ErrConflict("用户名已存在").With("username", *input.Username)
 		}
 		updateQuery = updateQuery.SetUsername(*input.Username)
 	}
@@ -243,10 +243,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
-			return nil, errors.InternalError("检查邮箱失败").With("error", err.Error())
+			return nil, errors.ErrInternal("检查邮箱失败").With("error", err.Error())
 		}
 		if exists {
-			return nil, errors.ConflictError("邮箱已存在").With("email", *input.Email)
+			return nil, errors.ErrConflict("邮箱已存在").With("email", *input.Email)
 		}
 		updateQuery = updateQuery.SetEmail(*input.Email)
 	}
@@ -260,7 +260,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 	updatedUser, err := updateQuery.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "更新用户失败", "error", err, "user_id", userID)
-		return nil, errors.InternalError("更新用户失败").With("error", err.Error())
+		return nil, errors.ErrInternal("更新用户失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "用户更新成功", "user_id", userID)
@@ -287,11 +287,11 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
-		return errors.InternalError("检查用户失败").With("error", err.Error())
+		return errors.ErrInternal("检查用户失败").With("error", err.Error())
 	}
 	if !exists {
 		slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-		return errors.NotFoundError("用户不存在").With("user_id", userID)
+		return errors.ErrNotFound("用户不存在").With("user_id", userID)
 	}
 
 	// 执行逻辑删除（使用毫秒级时间戳）
@@ -301,7 +301,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "删除用户失败", "error", err, "user_id", userID)
-		return errors.InternalError("删除用户失败").With("error", err.Error())
+		return errors.ErrInternal("删除用户失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "用户删除成功", "user_id", userID)
@@ -319,24 +319,24 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, input *
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return errors.NotFoundError("用户不存在").With("user_id", userID)
+			return errors.ErrNotFound("用户不存在").With("user_id", userID)
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
-		return errors.InternalError("获取用户失败").With("error", err.Error())
+		return errors.ErrInternal("获取用户失败").With("error", err.Error())
 	}
 
 	// 验证旧密码
 	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(input.OldPassword))
 	if err != nil {
 		slog.WarnContext(ctx, "旧密码验证失败", "user_id", userID)
-		return errors.UnauthorizedError("旧密码不正确")
+		return errors.ErrUnauthorized("旧密码不正确")
 	}
 
 	// 生成新密码哈希
 	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成新密码哈希失败", "error", err)
-		return errors.InternalError("密码加密失败").With("error", err.Error())
+		return errors.ErrInternal("密码加密失败").With("error", err.Error())
 	}
 
 	// 更新密码
@@ -345,7 +345,7 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, input *
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "更新密码失败", "error", err, "user_id", userID)
-		return errors.InternalError("更新密码失败").With("error", err.Error())
+		return errors.ErrInternal("更新密码失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "密码修改成功", "user_id", userID)
@@ -362,7 +362,7 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户总数失败", "error", err)
-		return nil, errors.InternalError("获取统计信息失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取统计信息失败").With("error", err.Error())
 	}
 
 	// 获取各状态用户数
@@ -371,7 +371,7 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取活跃用户数失败", "error", err)
-		return nil, errors.InternalError("获取统计信息失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取统计信息失败").With("error", err.Error())
 	}
 
 	inactiveCount, err := s.orm.User.Query().
@@ -379,7 +379,7 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取非活跃用户数失败", "error", err)
-		return nil, errors.InternalError("获取统计信息失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取统计信息失败").With("error", err.Error())
 	}
 
 	suspendedCount, err := s.orm.User.Query().
@@ -387,7 +387,7 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取停用用户数失败", "error", err)
-		return nil, errors.InternalError("获取统计信息失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取统计信息失败").With("error", err.Error())
 	}
 
 	return &types.UserStatsOutput{

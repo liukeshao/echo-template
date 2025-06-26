@@ -47,7 +47,7 @@ func (h *PermissionHandler) CreatePermission(c echo.Context) error {
 
 	var input types.CreatePermissionInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -69,7 +69,7 @@ func (h *PermissionHandler) UpdatePermission(c echo.Context) error {
 
 	var input types.UpdatePermissionInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {
@@ -116,7 +116,7 @@ func (h *PermissionHandler) ListPermissions(c echo.Context) error {
 
 	var input types.ListPermissionsInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	if errorDetails := input.Validate(); len(errorDetails) > 0 {

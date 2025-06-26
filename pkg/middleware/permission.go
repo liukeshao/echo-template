@@ -37,7 +37,7 @@ func (m *PermissionMiddleware) RequirePermission(permissionCode string) echo.Mid
 			user, ok := appContext.GetUserFromContext(ctx)
 			if !ok || user == nil {
 				slog.WarnContext(ctx, "权限检查失败：用户未认证")
-				return errors.UnauthorizedError("用户未认证")
+				return errors.ErrUnauthorized("用户未认证")
 			}
 
 			// 检查用户是否拥有指定权限
@@ -48,7 +48,7 @@ func (m *PermissionMiddleware) RequirePermission(permissionCode string) echo.Mid
 					"user_id", user.ID,
 					"permission", permissionCode,
 				)
-				return errors.InternalError("权限检查失败")
+				return errors.ErrInternal("权限检查失败")
 			}
 
 			if !hasPermission {
@@ -57,7 +57,7 @@ func (m *PermissionMiddleware) RequirePermission(permissionCode string) echo.Mid
 					"username", user.Username,
 					"permission", permissionCode,
 				)
-				return errors.ForbiddenError("权限不足，需要权限：" + permissionCode)
+				return errors.ErrForbidden("权限不足，需要权限：" + permissionCode)
 			}
 
 			slog.DebugContext(ctx, "权限检查通过",
@@ -81,7 +81,7 @@ func (m *PermissionMiddleware) RequireAnyPermission(permissionCodes ...string) e
 			user, ok := appContext.GetUserFromContext(ctx)
 			if !ok || user == nil {
 				slog.WarnContext(ctx, "权限检查失败：用户未认证")
-				return errors.UnauthorizedError("用户未认证")
+				return errors.ErrUnauthorized("用户未认证")
 			}
 
 			// 检查用户是否拥有任意一个权限
@@ -111,7 +111,7 @@ func (m *PermissionMiddleware) RequireAnyPermission(permissionCodes ...string) e
 				"required_permissions", permissionCodes,
 			)
 
-			return errors.ForbiddenError("权限不足，需要以下权限之一：" + strings.Join(permissionCodes, ", "))
+			return errors.ErrForbidden("权限不足，需要以下权限之一：" + strings.Join(permissionCodes, ", "))
 		}
 	}
 }
@@ -127,7 +127,7 @@ func (m *PermissionMiddleware) RequireAllPermissions(permissionCodes ...string) 
 			user, ok := appContext.GetUserFromContext(ctx)
 			if !ok || user == nil {
 				slog.WarnContext(ctx, "权限检查失败：用户未认证")
-				return errors.UnauthorizedError("用户未认证")
+				return errors.ErrUnauthorized("用户未认证")
 			}
 
 			// 检查用户是否拥有所有权限
@@ -139,7 +139,7 @@ func (m *PermissionMiddleware) RequireAllPermissions(permissionCodes ...string) 
 						"user_id", user.ID,
 						"permission", permissionCode,
 					)
-					return errors.InternalError("权限检查失败")
+					return errors.ErrInternal("权限检查失败")
 				}
 
 				if !hasPermission {
@@ -148,7 +148,7 @@ func (m *PermissionMiddleware) RequireAllPermissions(permissionCodes ...string) 
 						"username", user.Username,
 						"missing_permission", permissionCode,
 					)
-					return errors.ForbiddenError("权限不足，缺少权限：" + permissionCode)
+					return errors.ErrForbidden("权限不足，缺少权限：" + permissionCode)
 				}
 			}
 
@@ -173,7 +173,7 @@ func (m *PermissionMiddleware) CheckMenuPermission(menuPath string) echo.Middlew
 			user, ok := appContext.GetUserFromContext(ctx)
 			if !ok || user == nil {
 				slog.WarnContext(ctx, "菜单权限检查失败：用户未认证")
-				return errors.UnauthorizedError("用户未认证")
+				return errors.ErrUnauthorized("用户未认证")
 			}
 
 			// 获取用户可访问的菜单
@@ -187,7 +187,7 @@ func (m *PermissionMiddleware) CheckMenuPermission(menuPath string) echo.Middlew
 					"error", err,
 					"user_id", user.ID,
 				)
-				return errors.InternalError("权限检查失败")
+				return errors.ErrInternal("权限检查失败")
 			}
 
 			// 检查用户是否有权访问指定菜单
@@ -205,7 +205,7 @@ func (m *PermissionMiddleware) CheckMenuPermission(menuPath string) echo.Middlew
 					"username", user.Username,
 					"menu_path", menuPath,
 				)
-				return errors.ForbiddenError("无权访问此菜单：" + menuPath)
+				return errors.ErrForbidden("无权访问此菜单：" + menuPath)
 			}
 
 			slog.DebugContext(ctx, "菜单权限检查通过",

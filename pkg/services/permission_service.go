@@ -35,10 +35,10 @@ func (s *PermissionService) CreatePermission(ctx context.Context, input *types.C
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查权限代码失败", "error", err)
-		return nil, errors.InternalError("检查权限代码失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查权限代码失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("权限代码已存在").With("code", input.Code)
+		return nil, errors.ErrConflict("权限代码已存在").With("code", input.Code)
 	}
 
 	// 检查资源和操作组合是否已存在
@@ -51,10 +51,10 @@ func (s *PermissionService) CreatePermission(ctx context.Context, input *types.C
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查资源操作组合失败", "error", err)
-		return nil, errors.InternalError("检查资源操作组合失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查资源操作组合失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("该资源的操作权限已存在").With("resource", input.Resource, "action", input.Action)
+		return nil, errors.ErrConflict("该资源的操作权限已存在").With("resource", input.Resource, "action", input.Action)
 	}
 
 	// 创建权限
@@ -70,7 +70,7 @@ func (s *PermissionService) CreatePermission(ctx context.Context, input *types.C
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建权限失败", "error", err)
-		return nil, errors.InternalError("创建权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("创建权限失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "权限创建成功", "permission_id", permissionEntity.ID, "name", permissionEntity.Name)
@@ -88,15 +88,15 @@ func (s *PermissionService) UpdatePermission(ctx context.Context, id string, inp
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("权限不存在").With("permission_id", id)
+			return nil, errors.ErrNotFound("权限不存在").With("permission_id", id)
 		}
 		slog.ErrorContext(ctx, "获取权限失败", "error", err)
-		return nil, errors.InternalError("获取权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取权限失败").With("error", err.Error())
 	}
 
 	// 检查是否为系统权限
 	if permissionEntity.IsSystem {
-		return nil, errors.ForbiddenError("系统权限不允许修改").With("permission_id", id)
+		return nil, errors.ErrForbidden("系统权限不允许修改").With("permission_id", id)
 	}
 
 	// 构建更新查询
@@ -122,7 +122,7 @@ func (s *PermissionService) UpdatePermission(ctx context.Context, id string, inp
 	permissionEntity, err = update.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "更新权限失败", "error", err)
-		return nil, errors.InternalError("更新权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("更新权限失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "权限更新成功", "permission_id", id)
@@ -140,15 +140,15 @@ func (s *PermissionService) DeletePermission(ctx context.Context, id string) err
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return errors.NotFoundError("权限不存在").With("permission_id", id)
+			return errors.ErrNotFound("权限不存在").With("permission_id", id)
 		}
 		slog.ErrorContext(ctx, "获取权限失败", "error", err)
-		return errors.InternalError("获取权限失败").With("error", err.Error())
+		return errors.ErrInternal("获取权限失败").With("error", err.Error())
 	}
 
 	// 检查是否为系统权限
 	if permissionEntity.IsSystem {
-		return errors.ForbiddenError("系统权限不允许删除").With("permission_id", id)
+		return errors.ErrForbidden("系统权限不允许删除").With("permission_id", id)
 	}
 
 	// 检查是否有角色关联此权限
@@ -158,17 +158,17 @@ func (s *PermissionService) DeletePermission(ctx context.Context, id string) err
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查权限关联角色失败", "error", err)
-		return errors.InternalError("检查权限关联角色失败").With("error", err.Error())
+		return errors.ErrInternal("检查权限关联角色失败").With("error", err.Error())
 	}
 	if roleCount > 0 {
-		return errors.ConflictError("权限已被角色使用，无法删除").With("permission_id", id, "role_count", roleCount)
+		return errors.ErrConflict("权限已被角色使用，无法删除").With("permission_id", id, "role_count", roleCount)
 	}
 
 	// 删除权限（软删除）
 	err = s.orm.Permission.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "删除权限失败", "error", err)
-		return errors.InternalError("删除权限失败").With("error", err.Error())
+		return errors.ErrInternal("删除权限失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "权限删除成功", "permission_id", id)
@@ -185,10 +185,10 @@ func (s *PermissionService) GetPermission(ctx context.Context, id string) (*type
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("权限不存在").With("permission_id", id)
+			return nil, errors.ErrNotFound("权限不存在").With("permission_id", id)
 		}
 		slog.ErrorContext(ctx, "获取权限失败", "error", err)
-		return nil, errors.InternalError("获取权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取权限失败").With("error", err.Error())
 	}
 
 	return s.toPermissionOutput(permissionEntity), nil
@@ -232,7 +232,7 @@ func (s *PermissionService) ListPermissions(ctx context.Context, input *types.Li
 	total, err := query.Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取权限总数失败", "error", err)
-		return nil, errors.InternalError("获取权限总数失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取权限总数失败").With("error", err.Error())
 	}
 
 	// 分页查询
@@ -243,7 +243,7 @@ func (s *PermissionService) ListPermissions(ctx context.Context, input *types.Li
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取权限列表失败", "error", err)
-		return nil, errors.InternalError("获取权限列表失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取权限列表失败").With("error", err.Error())
 	}
 
 	// 转换输出格式
@@ -278,7 +278,7 @@ func (s *PermissionService) ListPermissionsByResource(ctx context.Context) ([]*t
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取权限列表失败", "error", err)
-		return nil, errors.InternalError("获取权限列表失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取权限列表失败").With("error", err.Error())
 	}
 
 	// 按资源分组
@@ -316,10 +316,10 @@ func (s *PermissionService) AssignPermissions(ctx context.Context, input *types.
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查角色失败", "error", err)
-		return errors.InternalError("检查角色失败").With("error", err.Error())
+		return errors.ErrInternal("检查角色失败").With("error", err.Error())
 	}
 	if !roleExists {
-		return errors.NotFoundError("角色不存在或状态不活跃").With("role_id", input.RoleID)
+		return errors.ErrNotFound("角色不存在或状态不活跃").With("role_id", input.RoleID)
 	}
 
 	// 检查权限是否存在且状态为活跃
@@ -332,10 +332,10 @@ func (s *PermissionService) AssignPermissions(ctx context.Context, input *types.
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查权限失败", "error", err)
-		return errors.InternalError("检查权限失败").With("error", err.Error())
+		return errors.ErrInternal("检查权限失败").With("error", err.Error())
 	}
 	if permissionCount != len(input.PermissionIDs) {
-		return errors.BadRequestError("存在无效或非活跃的权限").With("permission_ids", input.PermissionIDs)
+		return errors.ErrBadRequest("存在无效或非活跃的权限").With("permission_ids", input.PermissionIDs)
 	}
 
 	// 更新角色权限关联
@@ -345,7 +345,7 @@ func (s *PermissionService) AssignPermissions(ctx context.Context, input *types.
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "分配权限失败", "error", err)
-		return errors.InternalError("分配权限失败").With("error", err.Error())
+		return errors.ErrInternal("分配权限失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "权限分配成功", "role_id", input.RoleID, "permission_count", len(input.PermissionIDs))
@@ -370,10 +370,10 @@ func (s *PermissionService) GetRolePermissions(ctx context.Context, roleID strin
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("角色不存在").With("role_id", roleID)
+			return nil, errors.ErrNotFound("角色不存在").With("role_id", roleID)
 		}
 		slog.ErrorContext(ctx, "获取角色权限失败", "error", err)
-		return nil, errors.InternalError("获取角色权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色权限失败").With("error", err.Error())
 	}
 
 	permissions := make([]*types.PermissionOutput, len(roleEntity.Edges.Permissions))

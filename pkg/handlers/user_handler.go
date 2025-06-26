@@ -71,7 +71,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 
 	var input types.CreateUserInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -94,7 +94,7 @@ func (h *UserHandler) ListUsers(c echo.Context) error {
 
 	var input types.ListUsersInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -117,7 +117,7 @@ func (h *UserHandler) GetUserByID(c echo.Context) error {
 
 	userID := c.Param("id")
 	if userID == "" {
-		return errors.BadRequestError("用户ID不能为空")
+		return errors.ErrBadRequest("用户ID不能为空")
 	}
 
 	// 获取用户
@@ -135,12 +135,12 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 
 	userID := c.Param("id")
 	if userID == "" {
-		return errors.BadRequestError("用户ID不能为空")
+		return errors.ErrBadRequest("用户ID不能为空")
 	}
 
 	var input types.UpdateUserInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -163,7 +163,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 
 	userID := c.Param("id")
 	if userID == "" {
-		return errors.BadRequestError("用户ID不能为空")
+		return errors.ErrBadRequest("用户ID不能为空")
 	}
 
 	// 删除用户
@@ -181,12 +181,12 @@ func (h *UserHandler) ChangePassword(c echo.Context) error {
 
 	userID := c.Param("id")
 	if userID == "" {
-		return errors.BadRequestError("用户ID不能为空")
+		return errors.ErrBadRequest("用户ID不能为空")
 	}
 
 	var input types.ChangePasswordInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -223,7 +223,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.UnauthorizedError("用户未登录")
+		return errors.ErrUnauthorized("用户未登录")
 	}
 
 	// 获取用户信息
@@ -242,12 +242,12 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.UnauthorizedError("用户未登录")
+		return errors.ErrUnauthorized("用户未登录")
 	}
 
 	var input types.UpdateUserInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -274,12 +274,12 @@ func (h *UserHandler) ChangeCurrentUserPassword(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.UnauthorizedError("用户未登录")
+		return errors.ErrUnauthorized("用户未登录")
 	}
 
 	var input types.ChangePasswordInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入

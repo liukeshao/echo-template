@@ -53,7 +53,7 @@ func (h *MenuHandler) CreateMenu(c echo.Context) error {
 
 	var input types.CreateMenuInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -76,7 +76,7 @@ func (h *MenuHandler) ListMenus(c echo.Context) error {
 
 	var input types.ListMenusInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -99,7 +99,7 @@ func (h *MenuHandler) GetMenuTree(c echo.Context) error {
 
 	var input types.ListMenusInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 强制设置为树形模式
@@ -131,7 +131,7 @@ func (h *MenuHandler) GetMenuByID(c echo.Context) error {
 
 	menuID := c.Param("id")
 	if menuID == "" {
-		return errors.BadRequestError("菜单ID不能为空")
+		return errors.ErrBadRequest("菜单ID不能为空")
 	}
 
 	// 获取菜单
@@ -149,12 +149,12 @@ func (h *MenuHandler) UpdateMenu(c echo.Context) error {
 
 	menuID := c.Param("id")
 	if menuID == "" {
-		return errors.BadRequestError("菜单ID不能为空")
+		return errors.ErrBadRequest("菜单ID不能为空")
 	}
 
 	var input types.UpdateMenuInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入
@@ -177,7 +177,7 @@ func (h *MenuHandler) DeleteMenu(c echo.Context) error {
 
 	menuID := c.Param("id")
 	if menuID == "" {
-		return errors.BadRequestError("菜单ID不能为空")
+		return errors.ErrBadRequest("菜单ID不能为空")
 	}
 
 	// 删除菜单
@@ -195,7 +195,7 @@ func (h *MenuHandler) UpdateMenuOrder(c echo.Context) error {
 
 	var input types.UpdateMenuOrderInput
 	if err := c.Bind(&input); err != nil {
-		return errors.BadRequestError("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
 	}
 
 	// 验证输入

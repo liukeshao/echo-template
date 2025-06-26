@@ -41,10 +41,10 @@ func (s *RoleService) CreateRole(ctx context.Context, input *types.CreateRoleInp
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查角色代码失败", "error", err)
-		return nil, errors.InternalError("检查角色代码失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查角色代码失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("角色代码已存在").With("code", input.Code)
+		return nil, errors.ErrConflict("角色代码已存在").With("code", input.Code)
 	}
 
 	// 检查角色名称是否已存在
@@ -53,10 +53,10 @@ func (s *RoleService) CreateRole(ctx context.Context, input *types.CreateRoleInp
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查角色名称失败", "error", err)
-		return nil, errors.InternalError("检查角色名称失败").With("error", err.Error())
+		return nil, errors.ErrInternal("检查角色名称失败").With("error", err.Error())
 	}
 	if exists {
-		return nil, errors.ConflictError("角色名称已存在").With("name", input.Name)
+		return nil, errors.ErrConflict("角色名称已存在").With("name", input.Name)
 	}
 
 	// 创建角色
@@ -70,7 +70,7 @@ func (s *RoleService) CreateRole(ctx context.Context, input *types.CreateRoleInp
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建角色失败", "error", err)
-		return nil, errors.InternalError("创建角色失败").With("error", err.Error())
+		return nil, errors.ErrInternal("创建角色失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "角色创建成功", "role_id", roleEntity.ID, "name", roleEntity.Name)
@@ -88,15 +88,15 @@ func (s *RoleService) UpdateRole(ctx context.Context, id string, input *types.Up
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("角色不存在").With("role_id", id)
+			return nil, errors.ErrNotFound("角色不存在").With("role_id", id)
 		}
 		slog.ErrorContext(ctx, "获取角色失败", "error", err)
-		return nil, errors.InternalError("获取角色失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色失败").With("error", err.Error())
 	}
 
 	// 检查是否为系统角色
 	if roleEntity.IsSystem {
-		return nil, errors.ForbiddenError("系统角色不允许修改").With("role_id", id)
+		return nil, errors.ErrForbidden("系统角色不允许修改").With("role_id", id)
 	}
 
 	// 构建更新查询
@@ -113,10 +113,10 @@ func (s *RoleService) UpdateRole(ctx context.Context, id string, input *types.Up
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查角色名称失败", "error", err)
-			return nil, errors.InternalError("检查角色名称失败").With("error", err.Error())
+			return nil, errors.ErrInternal("检查角色名称失败").With("error", err.Error())
 		}
 		if exists {
-			return nil, errors.ConflictError("角色名称已存在").With("name", *input.Name)
+			return nil, errors.ErrConflict("角色名称已存在").With("name", *input.Name)
 		}
 		update = update.SetName(*input.Name)
 	}
@@ -137,7 +137,7 @@ func (s *RoleService) UpdateRole(ctx context.Context, id string, input *types.Up
 	roleEntity, err = update.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "更新角色失败", "error", err)
-		return nil, errors.InternalError("更新角色失败").With("error", err.Error())
+		return nil, errors.ErrInternal("更新角色失败").With("error", err.Error())
 	}
 
 	// 获取权限列表
@@ -161,15 +161,15 @@ func (s *RoleService) DeleteRole(ctx context.Context, id string) error {
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return errors.NotFoundError("角色不存在").With("role_id", id)
+			return errors.ErrNotFound("角色不存在").With("role_id", id)
 		}
 		slog.ErrorContext(ctx, "获取角色失败", "error", err)
-		return errors.InternalError("获取角色失败").With("error", err.Error())
+		return errors.ErrInternal("获取角色失败").With("error", err.Error())
 	}
 
 	// 检查是否为系统角色
 	if roleEntity.IsSystem {
-		return errors.ForbiddenError("系统角色不允许删除").With("role_id", id)
+		return errors.ErrForbidden("系统角色不允许删除").With("role_id", id)
 	}
 
 	// 检查是否有用户关联此角色
@@ -178,17 +178,17 @@ func (s *RoleService) DeleteRole(ctx context.Context, id string) error {
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查角色关联用户失败", "error", err)
-		return errors.InternalError("检查角色关联用户失败").With("error", err.Error())
+		return errors.ErrInternal("检查角色关联用户失败").With("error", err.Error())
 	}
 	if userCount > 0 {
-		return errors.ConflictError(fmt.Sprintf("角色已被 %d 个用户使用，无法删除", userCount)).With("role_id", id, "user_count", userCount)
+		return errors.ErrConflict(fmt.Sprintf("角色已被 %d 个用户使用，无法删除", userCount)).With("role_id", id, "user_count", userCount)
 	}
 
 	// 删除角色（软删除）
 	err = s.orm.Role.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "删除角色失败", "error", err)
-		return errors.InternalError("删除角色失败").With("error", err.Error())
+		return errors.ErrInternal("删除角色失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "角色删除成功", "role_id", id)
@@ -205,10 +205,10 @@ func (s *RoleService) GetRole(ctx context.Context, id string) (*types.RoleOutput
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("角色不存在").With("role_id", id)
+			return nil, errors.ErrNotFound("角色不存在").With("role_id", id)
 		}
 		slog.ErrorContext(ctx, "获取角色失败", "error", err)
-		return nil, errors.InternalError("获取角色失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色失败").With("error", err.Error())
 	}
 
 	// 获取权限列表
@@ -246,7 +246,7 @@ func (s *RoleService) ListRoles(ctx context.Context, input *types.ListRolesInput
 	total, err := query.Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取角色总数失败", "error", err)
-		return nil, errors.InternalError("获取角色总数失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色总数失败").With("error", err.Error())
 	}
 
 	// 分页查询
@@ -257,7 +257,7 @@ func (s *RoleService) ListRoles(ctx context.Context, input *types.ListRolesInput
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取角色列表失败", "error", err)
-		return nil, errors.InternalError("获取角色列表失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色列表失败").With("error", err.Error())
 	}
 
 	// 转换输出格式
@@ -298,10 +298,10 @@ func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleIn
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户失败", "error", err)
-		return errors.InternalError("检查用户失败").With("error", err.Error())
+		return errors.ErrInternal("检查用户失败").With("error", err.Error())
 	}
 	if !userExists {
-		return errors.NotFoundError("用户不存在").With("user_id", input.UserID)
+		return errors.ErrNotFound("用户不存在").With("user_id", input.UserID)
 	}
 
 	// 检查角色是否存在且状态为活跃
@@ -314,17 +314,17 @@ func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleIn
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查角色失败", "error", err)
-		return errors.InternalError("检查角色失败").With("error", err.Error())
+		return errors.ErrInternal("检查角色失败").With("error", err.Error())
 	}
 	if roleCount != len(input.RoleIDs) {
-		return errors.BadRequestError("存在无效或非活跃的角色").With("role_ids", input.RoleIDs)
+		return errors.ErrBadRequest("存在无效或非活跃的角色").With("role_ids", input.RoleIDs)
 	}
 
 	// 开始事务
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "开始事务失败", "error", err)
-		return errors.InternalError("开始事务失败").With("error", err.Error())
+		return errors.ErrInternal("开始事务失败").With("error", err.Error())
 	}
 	defer func() {
 		if err != nil {
@@ -338,7 +338,7 @@ func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleIn
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "删除现有角色分配失败", "error", err)
-		return errors.InternalError("删除现有角色分配失败").With("error", err.Error())
+		return errors.ErrInternal("删除现有角色分配失败").With("error", err.Error())
 	}
 
 	// 创建新的角色分配
@@ -356,14 +356,14 @@ func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleIn
 	_, err = tx.UserRole.CreateBulk(bulk...).Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建角色分配失败", "error", err)
-		return errors.InternalError("创建角色分配失败").With("error", err.Error())
+		return errors.ErrInternal("创建角色分配失败").With("error", err.Error())
 	}
 
 	// 提交事务
 	err = tx.Commit()
 	if err != nil {
 		slog.ErrorContext(ctx, "提交事务失败", "error", err)
-		return errors.InternalError("提交事务失败").With("error", err.Error())
+		return errors.ErrInternal("提交事务失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "角色分配成功", "user_id", input.UserID, "role_count", len(input.RoleIDs))
@@ -385,10 +385,10 @@ func (s *RoleService) RevokeRoles(ctx context.Context, input *types.RevokeRoleIn
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户角色关联失败", "error", err)
-		return errors.InternalError("检查用户角色关联失败").With("error", err.Error())
+		return errors.ErrInternal("检查用户角色关联失败").With("error", err.Error())
 	}
 	if count == 0 {
-		return errors.NotFoundError("用户角色关联不存在").With("user_id", input.UserID, "role_ids", input.RoleIDs)
+		return errors.ErrNotFound("用户角色关联不存在").With("user_id", input.UserID, "role_ids", input.RoleIDs)
 	}
 
 	// 删除用户角色关联
@@ -400,7 +400,7 @@ func (s *RoleService) RevokeRoles(ctx context.Context, input *types.RevokeRoleIn
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "撤销用户角色失败", "error", err)
-		return errors.InternalError("撤销用户角色失败").With("error", err.Error())
+		return errors.ErrInternal("撤销用户角色失败").With("error", err.Error())
 	}
 
 	slog.InfoContext(ctx, "用户角色撤销成功", "user_id", input.UserID, "revoked_count", count)
@@ -418,7 +418,7 @@ func (s *RoleService) GetUserRoles(ctx context.Context, userID string) ([]*types
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户角色失败", "error", err)
-		return nil, errors.InternalError("获取用户角色失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户角色失败").With("error", err.Error())
 	}
 
 	result := make([]*types.UserRoleOutput, len(userRoles))
@@ -467,7 +467,7 @@ func (s *RoleService) CheckUserPermission(ctx context.Context, userID, permissio
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户权限失败", "error", err)
-		return false, errors.InternalError("检查用户权限失败").With("error", err.Error())
+		return false, errors.ErrInternal("检查用户权限失败").With("error", err.Error())
 	}
 
 	return count > 0, nil
@@ -495,7 +495,7 @@ func (s *RoleService) GetUserPermissions(ctx context.Context, userID string) ([]
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户权限失败", "error", err)
-		return nil, errors.InternalError("获取用户权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取用户权限失败").With("error", err.Error())
 	}
 
 	codes := make([]string, len(permissions))
@@ -515,7 +515,7 @@ func (s *RoleService) getRolePermissions(ctx context.Context, roleID string) ([]
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取角色权限失败", "error", err)
-		return nil, errors.InternalError("获取角色权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("获取角色权限失败").With("error", err.Error())
 	}
 
 	codes := make([]string, len(permissions))
@@ -556,15 +556,15 @@ func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRo
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return errors.NotFoundError("角色不存在").With("role_id", input.RoleID)
+			return errors.ErrNotFound("角色不存在").With("role_id", input.RoleID)
 		}
 		slog.ErrorContext(ctx, "查询角色失败", "error", err)
-		return errors.InternalError("查询角色失败").With("error", err.Error())
+		return errors.ErrInternal("查询角色失败").With("error", err.Error())
 	}
 
 	// 检查系统角色是否可修改
 	if role.IsSystem {
-		return errors.ForbiddenError("系统角色不允许修改菜单权限")
+		return errors.ErrForbidden("系统角色不允许修改菜单权限")
 	}
 
 	// 检查菜单是否存在
@@ -573,10 +573,10 @@ func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRo
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "查询菜单失败", "error", err)
-		return errors.InternalError("查询菜单失败").With("error", err.Error())
+		return errors.ErrInternal("查询菜单失败").With("error", err.Error())
 	}
 	if menuCount != len(input.MenuIDs) {
-		return errors.BadRequestError("部分菜单不存在或已被删除")
+		return errors.ErrBadRequest("部分菜单不存在或已被删除")
 	}
 
 	// 清除角色现有的菜单关联
@@ -585,7 +585,7 @@ func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRo
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "清除角色菜单关联失败", "error", err)
-		return errors.InternalError("清除角色菜单关联失败").With("error", err.Error())
+		return errors.ErrInternal("清除角色菜单关联失败").With("error", err.Error())
 	}
 
 	// 添加新的菜单关联
@@ -595,7 +595,7 @@ func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRo
 			Exec(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "分配角色菜单失败", "error", err)
-			return errors.InternalError("分配角色菜单失败").With("error", err.Error())
+			return errors.ErrInternal("分配角色菜单失败").With("error", err.Error())
 		}
 	}
 
@@ -618,10 +618,10 @@ func (s *RoleService) GetRoleMenus(ctx context.Context, roleID string) (*types.R
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("角色不存在").With("role_id", roleID)
+			return nil, errors.ErrNotFound("角色不存在").With("role_id", roleID)
 		}
 		slog.ErrorContext(ctx, "查询角色菜单失败", "error", err)
-		return nil, errors.InternalError("查询角色菜单失败").With("error", err.Error())
+		return nil, errors.ErrInternal("查询角色菜单失败").With("error", err.Error())
 	}
 
 	// 转换菜单数据
@@ -675,7 +675,7 @@ func (s *RoleService) GetUserMenus(ctx context.Context, input *types.GetUserMenu
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "查询用户菜单失败", "error", err)
-		return nil, errors.InternalError("查询用户菜单失败").With("error", err.Error())
+		return nil, errors.ErrInternal("查询用户菜单失败").With("error", err.Error())
 	}
 
 	// 去重（用户可能有多个角色，菜单可能重复）
@@ -729,10 +729,10 @@ func (s *RoleService) GetRoleMenuPermissions(ctx context.Context, roleID string)
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("角色不存在").With("role_id", roleID)
+			return nil, errors.ErrNotFound("角色不存在").With("role_id", roleID)
 		}
 		slog.ErrorContext(ctx, "查询角色菜单权限失败", "error", err)
-		return nil, errors.InternalError("查询角色菜单权限失败").With("error", err.Error())
+		return nil, errors.ErrInternal("查询角色菜单权限失败").With("error", err.Error())
 	}
 
 	// 构建权限映射

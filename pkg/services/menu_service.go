@@ -33,10 +33,10 @@ func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInp
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查菜单名称时发生错误", "error", err)
-		return nil, errors.InternalError("创建菜单失败")
+		return nil, errors.ErrInternal("创建菜单失败")
 	}
 	if exists {
-		return nil, errors.BadRequestError("菜单名称已存在")
+		return nil, errors.ErrBadRequest("菜单名称已存在")
 	}
 
 	// 如果指定了父菜单，检查父菜单是否存在
@@ -46,10 +46,10 @@ func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInp
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查父菜单时发生错误", "error", err)
-			return nil, errors.InternalError("创建菜单失败")
+			return nil, errors.ErrInternal("创建菜单失败")
 		}
 		if !parentExists {
-			return nil, errors.BadRequestError("父菜单不存在")
+			return nil, errors.ErrBadRequest("父菜单不存在")
 		}
 	}
 
@@ -94,7 +94,7 @@ func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInp
 	menuEntity, err := query.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建菜单失败", "error", err)
-		return nil, errors.InternalError("创建菜单失败")
+		return nil, errors.ErrInternal("创建菜单失败")
 	}
 
 	slog.InfoContext(ctx, "菜单创建成功", "id", menuEntity.ID)
@@ -117,10 +117,10 @@ func (s *MenuService) GetMenuByID(ctx context.Context, id string) (*types.MenuOu
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, errors.NotFoundError("菜单不存在")
+			return nil, errors.ErrNotFound("菜单不存在")
 		}
 		slog.ErrorContext(ctx, "获取菜单失败", "error", err)
-		return nil, errors.InternalError("获取菜单失败")
+		return nil, errors.ErrInternal("获取菜单失败")
 	}
 
 	return &types.MenuOutput{
@@ -138,10 +138,10 @@ func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.Up
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查菜单时发生错误", "error", err)
-		return nil, errors.InternalError("更新菜单失败")
+		return nil, errors.ErrInternal("更新菜单失败")
 	}
 	if !exists {
-		return nil, errors.NotFoundError("菜单不存在")
+		return nil, errors.ErrNotFound("菜单不存在")
 	}
 
 	// 检查菜单名称是否已被其他菜单使用
@@ -151,17 +151,17 @@ func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.Up
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查菜单名称时发生错误", "error", err)
-			return nil, errors.InternalError("更新菜单失败")
+			return nil, errors.ErrInternal("更新菜单失败")
 		}
 		if nameExists {
-			return nil, errors.BadRequestError("菜单名称已存在")
+			return nil, errors.ErrBadRequest("菜单名称已存在")
 		}
 	}
 
 	// 如果更新父菜单，检查父菜单是否存在，以及避免循环引用
 	if input.ParentID != nil {
 		if *input.ParentID == id {
-			return nil, errors.BadRequestError("不能将自己设为父菜单")
+			return nil, errors.ErrBadRequest("不能将自己设为父菜单")
 		}
 
 		// 检查是否会造成循环引用
@@ -174,10 +174,10 @@ func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.Up
 			Exist(ctx)
 		if err != nil {
 			slog.ErrorContext(ctx, "检查父菜单时发生错误", "error", err)
-			return nil, errors.InternalError("更新菜单失败")
+			return nil, errors.ErrInternal("更新菜单失败")
 		}
 		if !parentExists {
-			return nil, errors.BadRequestError("父菜单不存在")
+			return nil, errors.ErrBadRequest("父菜单不存在")
 		}
 	}
 
@@ -237,7 +237,7 @@ func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.Up
 	menuEntity, err := query.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "更新菜单失败", "error", err)
-		return nil, errors.InternalError("更新菜单失败")
+		return nil, errors.ErrInternal("更新菜单失败")
 	}
 
 	slog.InfoContext(ctx, "菜单更新成功", "id", id)
@@ -257,10 +257,10 @@ func (s *MenuService) DeleteMenu(ctx context.Context, id string) error {
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查菜单时发生错误", "error", err)
-		return errors.InternalError("删除菜单失败")
+		return errors.ErrInternal("删除菜单失败")
 	}
 	if !exists {
-		return errors.NotFoundError("菜单不存在")
+		return errors.ErrNotFound("菜单不存在")
 	}
 
 	// 检查是否有子菜单
@@ -269,17 +269,17 @@ func (s *MenuService) DeleteMenu(ctx context.Context, id string) error {
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查子菜单时发生错误", "error", err)
-		return errors.InternalError("删除菜单失败")
+		return errors.ErrInternal("删除菜单失败")
 	}
 	if hasChildren {
-		return errors.BadRequestError("存在子菜单，无法删除")
+		return errors.ErrBadRequest("存在子菜单，无法删除")
 	}
 
 	// 执行删除（软删除）
 	err = s.orm.Menu.DeleteOneID(id).Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "删除菜单失败", "error", err)
-		return errors.InternalError("删除菜单失败")
+		return errors.ErrInternal("删除菜单失败")
 	}
 
 	slog.InfoContext(ctx, "菜单删除成功", "id", id)
@@ -318,7 +318,7 @@ func (s *MenuService) ListMenus(ctx context.Context, input *types.ListMenusInput
 	total, err := query.Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计菜单总数失败", "error", err)
-		return nil, errors.InternalError("获取菜单列表失败")
+		return nil, errors.ErrInternal("获取菜单列表失败")
 	}
 
 	// 分页查询
@@ -330,7 +330,7 @@ func (s *MenuService) ListMenus(ctx context.Context, input *types.ListMenusInput
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取菜单列表失败", "error", err)
-		return nil, errors.InternalError("获取菜单列表失败")
+		return nil, errors.ErrInternal("获取菜单列表失败")
 	}
 
 	// 转换为输出类型
@@ -376,7 +376,7 @@ func (s *MenuService) getMenuTree(ctx context.Context, input *types.ListMenusInp
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取菜单树失败", "error", err)
-		return nil, errors.InternalError("获取菜单树失败")
+		return nil, errors.ErrInternal("获取菜单树失败")
 	}
 
 	// 转换为MenuInfo并构建树形结构
@@ -421,7 +421,7 @@ func (s *MenuService) UpdateMenuOrder(ctx context.Context, input *types.UpdateMe
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "开启事务失败", "error", err)
-		return errors.InternalError("更新菜单排序失败")
+		return errors.ErrInternal("更新菜单排序失败")
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -445,14 +445,14 @@ func (s *MenuService) UpdateMenuOrder(ctx context.Context, input *types.UpdateMe
 		if err != nil {
 			tx.Rollback()
 			slog.ErrorContext(ctx, "更新菜单排序失败", "id", order.ID, "error", err)
-			return errors.InternalError("更新菜单排序失败")
+			return errors.ErrInternal("更新菜单排序失败")
 		}
 	}
 
 	// 提交事务
 	if err := tx.Commit(); err != nil {
 		slog.ErrorContext(ctx, "提交事务失败", "error", err)
-		return errors.InternalError("更新菜单排序失败")
+		return errors.ErrInternal("更新菜单排序失败")
 	}
 
 	slog.InfoContext(ctx, "菜单排序更新成功")
@@ -467,7 +467,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 	totalMenus, err := s.orm.Menu.Query().Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计总菜单数失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 
 	// 活跃菜单数
@@ -476,7 +476,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计活跃菜单数失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 
 	// 非活跃菜单数
@@ -485,7 +485,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计非活跃菜单数失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 
 	// 按类型统计
@@ -496,7 +496,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计菜单类型失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 	menusByType["menu"] = int64(menuCount)
 
@@ -505,7 +505,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计按钮类型失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 	menusByType["button"] = int64(buttonCount)
 
@@ -514,7 +514,7 @@ func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput,
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计链接类型失败", "error", err)
-		return nil, errors.InternalError("获取菜单统计失败")
+		return nil, errors.ErrInternal("获取菜单统计失败")
 	}
 	menusByType["link"] = int64(linkCount)
 
@@ -533,10 +533,10 @@ func (s *MenuService) checkCircularReference(ctx context.Context, menuID, parent
 
 	for current != "" {
 		if visited[current] {
-			return errors.BadRequestError("检测到循环引用")
+			return errors.ErrBadRequest("检测到循环引用")
 		}
 		if current == menuID {
-			return errors.BadRequestError("不能将子菜单设为父菜单")
+			return errors.ErrBadRequest("不能将子菜单设为父菜单")
 		}
 
 		visited[current] = true
@@ -549,7 +549,7 @@ func (s *MenuService) checkCircularReference(ctx context.Context, menuID, parent
 				break
 			}
 			slog.ErrorContext(ctx, "检查循环引用时查询菜单失败", "error", err)
-			return errors.InternalError("检查循环引用失败")
+			return errors.ErrInternal("检查循环引用失败")
 		}
 
 		if parent.ParentID == nil {

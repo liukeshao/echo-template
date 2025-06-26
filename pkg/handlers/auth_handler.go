@@ -53,7 +53,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	var in types.RegisterInput
 	if err := c.Bind(&in); err != nil {
-		return errors.BadRequestError("请求参数格式错误").
+		return errors.ErrBadRequest("请求参数格式错误").
 			With("error", err.Error())
 	}
 
@@ -87,7 +87,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	var in types.LoginInput
 	if err := c.Bind(&in); err != nil {
-		return errors.BadRequestError("请求参数格式错误").
+		return errors.ErrBadRequest("请求参数格式错误").
 			With("error", err.Error())
 	}
 
@@ -118,7 +118,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 
 	var req types.RefreshTokenInput
 	if err := c.Bind(&req); err != nil {
-		return errors.BadRequestError("请求参数格式错误").
+		return errors.ErrBadRequest("请求参数格式错误").
 			With("error", err.Error())
 	}
 
@@ -143,23 +143,23 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	// 从认证中间件获取当前用户
 	user, ok := appContext.GetUserFromEcho(c)
 	if !ok {
-		return errors.UnauthorizedError("用户未登录")
+		return errors.ErrUnauthorized("用户未登录")
 	}
 
 	// 从Authorization header获取token
 	authHeader := c.Request().Header.Get("Authorization")
 	if authHeader == "" {
-		return errors.UnauthorizedError("缺少Authorization头")
+		return errors.ErrUnauthorized("缺少Authorization头")
 	}
 
 	// 检查Bearer格式
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return errors.UnauthorizedError("无效的Authorization格式")
+		return errors.ErrUnauthorized("无效的Authorization格式")
 	}
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if token == "" {
-		return errors.UnauthorizedError("令牌不能为空")
+		return errors.ErrUnauthorized("令牌不能为空")
 	}
 
 	slog.InfoContext(ctx, "用户登出请求", "user_id", user.ID)

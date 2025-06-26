@@ -37,7 +37,7 @@ func (m *DocsMiddleware) CheckAccess(next echo.HandlerFunc) echo.HandlerFunc {
 				"path", c.Request().URL.Path,
 			)
 
-			return errors.NotFoundError("页面不存在")
+			return errors.ErrNotFound("页面不存在")
 		}
 
 		// 生产环境额外检查

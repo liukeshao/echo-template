@@ -68,7 +68,7 @@ func (h *DocsHandler) GetOpenAPISpec(c echo.Context) error {
 	spec, err := h.docsService.GenerateOpenAPISpec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成OpenAPI规范失败", "error", err)
-		return errors.InternalError("生成API规范失败")
+		return errors.ErrInternal("生成API规范失败")
 	}
 
 	return c.JSON(http.StatusOK, spec)
