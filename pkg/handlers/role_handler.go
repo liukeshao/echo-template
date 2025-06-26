@@ -15,6 +15,7 @@ type RoleHandler struct {
 	orm               *ent.Client
 	roleService       *services.RoleService
 	permissionService *services.PermissionService
+	authService       *services.AuthService
 }
 
 // init 注册处理器
@@ -27,13 +28,14 @@ func (h *RoleHandler) Init(c *services.Container) error {
 	h.orm = c.ORM
 	h.roleService = c.Role
 	h.permissionService = c.Permission
+	h.authService = c.Auth
 	return nil
 }
 
 // Routes 注册路由
 func (h *RoleHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm)
+	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
 	permMw := middleware.NewPermissionMiddleware(h.orm, h.roleService)
 
 	roles := g.Group("/api/v1/roles")

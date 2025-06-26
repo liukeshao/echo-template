@@ -120,7 +120,8 @@ func (c *Container) initORM() {
 }
 
 func (c *Container) initAuth() {
-	c.Auth = NewAuthService(c.ORM)
+	jwtConfig := NewJWTConfigFromConfig(c.Config.JWT)
+	c.Auth = NewAuthService(c.ORM, jwtConfig)
 }
 
 func (c *Container) initUser() {

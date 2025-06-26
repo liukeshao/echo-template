@@ -9,10 +9,11 @@ import (
 	"github.com/liukeshao/echo-template/pkg/types"
 )
 
-// MenuHandler 菜单管理处理器
+// MenuHandler 菜单处理器
 type MenuHandler struct {
 	orm         *ent.Client
 	menuService *services.MenuService
+	authService *services.AuthService
 }
 
 // init 注册handler
@@ -24,13 +25,14 @@ func init() {
 func (h *MenuHandler) Init(c *services.Container) error {
 	h.orm = c.ORM
 	h.menuService = c.Menu
+	h.authService = c.Auth
 	return nil
 }
 
 // Routes 注册路由
 func (h *MenuHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm)
+	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
 	protected := g.Group("/api/v1/menus")
 	protected.Use(authMw.RequireAuth)
 

@@ -4,14 +4,15 @@ import (
 	"time"
 
 	z "github.com/Oudwins/zog"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 // RegisterInput 用户注册输入
 type RegisterInput struct {
-	Username string `json:"username"`
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Username string `json:"username" form:"username"`
+	Email    string `json:"email" form:"email"`
+	Password string `json:"password" form:"password"`
 }
 
 // Validate 验证注册输入
@@ -28,8 +29,8 @@ func (i *RegisterInput) Validate() []*errors.ErrorDetail {
 
 // LoginInput 用户登录输入
 type LoginInput struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" form:"email"`
+	Password string `json:"password" form:"password"`
 }
 
 // Validate 验证登录输入
@@ -44,7 +45,7 @@ func (i *LoginInput) Validate() []*errors.ErrorDetail {
 
 // RefreshTokenInput 刷新令牌输入
 type RefreshTokenInput struct {
-	RefreshToken string `json:"refresh_token"`
+	RefreshToken string `json:"refresh_token" form:"refresh_token"`
 }
 
 // Validate 验证刷新令牌输入
@@ -70,6 +71,15 @@ type UserInfo struct {
 	Username    string     `json:"username"`
 	Email       string     `json:"email"`
 	Status      string     `json:"status"`
-	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	LastLoginAt *time.Time `json:"last_login_at"`
 	CreatedAt   time.Time  `json:"created_at"`
+}
+
+// JWTClaims JWT声明结构
+type JWTClaims struct {
+	UserID    string `json:"user_id"`
+	Username  string `json:"username"`
+	Email     string `json:"email"`
+	TokenType string `json:"token_type"` // "access" 或 "refresh"
+	jwt.RegisteredClaims
 }

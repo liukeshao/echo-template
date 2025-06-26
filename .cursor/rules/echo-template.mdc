@@ -125,7 +125,7 @@ return ValidationError("验证失败", errorDetails).JSON(c)
 ### 开发流程
 1. 开发 Handler（简短中文注释）
 2. **强制立即**编写 OpenAPI 文档
-3. 验证文档语法：`yamllint docs/openapi.yaml`
+3. 验证文档语法：`yamllint openapi/openapi.yaml`
 4. 测试 API：`curl http://localhost:8000/openapi.json`
 
 ## 项目结构

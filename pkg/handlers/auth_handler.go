@@ -41,7 +41,7 @@ func (h *AuthHandler) Routes(g *echo.Group) {
 	auth.POST("/refresh", h.RefreshToken)
 
 	// 需要认证的路由
-	authMiddleware := middleware.NewAuthMiddleware(h.orm)
+	authMiddleware := middleware.NewAuthMiddleware(h.orm, h.auth)
 	protected := g.Group("/api/v1/auth")
 	protected.Use(authMiddleware.RequireAuth)
 	protected.POST("/logout", h.Logout)
@@ -127,15 +127,11 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 		return ValidationError("验证失败", errorDetails).JSON(c)
 	}
 
-	slog.InfoContext(ctx, "刷新令牌请求")
-
 	// 调用服务层
 	out, err := h.auth.RefreshToken(ctx, req.RefreshToken)
 	if err != nil {
 		return err
 	}
-
-	slog.InfoContext(ctx, "令牌刷新成功", "user_id", out.User.ID)
 
 	return Success(out).JSON(c)
 }

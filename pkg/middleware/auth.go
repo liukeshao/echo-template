@@ -7,17 +7,26 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
 	appContext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
-	"github.com/liukeshao/echo-template/pkg/utils"
+	"github.com/liukeshao/echo-template/pkg/types"
 )
 
-// AuthMiddleware 认证中间件配置
+// AuthService 认证服务接口
+type AuthService interface {
+	ValidateToken(tokenString string) (*types.JWTClaims, error)
+	IsTokenExpired(claims *types.JWTClaims) bool
+	GetTokenType(claims *types.JWTClaims) string
+}
+
+// AuthMiddleware 认证中间件
 type AuthMiddleware struct {
-	orm *ent.Client
+	orm         *ent.Client
+	authService AuthService
 }
 
 // AuthResult 认证结果
@@ -29,9 +38,10 @@ type AuthResult struct {
 }
 
 // NewAuthMiddleware 创建新的认证中间件
-func NewAuthMiddleware(orm *ent.Client) *AuthMiddleware {
+func NewAuthMiddleware(orm *ent.Client, authService AuthService) *AuthMiddleware {
 	return &AuthMiddleware{
-		orm: orm,
+		orm:         orm,
+		authService: authService,
 	}
 }
 
@@ -69,7 +79,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	}
 
 	// 验证JWT token
-	claims, err := utils.ValidateToken(tokenString)
+	claims, err := m.authService.ValidateToken(tokenString)
 	if err != nil {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌验证失败", "error", err)
@@ -79,7 +89,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	}
 
 	// 检查token类型
-	if claims.TokenType != "access" {
+	if m.authService.GetTokenType(claims) != "access" {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌类型错误", "token_type", claims.TokenType)
 			result.Error = errors.UnauthorizedError("无效的令牌类型")
@@ -88,7 +98,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	}
 
 	// 检查token是否过期
-	if utils.IsTokenExpired(claims) {
+	if m.authService.IsTokenExpired(claims) {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌已过期", "user_id", claims.UserID)
 			result.Error = errors.UnauthorizedError("访问令牌已过期")

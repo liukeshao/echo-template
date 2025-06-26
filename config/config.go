@@ -35,6 +35,7 @@ type (
 		HTTP     HTTPConfig
 		App      AppConfig
 		Database DatabaseConfig
+		JWT      JWTConfig
 	}
 
 	// HTTPConfig stores HTTP configuration.
@@ -49,11 +50,10 @@ type (
 
 	// AppConfig stores application configuration.
 	AppConfig struct {
-		Name          string
-		Host          string
-		Environment   environment
-		EncryptionKey string
-		Timeout       time.Duration
+		Name        string
+		Host        string
+		Environment environment
+		Timeout     time.Duration
 		// 文档配置
 		Docs DocsConfig
 	}
@@ -63,6 +63,14 @@ type (
 		Enabled bool   // 是否启用API文档
 		Path    string // 文档访问路径
 		Title   string // 文档标题
+	}
+
+	// JWTConfig stores JWT configuration.
+	JWTConfig struct {
+		Secret             string        // JWT签名密钥
+		AccessTokenExpiry  time.Duration // Access token 过期时间
+		RefreshTokenExpiry time.Duration // Refresh token 过期时间
+		Issuer             string        // Token发行者
 	}
 
 	// DatabaseConfig stores the database configuration.

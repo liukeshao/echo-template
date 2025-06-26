@@ -10,11 +10,12 @@ import (
 	"github.com/liukeshao/echo-template/pkg/types"
 )
 
-// UserHandler 用户管理处理器
+// UserHandler 用户处理器
 type UserHandler struct {
 	orm         *ent.Client
 	userService *services.UserService
 	roleService *services.RoleService
+	authService *services.AuthService
 }
 
 // init 注册handler
@@ -27,13 +28,14 @@ func (h *UserHandler) Init(c *services.Container) error {
 	h.orm = c.ORM
 	h.userService = c.User
 	h.roleService = c.Role
+	h.authService = c.Auth
 	return nil
 }
 
 // Routes 注册路由
 func (h *UserHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm)
+	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
 	permMw := middleware.NewPermissionMiddleware(h.orm, h.roleService)
 
 	protected := g.Group("/api/v1/users")
