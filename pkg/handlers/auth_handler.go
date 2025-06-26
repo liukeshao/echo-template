@@ -62,21 +62,13 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return ValidationError("验证失败", errs).JSON(c)
 	}
 
-	slog.InfoContext(ctx, "开始用户注册",
-		"username", in.Username,
-		"email", in.Email,
-	)
-
 	// 调用服务层
 	out, err := h.auth.Register(ctx, &in)
 	if err != nil {
 		return err
 	}
 
-	slog.InfoContext(ctx, "用户注册成功",
-		"user_id", out.User.ID,
-		"username", out.User.Username,
-	)
+	slog.InfoContext(ctx, "用户注册成功", "user_id", out.User.ID, "username", out.User.Username)
 
 	return Success(out).JSON(c)
 }
@@ -96,18 +88,13 @@ func (h *AuthHandler) Login(c echo.Context) error {
 		return ValidationError("验证失败", errs).JSON(c)
 	}
 
-	slog.InfoContext(ctx, "用户登录请求", "email", in.Email)
-
 	// 调用服务层
 	out, err := h.auth.Login(ctx, &in)
 	if err != nil {
 		return err
 	}
 
-	slog.InfoContext(ctx, "用户登录成功",
-		"user_id", out.User.ID,
-		"username", out.User.Username,
-	)
+	slog.InfoContext(ctx, "用户登录成功", "user_id", out.User.ID, "username", out.User.Username)
 
 	return Success(out).JSON(c)
 }
@@ -161,8 +148,6 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	if token == "" {
 		return errors.ErrUnauthorized("令牌不能为空")
 	}
-
-	slog.InfoContext(ctx, "用户登出请求", "user_id", user.ID)
 
 	// 撤销token
 	err := h.auth.RevokeToken(ctx, token)

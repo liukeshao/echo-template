@@ -27,8 +27,6 @@ func NewPermissionService(orm *ent.Client) *PermissionService {
 
 // CreatePermission 创建权限
 func (s *PermissionService) CreatePermission(ctx context.Context, input *types.CreatePermissionInput) (*types.PermissionOutput, error) {
-	slog.InfoContext(ctx, "开始创建权限", "name", input.Name, "code", input.Code, "resource", input.Resource, "action", input.Action)
-
 	// 检查权限代码是否已存在
 	exists, err := s.orm.Permission.Query().
 		Where(permission.CodeEQ(input.Code), permission.DeletedAtEQ(0)).
@@ -80,8 +78,6 @@ func (s *PermissionService) CreatePermission(ctx context.Context, input *types.C
 
 // UpdatePermission 更新权限
 func (s *PermissionService) UpdatePermission(ctx context.Context, id string, input *types.UpdatePermissionInput) (*types.PermissionOutput, error) {
-	slog.InfoContext(ctx, "开始更新权限", "permission_id", id)
-
 	// 检查权限是否存在
 	permissionEntity, err := s.orm.Permission.Query().
 		Where(permission.IDEQ(id), permission.DeletedAtEQ(0)).
@@ -132,8 +128,6 @@ func (s *PermissionService) UpdatePermission(ctx context.Context, id string, inp
 
 // DeletePermission 删除权限
 func (s *PermissionService) DeletePermission(ctx context.Context, id string) error {
-	slog.InfoContext(ctx, "开始删除权限", "permission_id", id)
-
 	// 检查权限是否存在
 	permissionEntity, err := s.orm.Permission.Query().
 		Where(permission.IDEQ(id), permission.DeletedAtEQ(0)).
@@ -178,8 +172,6 @@ func (s *PermissionService) DeletePermission(ctx context.Context, id string) err
 
 // GetPermission 获取权限详情
 func (s *PermissionService) GetPermission(ctx context.Context, id string) (*types.PermissionOutput, error) {
-	slog.InfoContext(ctx, "获取权限详情", "permission_id", id)
-
 	permissionEntity, err := s.orm.Permission.Query().
 		Where(permission.IDEQ(id), permission.DeletedAtEQ(0)).
 		First(ctx)
@@ -196,8 +188,6 @@ func (s *PermissionService) GetPermission(ctx context.Context, id string) (*type
 
 // ListPermissions 获取权限列表
 func (s *PermissionService) ListPermissions(ctx context.Context, input *types.ListPermissionsInput) (*types.ListPermissionsOutput, error) {
-	slog.InfoContext(ctx, "获取权限列表", "page", input.Page, "page_size", input.PageSize, "resource", input.Resource, "action", input.Action, "status", input.Status, "search", input.Search)
-
 	query := s.orm.Permission.Query().Where(permission.DeletedAtEQ(0))
 
 	// 资源类型过滤
@@ -266,7 +256,6 @@ func (s *PermissionService) ListPermissions(ctx context.Context, input *types.Li
 
 // ListPermissionsByResource 按资源分组获取权限列表
 func (s *PermissionService) ListPermissionsByResource(ctx context.Context) ([]*types.PermissionGroupOutput, error) {
-	slog.InfoContext(ctx, "按资源分组获取权限列表")
 
 	// 获取所有活跃权限
 	permissions, err := s.orm.Permission.Query().
@@ -302,7 +291,6 @@ func (s *PermissionService) ListPermissionsByResource(ctx context.Context) ([]*t
 
 // AssignPermissions 分配权限给角色
 func (s *PermissionService) AssignPermissions(ctx context.Context, input *types.AssignPermissionInput) error {
-	slog.InfoContext(ctx, "开始分配权限给角色", "role_id", input.RoleID, "permission_ids", input.PermissionIDs)
 
 	// 检查角色是否存在且状态为活跃
 	roleExists, err := s.orm.Role.Query().
@@ -355,7 +343,6 @@ func (s *PermissionService) AssignPermissions(ctx context.Context, input *types.
 
 // GetRolePermissions 获取角色权限列表
 func (s *PermissionService) GetRolePermissions(ctx context.Context, roleID string) (*types.RolePermissionOutput, error) {
-	slog.InfoContext(ctx, "获取角色权限列表", "role_id", roleID)
 
 	roleEntity, err := s.orm.Role.Query().
 		Where(func(selector *sql.Selector) {

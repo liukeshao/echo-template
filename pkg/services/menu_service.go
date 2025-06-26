@@ -25,8 +25,6 @@ func NewMenuService(orm *ent.Client) *MenuService {
 
 // CreateMenu 创建菜单
 func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInput) (*types.MenuOutput, error) {
-	slog.InfoContext(ctx, "开始创建菜单", "name", input.Name)
-
 	// 检查菜单名称是否已存在
 	exists, err := s.orm.Menu.Query().
 		Where(menu.NameEQ(input.Name)).
@@ -106,8 +104,6 @@ func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInp
 
 // GetMenuByID 根据ID获取菜单
 func (s *MenuService) GetMenuByID(ctx context.Context, id string) (*types.MenuOutput, error) {
-	slog.InfoContext(ctx, "根据ID获取菜单", "id", id)
-
 	menuEntity, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(id)).
 		WithChildren(func(q *ent.MenuQuery) {
@@ -130,8 +126,6 @@ func (s *MenuService) GetMenuByID(ctx context.Context, id string) (*types.MenuOu
 
 // UpdateMenu 更新菜单
 func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.UpdateMenuInput) (*types.MenuOutput, error) {
-	slog.InfoContext(ctx, "开始更新菜单", "id", id)
-
 	// 检查菜单是否存在
 	exists, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(id)).
@@ -249,7 +243,6 @@ func (s *MenuService) UpdateMenu(ctx context.Context, id string, input *types.Up
 
 // DeleteMenu 删除菜单
 func (s *MenuService) DeleteMenu(ctx context.Context, id string) error {
-	slog.InfoContext(ctx, "开始删除菜单", "id", id)
 
 	// 检查菜单是否存在
 	exists, err := s.orm.Menu.Query().
@@ -288,7 +281,6 @@ func (s *MenuService) DeleteMenu(ctx context.Context, id string) error {
 
 // ListMenus 获取菜单列表
 func (s *MenuService) ListMenus(ctx context.Context, input *types.ListMenusInput) (*types.ListMenusOutput, error) {
-	slog.InfoContext(ctx, "获取菜单列表", "tree_mode", input.TreeMode)
 
 	if input.TreeMode {
 		return s.getMenuTree(ctx, input)
@@ -415,7 +407,6 @@ func (s *MenuService) getMenuTree(ctx context.Context, input *types.ListMenusInp
 
 // UpdateMenuOrder 更新菜单排序
 func (s *MenuService) UpdateMenuOrder(ctx context.Context, input *types.UpdateMenuOrderInput) error {
-	slog.InfoContext(ctx, "开始更新菜单排序", "count", len(input.MenuOrders))
 
 	// 开启事务
 	tx, err := s.orm.Tx(ctx)
@@ -461,7 +452,6 @@ func (s *MenuService) UpdateMenuOrder(ctx context.Context, input *types.UpdateMe
 
 // GetMenuStats 获取菜单统计
 func (s *MenuService) GetMenuStats(ctx context.Context) (*types.MenuStatsOutput, error) {
-	slog.InfoContext(ctx, "获取菜单统计")
 
 	// 总菜单数
 	totalMenus, err := s.orm.Menu.Query().Count(ctx)

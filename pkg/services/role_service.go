@@ -33,8 +33,6 @@ func NewRoleService(orm *ent.Client) *RoleService {
 
 // CreateRole 创建角色
 func (s *RoleService) CreateRole(ctx context.Context, input *types.CreateRoleInput) (*types.RoleOutput, error) {
-	slog.InfoContext(ctx, "开始创建角色", "name", input.Name, "code", input.Code)
-
 	// 检查角色代码是否已存在
 	exists, err := s.orm.Role.Query().
 		Where(role.CodeEQ(input.Code), role.DeletedAtEQ(0)).
@@ -80,8 +78,6 @@ func (s *RoleService) CreateRole(ctx context.Context, input *types.CreateRoleInp
 
 // UpdateRole 更新角色
 func (s *RoleService) UpdateRole(ctx context.Context, id string, input *types.UpdateRoleInput) (*types.RoleOutput, error) {
-	slog.InfoContext(ctx, "开始更新角色", "role_id", id)
-
 	// 检查角色是否存在
 	roleEntity, err := s.orm.Role.Query().
 		Where(role.IDEQ(id), role.DeletedAtEQ(0)).
@@ -153,8 +149,6 @@ func (s *RoleService) UpdateRole(ctx context.Context, id string, input *types.Up
 
 // DeleteRole 删除角色
 func (s *RoleService) DeleteRole(ctx context.Context, id string) error {
-	slog.InfoContext(ctx, "开始删除角色", "role_id", id)
-
 	// 检查角色是否存在
 	roleEntity, err := s.orm.Role.Query().
 		Where(role.IDEQ(id), role.DeletedAtEQ(0)).
@@ -198,8 +192,6 @@ func (s *RoleService) DeleteRole(ctx context.Context, id string) error {
 
 // GetRole 获取角色详情
 func (s *RoleService) GetRole(ctx context.Context, id string) (*types.RoleOutput, error) {
-	slog.InfoContext(ctx, "获取角色详情", "role_id", id)
-
 	roleEntity, err := s.orm.Role.Query().
 		Where(role.IDEQ(id), role.DeletedAtEQ(0)).
 		First(ctx)
@@ -222,8 +214,6 @@ func (s *RoleService) GetRole(ctx context.Context, id string) (*types.RoleOutput
 
 // ListRoles 获取角色列表
 func (s *RoleService) ListRoles(ctx context.Context, input *types.ListRolesInput) (*types.ListRolesOutput, error) {
-	slog.InfoContext(ctx, "获取角色列表", "page", input.Page, "page_size", input.PageSize, "status", input.Status, "search", input.Search)
-
 	query := s.orm.Role.Query().Where(role.DeletedAtEQ(0))
 
 	// 状态过滤
@@ -285,7 +275,6 @@ func (s *RoleService) ListRoles(ctx context.Context, input *types.ListRolesInput
 
 // AssignRoles 分配角色给用户
 func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleInput, granterID string) error {
-	slog.InfoContext(ctx, "开始分配角色", "user_id", input.UserID, "role_ids", input.RoleIDs, "granter_id", granterID)
 
 	// 检查用户是否存在
 	userExists, err := s.orm.User.Query().
@@ -373,7 +362,6 @@ func (s *RoleService) AssignRoles(ctx context.Context, input *types.AssignRoleIn
 
 // RevokeRoles 撤销用户角色
 func (s *RoleService) RevokeRoles(ctx context.Context, input *types.RevokeRoleInput) error {
-	slog.InfoContext(ctx, "开始撤销用户角色", "user_id", input.UserID, "role_ids", input.RoleIDs)
 
 	// 检查用户角色关联是否存在
 	count, err := s.orm.UserRole.Query().
@@ -410,7 +398,6 @@ func (s *RoleService) RevokeRoles(ctx context.Context, input *types.RevokeRoleIn
 
 // GetUserRoles 获取用户角色列表
 func (s *RoleService) GetUserRoles(ctx context.Context, userID string) ([]*types.UserRoleOutput, error) {
-	slog.InfoContext(ctx, "获取用户角色列表", "user_id", userID)
 
 	userRoles, err := s.orm.UserRole.Query().
 		Where(userrole.UserIDEQ(userID), userrole.DeletedAtEQ(0)).
@@ -548,7 +535,6 @@ func (s *RoleService) toRoleOutput(r *ent.Role, permissions []string) *types.Rol
 
 // AssignRoleMenus 为角色分配菜单
 func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRoleMenusInput) error {
-	slog.InfoContext(ctx, "开始为角色分配菜单", "role_id", input.RoleID, "menu_ids", input.MenuIDs)
 
 	// 检查角色是否存在
 	role, err := s.orm.Role.Query().
@@ -606,7 +592,6 @@ func (s *RoleService) AssignRoleMenus(ctx context.Context, input *types.AssignRo
 
 // GetRoleMenus 获取角色菜单列表
 func (s *RoleService) GetRoleMenus(ctx context.Context, roleID string) (*types.RoleMenuOutput, error) {
-	slog.InfoContext(ctx, "获取角色菜单列表", "role_id", roleID)
 
 	// 获取角色及其菜单
 	role, err := s.orm.Role.Query().
@@ -641,7 +626,6 @@ func (s *RoleService) GetRoleMenus(ctx context.Context, roleID string) (*types.R
 
 // GetUserMenus 获取用户可访问的菜单
 func (s *RoleService) GetUserMenus(ctx context.Context, input *types.GetUserMenusInput) (*types.UserMenuOutput, error) {
-	slog.InfoContext(ctx, "获取用户菜单", "user_id", input.UserID, "tree_mode", input.TreeMode, "only_menu", input.OnlyMenu)
 
 	// 查询用户活跃角色的菜单
 	menuQuery := s.orm.UserRole.Query().
@@ -713,7 +697,6 @@ func (s *RoleService) GetUserMenus(ctx context.Context, input *types.GetUserMenu
 
 // GetRoleMenuPermissions 获取角色菜单权限详情
 func (s *RoleService) GetRoleMenuPermissions(ctx context.Context, roleID string) (*types.RoleMenuPermissionOutput, error) {
-	slog.InfoContext(ctx, "获取角色菜单权限详情", "role_id", roleID)
 
 	// 获取角色及其菜单和权限
 	role, err := s.orm.Role.Query().

@@ -63,8 +63,6 @@ func (h *DocsHandler) Routes(g *echo.Group) {
 func (h *DocsHandler) GetOpenAPISpec(c echo.Context) error {
 	ctx := c.Request().Context()
 
-	slog.InfoContext(ctx, "生成OpenAPI规范")
-
 	spec, err := h.docsService.GenerateOpenAPISpec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成OpenAPI规范失败", "error", err)
@@ -76,10 +74,6 @@ func (h *DocsHandler) GetOpenAPISpec(c echo.Context) error {
 
 // GetDocsPage 获取文档页面
 func (h *DocsHandler) GetDocsPage(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	slog.InfoContext(ctx, "提供API文档页面")
-
 	// 获取当前环境信息
 	env := h.config.Config.App.Environment
 	envDisplay := "开发环境"

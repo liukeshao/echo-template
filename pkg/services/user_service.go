@@ -30,8 +30,6 @@ func NewUserService(orm *ent.Client) *UserService {
 
 // CreateUser 创建用户
 func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInput) (*types.UserOutput, error) {
-	slog.InfoContext(ctx, "开始创建用户", "username", input.Username, "email", input.Email)
-
 	// 检查用户名是否已存在
 	exists, err := s.orm.User.Query().
 		Where(user.UsernameEQ(input.Username), user.DeletedAtEQ(0)).
@@ -98,8 +96,6 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 
 // GetUserByID 根据ID获取用户
 func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.UserOutput, error) {
-	slog.InfoContext(ctx, "根据ID获取用户", "user_id", userID)
-
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
 		First(ctx)
@@ -126,8 +122,6 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.Us
 
 // ListUsers 获取用户列表
 func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput) (*types.ListUsersOutput, error) {
-	slog.InfoContext(ctx, "获取用户列表", "page", input.Page, "page_size", input.PageSize, "status", input.Status, "keyword", input.Keyword)
-
 	// 构建查询条件
 	query := s.orm.User.Query().Where(user.DeletedAtEQ(0))
 
@@ -193,8 +187,6 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 
 // UpdateUser 更新用户
 func (s *UserService) UpdateUser(ctx context.Context, userID string, input *types.UpdateUserInput) (*types.UserOutput, error) {
-	slog.InfoContext(ctx, "开始更新用户", "user_id", userID)
-
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
 		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
@@ -279,8 +271,6 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 
 // DeleteUser 删除用户（逻辑删除）
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
-	slog.InfoContext(ctx, "开始删除用户", "user_id", userID)
-
 	// 检查用户是否存在
 	exists, err := s.orm.User.Query().
 		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
@@ -310,8 +300,6 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 
 // ChangePassword 修改用户密码
 func (s *UserService) ChangePassword(ctx context.Context, userID string, input *types.ChangePasswordInput) error {
-	slog.InfoContext(ctx, "开始修改用户密码", "user_id", userID)
-
 	// 获取用户
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
@@ -354,8 +342,6 @@ func (s *UserService) ChangePassword(ctx context.Context, userID string, input *
 
 // GetUserStats 获取用户统计信息
 func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput, error) {
-	slog.InfoContext(ctx, "获取用户统计信息")
-
 	// 获取总用户数
 	totalCount, err := s.orm.User.Query().
 		Where(user.DeletedAtEQ(0)).

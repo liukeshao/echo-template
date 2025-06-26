@@ -12,7 +12,7 @@ import (
 type Response struct {
 	Code      int                   `json:"code"`                 // API状态码 (0=成功, 非0=失败)
 	Message   string                `json:"message"`              // 响应消息
-	Data      interface{}           `json:"data"`                 // 响应数据
+	Data      any                   `json:"data"`                 // 响应数据
 	Errors    []*errors.ErrorDetail `json:"errors,omitempty"`     // 错误详情列表
 	Timestamp int64                 `json:"timestamp"`            // 时间戳
 	RequestID string                `json:"request_id,omitempty"` // 请求ID
@@ -46,7 +46,7 @@ func (b *ResponseBuilder) WithMessage(message string) *ResponseBuilder {
 }
 
 // WithData 设置响应数据
-func (b *ResponseBuilder) WithData(data interface{}) *ResponseBuilder {
+func (b *ResponseBuilder) WithData(data any) *ResponseBuilder {
 	b.response.Data = data
 	return b
 }
@@ -89,10 +89,8 @@ func (b *ResponseBuilder) JSON(c echo.Context) error {
 	return c.JSON(200, b.response)
 }
 
-// 便捷方法
-
 // Success 成功响应
-func Success(data interface{}) *ResponseBuilder {
+func Success(data any) *ResponseBuilder {
 	return NewResponse().
 		WithCode(errors.OK).
 		WithMessage("Success").

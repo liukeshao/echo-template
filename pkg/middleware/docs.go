@@ -53,12 +53,14 @@ func (m *DocsMiddleware) CheckAccess(next echo.HandlerFunc) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusNotFound, "页面不存在")
 		}
 
-		// 记录文档访问日志
-		slog.InfoContext(ctx, "访问API文档",
-			"environment", m.config.AppConfig.App.Environment,
-			"ip", c.RealIP(),
-			"path", c.Request().URL.Path,
-		)
+		// 记录文档访问日志（仅在开发环境）
+		if m.config.AppConfig.App.Environment == config.EnvDevelop ||
+			m.config.AppConfig.App.Environment == config.EnvLocal {
+			slog.InfoContext(ctx, "访问API文档",
+				"ip", c.RealIP(),
+				"path", c.Request().URL.Path,
+			)
+		}
 
 		return next(c)
 	}
