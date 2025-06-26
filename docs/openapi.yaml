@@ -1177,13 +1177,115 @@ components:
       required:
         - message
 
-    # 认证相关Schema定义
-    
-    # 用户注册输入
-    RegisterInput:
-      title: 用户注册请求
+    # 基础响应结构
+    BaseResponse:
+      title: 基础响应结构
       type: object
-      description: 用户注册输入
+      description: 所有API响应的基础结构
+      properties:
+        code:
+          type: integer
+          description: API状态码（0=成功，非0=失败）
+          example: 0
+        message:
+          type: string
+          description: 响应消息
+          example: "操作成功"
+        errors:
+          type: array
+          description: 错误详情列表
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+        timestamp:
+          type: integer
+          format: int64
+          description: 时间戳
+          example: 1640995200
+        request_id:
+          type: string
+          description: 请求ID
+          example: "req-123456"
+      required:
+        - code
+        - message
+        - timestamp
+
+    # 分页信息
+    PaginationMeta:
+      title: 分页元信息
+      type: object
+      description: 列表响应的分页信息
+      properties:
+        total:
+          type: integer
+          format: int64
+          description: 总记录数
+          example: 100
+        page:
+          type: integer
+          description: 当前页码
+          example: 1
+        page_size:
+          type: integer
+          description: 每页数量
+          example: 20
+        total_pages:
+          type: integer
+          description: 总页数
+          example: 5
+      required:
+        - total
+        - page
+        - page_size
+        - total_pages
+
+    # 用户输出结构
+    UserOutput:
+      title: 用户输出
+      type: object
+      description: 用户基本信息输出
+      properties:
+        id:
+          type: string
+          description: 用户ID
+          example: "usr_123456"
+        username:
+          type: string
+          description: 用户名
+          example: "johndoe"
+        email:
+          type: string
+          format: email
+          description: 邮箱地址
+          example: "john@example.com"
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态
+          example: "active"
+        last_login_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: 最后登录时间
+          example: "2023-12-31T23:59:59Z"
+        created_at:
+          type: string
+          format: date-time
+          description: 创建时间
+          example: "2023-01-01T00:00:00Z"
+      required:
+        - id
+        - username
+        - email
+        - status
+        - created_at
+
+    # 基础用户信息字段（用于输入验证）
+    BaseUserFields:
+      title: 基础用户字段
+      type: object
+      description: 用户相关的基础字段定义
       properties:
         username:
           type: string
@@ -1196,11 +1298,40 @@ components:
           format: email
           description: 邮箱地址
           example: "john@example.com"
+
+    # 密码字段
+    PasswordField:
+      title: 密码字段
+      type: object
+      description: 密码字段定义
+      properties:
         password:
           type: string
           description: 密码
           minLength: 8
           example: "password123"
+
+    # 用户状态字段
+    UserStatusField:
+      title: 用户状态字段
+      type: object
+      description: 用户状态字段定义
+      properties:
+        status:
+          type: string
+          enum: [active, inactive, suspended]
+          description: 用户状态
+          example: "active"
+
+    # 认证相关Schema定义
+    
+    # 用户注册输入
+    RegisterInput:
+      title: 用户注册请求
+      description: 用户注册输入
+      allOf:
+        - $ref: '#/components/schemas/BaseUserFields'  
+        - $ref: '#/components/schemas/PasswordField'
       required:
         - username
         - email
@@ -1209,18 +1340,16 @@ components:
     # 用户登录输入
     LoginInput:
       title: 用户登录请求
-      type: object
       description: 用户登录输入
-      properties:
-        email:
-          type: string
-          format: email
-          description: 邮箱地址
-          example: "john@example.com"
-        password:
-          type: string
-          description: 密码
-          example: "password123"
+      allOf:
+        - $ref: '#/components/schemas/PasswordField'
+        - type: object
+          properties:
+            email:
+              type: string
+              format: email
+              description: 邮箱地址
+              example: "john@example.com"
       required:
         - email
         - password
@@ -1243,31 +1372,18 @@ components:
     # 创建用户输入
     CreateUserInput:
       title: 创建用户请求
-      type: object
       description: 创建用户输入
-      properties:
-        username:
-          type: string
-          description: 用户名
-          minLength: 3
-          maxLength: 50
-          example: "johndoe"
-        email:
-          type: string
-          format: email
-          description: 邮箱地址
-          example: "john@example.com"
-        password:
-          type: string
-          description: 密码
-          minLength: 8
-          example: "password123"
-        status:
-          type: string
-          enum: [active, inactive, suspended]
-          description: 用户状态（可选，默认为active）
-          default: "active"
-          example: "active"
+      allOf:
+        - $ref: '#/components/schemas/BaseUserFields'
+        - $ref: '#/components/schemas/PasswordField'
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [active, inactive, suspended]
+              description: 用户状态（可选，默认为active）
+              default: "active"
+              example: "active"
       required:
         - username
         - email
@@ -1276,28 +1392,31 @@ components:
     # 更新用户输入
     UpdateUserInput:
       title: 更新用户请求
-      type: object
       description: 更新用户输入
-      properties:
-        username:
-          type: string
-          description: 用户名
-          minLength: 3
-          maxLength: 50
-          example: "johndoe"
-          nullable: true
-        email:
-          type: string
-          format: email
-          description: 邮箱地址
-          example: "john@example.com"
-          nullable: true
-        status:
-          type: string
-          enum: [active, inactive, suspended]
-          description: 用户状态
-          example: "active"
-          nullable: true
+      allOf:
+        - type: object
+          properties:
+            username:
+              type: string
+              description: 用户名
+              minLength: 3
+              maxLength: 50
+              example: "johndoe"
+              nullable: true
+            email:
+              type: string
+              format: email
+              description: 邮箱地址
+              example: "john@example.com"
+              nullable: true
+        - type: object
+          properties:
+            status:
+              type: string
+              enum: [active, inactive, suspended]
+              description: 用户状态
+              example: "active"
+              nullable: true
 
     # 修改密码输入
     ChangePasswordInput:
@@ -1352,380 +1471,144 @@ components:
     # 认证响应
     AuthResponse:
       title: 认证响应
-      type: object
       description: 认证操作响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "登录成功"
-        data:
-          type: object
-          description: 认证数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            user:
+            message:
+              example: "登录成功"
+            data:
               type: object
-              description: 用户基本信息
+              description: 认证数据
               properties:
-                id:
+                user:
+                  $ref: '#/components/schemas/UserOutput'
+                access_token:
                   type: string
-                  description: 用户ID
-                  example: "usr_123456"
-                username:
+                  description: 访问令牌
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                refresh_token:
                   type: string
-                  description: 用户名
-                  example: "johndoe"
-                email:
-                  type: string
-                  format: email
-                  description: 邮箱地址
-                  example: "john@example.com"
-                status:
-                  type: string
-                  enum: [active, inactive, suspended]
-                  description: 用户状态
-                  example: "active"
-                last_login_at:
-                  type: string
-                  format: date-time
-                  nullable: true
-                  description: 最后登录时间
-                  example: "2023-12-31T23:59:59Z"
-                created_at:
-                  type: string
-                  format: date-time
-                  description: 创建时间
-                  example: "2023-01-01T00:00:00Z"
+                  description: 刷新令牌
+                  example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                expires_at:
+                  type: integer
+                  format: int64
+                  description: 访问令牌过期时间戳
+                  example: 1640995200
               required:
-                - id
-                - username
-                - email
-                - status
-                - created_at
-            access_token:
-              type: string
-              description: 访问令牌
-              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-            refresh_token:
-              type: string
-              description: 刷新令牌
-              example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
-            expires_at:
-              type: integer
-              format: int64
-              description: 访问令牌过期时间戳
-              example: 1640995200
+                - user
+                - access_token
+                - refresh_token
+                - expires_at
           required:
-            - user
-            - access_token
-            - refresh_token
-            - expires_at
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 用户响应
     UserResponse:
       title: 用户信息响应
-      type: object
       description: 单个用户信息响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取用户信息成功"
-        data:
-          type: object
-          description: 用户基本信息
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            id:
-              type: string
-              description: 用户ID
-              example: "usr_123456"
-            username:
-              type: string
-              description: 用户名
-              example: "johndoe"
-            email:
-              type: string
-              format: email
-              description: 邮箱地址
-              example: "john@example.com"
-            status:
-              type: string
-              enum: [active, inactive, suspended]
-              description: 用户状态
-              example: "active"
-            last_login_at:
-              type: string
-              format: date-time
-              nullable: true
-              description: 最后登录时间
-              example: "2023-12-31T23:59:59Z"
-            created_at:
-              type: string
-              format: date-time
-              description: 创建时间
-              example: "2023-01-01T00:00:00Z"
+            message:
+              example: "获取用户信息成功"
+            data:
+              $ref: '#/components/schemas/UserOutput'
           required:
-            - id
-            - username
-            - email
-            - status
-            - created_at
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 用户列表响应
     UsersResponse:
       title: 用户列表响应
-      type: object
       description: 用户列表响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取用户列表成功"
-        data:
-          type: object
-          description: 用户列表数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            users:
-              type: array
-              description: 用户列表
-              items:
-                type: object
-                description: 用户基本信息
-                properties:
-                  id:
-                    type: string
-                    description: 用户ID
-                    example: "usr_123456"
-                  username:
-                    type: string
-                    description: 用户名
-                    example: "johndoe"
-                  email:
-                    type: string
-                    format: email
-                    description: 邮箱地址
-                    example: "john@example.com"
-                  status:
-                    type: string
-                    enum: [active, inactive, suspended]
-                    description: 用户状态
-                    example: "active"
-                  last_login_at:
-                    type: string
-                    format: date-time
-                    nullable: true
-                    description: 最后登录时间
-                    example: "2023-12-31T23:59:59Z"
-                  created_at:
-                    type: string
-                    format: date-time
-                    description: 创建时间
-                    example: "2023-01-01T00:00:00Z"
-                required:
-                  - id
-                  - username
-                  - email
-                  - status
-                  - created_at
-            total:
-              type: integer
-              format: int64
-              description: 总记录数
-              example: 100
-            page:
-              type: integer
-              description: 当前页码
-              example: 1
-            page_size:
-              type: integer
-              description: 每页数量
-              example: 20
-            total_pages:
-              type: integer
-              description: 总页数
-              example: 5
+            message:
+              example: "获取用户列表成功"
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PaginationMeta'
+                - type: object
+                  properties:
+                    users:
+                      type: array
+                      description: 用户列表
+                      items:
+                        $ref: '#/components/schemas/UserOutput'
+                  required:
+                    - users
           required:
-            - users
-            - total
-            - page
-            - page_size
-            - total_pages
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 用户统计响应
     UserStatsResponse:
       title: 用户统计响应
-      type: object
       description: 用户统计响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取用户统计成功"
-        data:
-          type: object
-          description: 用户统计数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            total_users:
-              type: integer
-              format: int64
-              description: 总用户数
-              example: 1000
-            active_users:
-              type: integer
-              format: int64
-              description: 活跃用户数
-              example: 800
-            inactive_users:
-              type: integer
-              format: int64
-              description: 非活跃用户数
-              example: 150
-            suspended_users:
-              type: integer
-              format: int64
-              description: 被暂停用户数
-              example: 50
+            message:
+              example: "获取用户统计成功"
+            data:
+              type: object
+              description: 用户统计数据
+              properties:
+                total_users:
+                  type: integer
+                  format: int64
+                  description: 总用户数
+                  example: 1000
+                active_users:
+                  type: integer
+                  format: int64
+                  description: 活跃用户数
+                  example: 800
+                inactive_users:
+                  type: integer
+                  format: int64
+                  description: 非活跃用户数
+                  example: 150
+                suspended_users:
+                  type: integer
+                  format: int64
+                  description: 被暂停用户数
+                  example: 50
+              required:
+                - total_users
+                - active_users
+                - inactive_users
+                - suspended_users
           required:
-            - total_users
-            - active_users
-            - inactive_users
-            - suspended_users
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 消息响应
     MessageResponse:
       title: 操作结果响应
-      type: object
       description: 操作消息响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "操作成功"
-        data:
-          type: object
-          description: 消息数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
             message:
-              type: string
-              description: 消息内容
               example: "操作成功"
+            data:
+              type: object
+              description: 消息数据
+              properties:
+                message:
+                  type: string
+                  description: 消息内容
+                  example: "操作成功"
+              required:
+                - message
           required:
-            - message
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 菜单相关Schema定义
 
@@ -2100,202 +1983,119 @@ components:
     # 菜单列表响应
     MenusResponse:
       title: 菜单列表响应
-      type: object
       description: 菜单列表响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取菜单列表成功"
-        data:
-          type: object
-          description: 菜单列表数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            menus:
-              type: array
-              description: 菜单列表
-              items:
-                $ref: '#/components/schemas/MenuInfo'
-            total:
-              type: integer
-              format: int64
-              description: 总记录数
-              example: 50
-            page:
-              type: integer
-              description: 当前页码
-              example: 1
-            page_size:
-              type: integer
-              description: 每页数量
-              example: 20
-            total_pages:
-              type: integer
-              description: 总页数
-              example: 3
+            message:
+              example: "获取菜单列表成功"
+            data:
+              allOf:
+                - $ref: '#/components/schemas/PaginationMeta'
+                - type: object
+                  properties:
+                    menus:
+                      type: array
+                      description: 菜单列表
+                      items:
+                        $ref: '#/components/schemas/MenuInfo'
+                  required:
+                    - menus
           required:
-            - menus
-            - total
-            - page
-            - page_size
-            - total_pages
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 菜单树响应
     MenuTreeResponse:
       title: 菜单树响应
-      type: object
       description: 菜单树响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取菜单树成功"
-        data:
-          type: object
-          description: 菜单树数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            menus:
-              type: array
-              description: 菜单树列表
-              items:
-                $ref: '#/components/schemas/MenuInfo'
+            message:
+              example: "获取菜单树成功"
+            data:
+              type: object
+              description: 菜单树数据
+              properties:
+                menus:
+                  type: array
+                  description: 菜单树列表
+                  items:
+                    $ref: '#/components/schemas/MenuInfo'
+              required:
+                - menus
           required:
-            - menus
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 菜单统计响应
     MenuStatsResponse:
       title: 菜单统计响应
-      type: object
       description: 菜单统计响应
-      properties:
-        code:
-          type: integer
-          description: API状态码（0=成功，非0=失败）
-          example: 0
-        message:
-          type: string
-          description: 响应消息
-          example: "获取菜单统计成功"
-        data:
-          type: object
-          description: 菜单统计数据
+      allOf:
+        - $ref: '#/components/schemas/BaseResponse'
+        - type: object
           properties:
-            total_menus:
-              type: integer
-              format: int64
-              description: 总菜单数
-              example: 50
-            active_menus:
-              type: integer
-              format: int64
-              description: 活跃菜单数
-              example: 45
-            inactive_menus:
-              type: integer
-              format: int64
-              description: 非活跃菜单数
-              example: 5
-            menus_by_type:
+            message:
+              example: "获取菜单统计成功"
+            data:
               type: object
-              description: 按类型分组的菜单数量
+              description: 菜单统计数据
               properties:
-                menu:
+                total_menus:
                   type: integer
                   format: int64
-                  description: 菜单类型数量
-                  example: 30
-                button:
+                  description: 总菜单数
+                  example: 50
+                active_menus:
                   type: integer
                   format: int64
-                  description: 按钮类型数量
-                  example: 15
-                link:
+                  description: 活跃菜单数
+                  example: 45
+                inactive_menus:
                   type: integer
                   format: int64
-                  description: 链接类型数量
+                  description: 非活跃菜单数
                   example: 5
+                menus_by_type:
+                  type: object
+                  description: 按类型分组的菜单数量
+                  properties:
+                    menu:
+                      type: integer
+                      format: int64
+                      description: 菜单类型数量
+                      example: 30
+                    button:
+                      type: integer
+                      format: int64
+                      description: 按钮类型数量
+                      example: 15
+                    link:
+                      type: integer
+                      format: int64
+                      description: 链接类型数量
+                      example: 5
+                  required:
+                    - menu
+                    - button
+                    - link
               required:
-                - menu
-                - button
-                - link
+                - total_menus
+                - active_menus
+                - inactive_menus
+                - menus_by_type
           required:
-            - total_menus
-            - active_menus
-            - inactive_menus
-            - menus_by_type
-        errors:
-          type: array
-          description: 错误详情列表
-          items:
-            $ref: '#/components/schemas/ErrorDetail'
-        timestamp:
-          type: integer
-          format: int64
-          description: 时间戳
-          example: 1640995200
-        request_id:
-          type: string
-          description: 请求ID
-          example: "req-123456"
-      required:
-        - code
-        - message
-        - data
-        - timestamp
+            - data
 
     # 角色管理相关Schema定义
 
-    # 创建角色输入
-    CreateRoleInput:
-      title: 创建角色请求
+    # 基础角色字段
+    BaseRoleFields:
+      title: 基础角色字段
       type: object
-      description: 创建角色输入
+      description: 角色相关的基础字段定义
       properties:
         name:
           type: string
@@ -2303,6 +2103,18 @@ components:
           minLength: 1
           maxLength: 50
           example: "管理员"
+        description:
+          type: string
+          description: 角色描述
+          maxLength: 500
+          example: "系统管理员角色"
+
+    # 角色代码字段
+    RoleCodeField:
+      title: 角色代码字段
+      type: object
+      description: 角色代码字段定义
+      properties:
         code:
           type: string
           description: 角色代码
@@ -2310,22 +2122,51 @@ components:
           minLength: 1
           maxLength: 50
           example: "ADMIN"
-        description:
-          type: string
-          description: 角色描述
-          maxLength: 500
-          example: "系统管理员角色"
+
+    # 角色状态字段
+    RoleStatusField:
+      title: 角色状态字段
+      type: object
+      description: 角色状态字段定义
+      properties:
         status:
           type: string
           description: 角色状态
           enum: [active, inactive]
-          default: active
           example: "active"
+
+    # 排序字段
+    SortOrderField:
+      title: 排序字段
+      type: object
+      description: 排序字段定义
+      properties:
         sort_order:
           type: integer
           description: 排序顺序
           minimum: 0
           example: 1
+
+    # 创建角色输入
+    CreateRoleInput:
+      title: 创建角色请求
+      description: 创建角色输入
+      allOf:
+        - $ref: '#/components/schemas/BaseRoleFields'
+        - $ref: '#/components/schemas/RoleCodeField'
+        - type: object
+          properties:
+            status:
+              type: string
+              description: 角色状态
+              enum: [active, inactive]
+              default: active
+              example: "active"
+            sort_order:
+              type: integer
+              description: 排序顺序
+              minimum: 0
+              example: 1
       required:
         - name
         - code
@@ -2333,30 +2174,11 @@ components:
     # 更新角色输入
     UpdateRoleInput:
       title: 更新角色请求
-      type: object
       description: 更新角色输入
-      properties:
-        name:
-          type: string
-          description: 角色名称
-          minLength: 1
-          maxLength: 50
-          example: "管理员"
-        description:
-          type: string
-          description: 角色描述
-          maxLength: 500
-          example: "系统管理员角色"
-        status:
-          type: string
-          description: 角色状态
-          enum: [active, inactive]
-          example: "active"
-        sort_order:
-          type: integer
-          description: 排序顺序
-          minimum: 0
-          example: 1
+      allOf:
+        - $ref: '#/components/schemas/BaseRoleFields'
+        - $ref: '#/components/schemas/RoleStatusField'
+        - $ref: '#/components/schemas/SortOrderField'
 
     # 分配角色输入
     AssignRoleInput:

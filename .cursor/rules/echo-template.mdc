@@ -117,11 +117,6 @@ return ValidationError("验证失败", errorDetails).JSON(c)
 ### OpenAPI 文档优先原则
 **核心要求：Handler 开发完成后立即编写 OpenAPI 文档**
 
-- ✅ **只维护** `docs/openapi.yaml` 一份文档
-- ❌ **禁止编写** 任何 .md 格式的 API 文档  
-- ❌ **禁止在** Handler 函数中写 swagger 注释
-- ❌ **禁止在** README 中描述 API 接口
-
 ### Schema 命名约定
 - Input: `CreateUserInput`, `UpdateUserInput`, `ListUsersInput`
 - Output: `UserOutput`, `ListUsersOutput`  
