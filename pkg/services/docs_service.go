@@ -56,9 +56,9 @@ func (s *DocsService) GenerateOpenAPISpec(ctx context.Context) (interface{}, err
 func (s *DocsService) loadAndResolveOpenAPISpec() (map[string]interface{}, error) {
 	// 查找主YAML文件路径
 	yamlPaths := []string{
-		"docs/openapi.yaml",
-		"../docs/openapi.yaml",
-		"../../docs/openapi.yaml",
+		"openapi/openapi.yaml",
+		"../openapi/openapi.yaml",
+		"../../openapi/openapi.yaml",
 	}
 
 	var yamlPath string
