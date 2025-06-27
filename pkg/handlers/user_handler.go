@@ -3,7 +3,7 @@ package handlers
 import (
 	"github.com/labstack/echo/v4"
 	"github.com/liukeshao/echo-template/ent"
-	appContext "github.com/liukeshao/echo-template/pkg/context"
+	"github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
@@ -46,7 +46,7 @@ func (h *UserHandler) Routes(g *echo.Group) {
 
 // getUserID 从Echo context中获取当前用户ID
 func getUserID(c echo.Context) string {
-	user, ok := appContext.GetUserFromEcho(c)
+	user, ok := context.GetUserFromEcho(c)
 	if !ok || user == nil {
 		return ""
 	}
@@ -59,7 +59,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 
 	var input types.CreateUserInput
 	if err := c.Bind(&input); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	// 验证输入
@@ -83,7 +83,7 @@ func (h *UserHandler) GetCurrentUser(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.ErrUnauthorized("用户未登录")
+		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 获取用户信息
@@ -102,12 +102,12 @@ func (h *UserHandler) UpdateCurrentUser(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.ErrUnauthorized("用户未登录")
+		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	var input types.UpdateUserInput
 	if err := c.Bind(&input); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	// 验证输入
@@ -134,21 +134,21 @@ func (h *UserHandler) ChangeCurrentUserPassword(c echo.Context) error {
 	// 从上下文获取当前用户ID
 	userID := getUserID(c)
 	if userID == "" {
-		return errors.ErrUnauthorized("用户未登录")
+		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
 
-	var input types.ChangePasswordInput
-	if err := c.Bind(&input); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").With("error", err.Error())
+	var in types.ChangePasswordInput
+	if err := c.Bind(&in); err != nil {
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	// 验证输入
-	if errorDetails := input.Validate(); len(errorDetails) > 0 {
+	if errorDetails := in.Validate(); len(errorDetails) > 0 {
 		return ValidationError("验证失败", errorDetails).JSON(c)
 	}
 
 	// 修改当前用户密码
-	err := h.userService.ChangePassword(ctx, userID, &input)
+	err := h.userService.ChangePassword(ctx, userID, &in)
 	if err != nil {
 		return err
 	}

@@ -10,7 +10,7 @@ import (
 
 // Response 统一的API响应结构
 type Response struct {
-	Code      int                   `json:"code"`                 // API状态码 (0=成功, 非0=失败)
+	Code      string                `json:"code"`                 // API状态码 (ok=成功, 其他=失败)
 	Message   string                `json:"message"`              // 响应消息
 	Data      any                   `json:"data"`                 // 响应数据
 	Errors    []*errors.ErrorDetail `json:"errors,omitempty"`     // 错误详情列表
@@ -34,7 +34,7 @@ func NewResponse() *ResponseBuilder {
 }
 
 // WithCode 设置业务状态码
-func (b *ResponseBuilder) WithCode(code int) *ResponseBuilder {
+func (b *ResponseBuilder) WithCode(code string) *ResponseBuilder {
 	b.response.Code = code
 	return b
 }
@@ -98,7 +98,7 @@ func Success(data any) *ResponseBuilder {
 }
 
 // Error 错误响应
-func Error(code int, message string) *ResponseBuilder {
+func Error(code string, message string) *ResponseBuilder {
 	return NewResponse().
 		WithCode(code).
 		WithMessage(message).

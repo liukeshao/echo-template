@@ -109,7 +109,7 @@ func (s *AuthService) ValidateToken(tokenString string) (*types.JWTClaims, error
 	token, err := jwt.ParseWithClaims(tokenString, &types.JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
 		// 检查签名方法
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.ErrUnauthorized("无效的签名方法")
+			return nil, errors.ErrUnauthorized.Errorf("无效的签名方法")
 		}
 		return []byte(s.jwtConfig.Secret), nil
 	})
@@ -120,7 +120,7 @@ func (s *AuthService) ValidateToken(tokenString string) (*types.JWTClaims, error
 
 	claims, ok := token.Claims.(*types.JWTClaims)
 	if !ok || !token.Valid {
-		return nil, errors.ErrUnauthorized("无效的token")
+		return nil, errors.ErrUnauthorized.Errorf("无效的token")
 	}
 
 	return claims, nil
@@ -144,11 +144,12 @@ func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*t
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		slog.ErrorContext(ctx, "检查用户名失败", "error", err, "username", in.Username)
-		return nil, errors.ErrDatabase("检查用户名失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "检查用户名失败")
 	}
 	if existingByUsername != nil {
-		return nil, errors.ErrConflict("用户名已存在").
-			With("username", in.Username)
+		return nil, errors.ErrConflict.
+			With("username", in.Username).
+			Errorf("用户名已存在")
 	}
 
 	// 检查邮箱是否已存在
@@ -157,18 +158,19 @@ func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*t
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		slog.ErrorContext(ctx, "检查邮箱失败", "error", err, "email", in.Email)
-		return nil, errors.ErrDatabase("检查邮箱失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "检查邮箱失败")
 	}
 	if existingByEmail != nil {
-		return nil, errors.ErrConflict("邮箱已存在").
-			With("email", in.Email)
+		return nil, errors.ErrConflict.
+			With("email", in.Email).
+			Errorf("邮箱已存在")
 	}
 
 	// 加密密码
 	hashedPassword, err := utils.HashPassword(in.Password)
 	if err != nil {
 		slog.ErrorContext(ctx, "密码加密失败", "error", err)
-		return nil, errors.ErrInternal("密码加密失败").Wrap(err)
+		return nil, errors.ErrInternal.Wrapf(err, "密码加密失败")
 	}
 
 	// 生成用户ID
@@ -188,7 +190,7 @@ func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*t
 			"username", in.Username,
 			"email", in.Email,
 		)
-		return nil, errors.ErrDatabase("创建用户失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "创建用户失败")
 	}
 
 	slog.InfoContext(ctx, "用户注册成功",
@@ -210,10 +212,10 @@ func (s *AuthService) Login(ctx context.Context, in *types.LoginInput) (*types.A
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户登录失败：邮箱不存在", "email", in.Email)
-			return nil, errors.ErrUnauthorized("邮箱或密码错误")
+			return nil, errors.ErrUnauthorized.Errorf("邮箱或密码错误")
 		}
 		slog.ErrorContext(ctx, "查询用户失败", "error", err, "email", in.Email)
-		return nil, errors.ErrDatabase("查询用户失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "查询用户失败")
 	}
 
 	// 检查用户状态
@@ -222,8 +224,9 @@ func (s *AuthService) Login(ctx context.Context, in *types.LoginInput) (*types.A
 			"user_id", user.ID,
 			"status", user.Status,
 		)
-		return nil, errors.ErrForbidden("账户已被停用").
-			With("status", user.Status)
+		return nil, errors.ErrForbidden.
+			With("status", user.Status).
+			Errorf("账户已被停用")
 	}
 
 	// 验证密码
@@ -232,7 +235,7 @@ func (s *AuthService) Login(ctx context.Context, in *types.LoginInput) (*types.A
 			"user_id", user.ID,
 			"email", in.Email,
 		)
-		return nil, errors.ErrUnauthorized("邮箱或密码错误")
+		return nil, errors.ErrUnauthorized.Errorf("邮箱或密码错误")
 	}
 
 	// 更新最后登录时间
@@ -264,19 +267,19 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	claims, err := s.ValidateToken(refreshTokenString)
 	if err != nil {
 		slog.WarnContext(ctx, "刷新token验证失败", "error", err)
-		return nil, errors.ErrUnauthorized("无效的刷新令牌")
+		return nil, errors.ErrUnauthorized.Errorf("无效的刷新令牌")
 	}
 
 	// 检查token类型
 	if claims.TokenType != "refresh" {
 		slog.WarnContext(ctx, "token类型错误", "token_type", claims.TokenType)
-		return nil, errors.ErrUnauthorized("无效的令牌类型")
+		return nil, errors.ErrUnauthorized.Errorf("无效的令牌类型")
 	}
 
 	// 检查token是否过期
 	if s.IsTokenExpired(claims) {
 		slog.WarnContext(ctx, "刷新token已过期", "user_id", claims.UserID)
-		return nil, errors.ErrUnauthorized("刷新令牌已过期")
+		return nil, errors.ErrUnauthorized.Errorf("刷新令牌已过期")
 	}
 
 	// 检查数据库中的token是否存在且未撤销
@@ -290,10 +293,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "刷新token不存在或已撤销", "user_id", claims.UserID)
-			return nil, errors.ErrUnauthorized("刷新令牌无效")
+			return nil, errors.ErrUnauthorized.Errorf("刷新令牌无效")
 		}
 		slog.ErrorContext(ctx, "查询刷新token失败", "error", err)
-		return nil, errors.ErrDatabase("查询令牌失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "查询令牌失败")
 	}
 
 	// 查找用户
@@ -303,10 +306,10 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "刷新token对应用户不存在", "user_id", claims.UserID)
-			return nil, errors.ErrUnauthorized("用户不存在")
+			return nil, errors.ErrUnauthorized.Errorf("用户不存在")
 		}
 		slog.ErrorContext(ctx, "查询用户失败", "error", err, "user_id", claims.UserID)
-		return nil, errors.ErrDatabase("查询用户失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "查询用户失败")
 	}
 
 	// 检查用户状态
@@ -315,7 +318,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 			"user_id", user.ID,
 			"status", user.Status,
 		)
-		return nil, errors.ErrForbidden("账户已被停用")
+		return nil, errors.ErrForbidden.Errorf("账户已被停用")
 	}
 
 	// 更新token最后使用时间
@@ -351,10 +354,10 @@ func (s *AuthService) RevokeToken(ctx context.Context, tokenString string) error
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return errors.ErrNotFound("令牌不存在")
+			return errors.ErrNotFound.Errorf("令牌不存在")
 		}
 		slog.ErrorContext(ctx, "查询token失败", "error", err)
-		return errors.ErrDatabase("查询令牌失败").Wrap(err)
+		return errors.ErrDatabase.Wrapf(err, "查询令牌失败")
 	}
 
 	// 撤销token
@@ -366,7 +369,7 @@ func (s *AuthService) RevokeToken(ctx context.Context, tokenString string) error
 			"error", err,
 			"token_id", dbToken.ID,
 		)
-		return errors.ErrDatabase("撤销令牌失败").Wrap(err)
+		return errors.ErrDatabase.Wrapf(err, "撤销令牌失败")
 	}
 
 	slog.InfoContext(ctx, "token已撤销",
@@ -383,21 +386,21 @@ func (s *AuthService) generateAuthOutput(ctx context.Context, user *ent.User) (*
 	accessTokenString, accessExpiry, err := s.GenerateAccessToken(user.ID, user.Username, user.Email)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成访问令牌失败", "error", err, "user_id", user.ID)
-		return nil, errors.ErrInternal("生成访问令牌失败").Wrap(err)
+		return nil, errors.ErrInternal.Wrapf(err, "生成访问令牌失败")
 	}
 
 	// 生成refresh token
 	refreshTokenString, refreshExpiry, err := s.GenerateRefreshToken(user.ID, user.Username, user.Email)
 	if err != nil {
 		slog.ErrorContext(ctx, "生成刷新令牌失败", "error", err, "user_id", user.ID)
-		return nil, errors.ErrInternal("生成刷新令牌失败").Wrap(err)
+		return nil, errors.ErrInternal.Wrapf(err, "生成刷新令牌失败")
 	}
 
 	// 保存tokens到数据库
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "开启事务失败", "error", err)
-		return nil, errors.ErrDatabase("开启事务失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "开启事务失败")
 	}
 	defer tx.Rollback()
 
@@ -411,7 +414,7 @@ func (s *AuthService) generateAuthOutput(ctx context.Context, user *ent.User) (*
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "保存访问令牌失败", "error", err, "user_id", user.ID)
-		return nil, errors.ErrDatabase("保存访问令牌失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "保存访问令牌失败")
 	}
 
 	// 保存refresh token
@@ -424,13 +427,13 @@ func (s *AuthService) generateAuthOutput(ctx context.Context, user *ent.User) (*
 		Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "保存刷新令牌失败", "error", err, "user_id", user.ID)
-		return nil, errors.ErrDatabase("保存刷新令牌失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "保存刷新令牌失败")
 	}
 
 	// 提交事务
 	if err := tx.Commit(); err != nil {
 		slog.ErrorContext(ctx, "提交事务失败", "error", err, "user_id", user.ID)
-		return nil, errors.ErrDatabase("提交事务失败").Wrap(err)
+		return nil, errors.ErrDatabase.Wrapf(err, "提交事务失败")
 	}
 
 	return &types.AuthOutput{

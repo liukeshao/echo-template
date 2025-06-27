@@ -6,7 +6,7 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/liukeshao/echo-template/ent"
-	appContext "github.com/liukeshao/echo-template/pkg/context"
+	"github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
@@ -53,8 +53,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	var in types.RegisterInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").
-			With("error", err.Error())
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	errs := in.Validate()
@@ -79,8 +78,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	var in types.LoginInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").
-			With("error", err.Error())
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	errs := in.Validate()
@@ -105,8 +103,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 
 	var req types.RefreshTokenInput
 	if err := c.Bind(&req); err != nil {
-		return errors.ErrBadRequest("请求参数格式错误").
-			With("error", err.Error())
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
 
 	// 验证输入
@@ -128,25 +125,25 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从认证中间件获取当前用户
-	user, ok := appContext.GetUserFromEcho(c)
+	_, ok := context.GetUserFromEcho(c)
 	if !ok {
-		return errors.ErrUnauthorized("用户未登录")
+		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 从Authorization header获取token
 	authHeader := c.Request().Header.Get("Authorization")
 	if authHeader == "" {
-		return errors.ErrUnauthorized("缺少Authorization头")
+		return errors.ErrUnauthorized.Errorf("缺少Authorization头")
 	}
 
 	// 检查Bearer格式
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return errors.ErrUnauthorized("无效的Authorization格式")
+		return errors.ErrUnauthorized.Errorf("无效的Authorization格式")
 	}
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if token == "" {
-		return errors.ErrUnauthorized("令牌不能为空")
+		return errors.ErrUnauthorized.Errorf("令牌不能为空")
 	}
 
 	// 撤销token
@@ -154,8 +151,6 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-
-	slog.InfoContext(ctx, "用户登出成功", "user_id", user.ID)
 
 	return Success(map[string]string{
 		"message": "登出成功",

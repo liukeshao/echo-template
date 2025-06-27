@@ -55,7 +55,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if authHeader == "" {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：缺少Authorization头")
-			result.Error = errors.ErrUnauthorized("缺少Authorization头")
+			result.Error = errors.ErrUnauthorized.Errorf("缺少Authorization头")
 		}
 		return result
 	}
@@ -64,7 +64,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if !strings.HasPrefix(authHeader, "Bearer ") {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：无效的Authorization格式")
-			result.Error = errors.ErrUnauthorized("无效的Authorization格式")
+			result.Error = errors.ErrUnauthorized.Errorf("无效的Authorization格式")
 		}
 		return result
 	}
@@ -73,7 +73,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if tokenString == "" {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌为空")
-			result.Error = errors.ErrUnauthorized("令牌不能为空")
+			result.Error = errors.ErrUnauthorized.Errorf("令牌不能为空")
 		}
 		return result
 	}
@@ -83,7 +83,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if err != nil {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌验证失败", "error", err)
-			result.Error = errors.ErrUnauthorized("无效的访问令牌")
+			result.Error = errors.ErrUnauthorized.Errorf("无效的访问令牌")
 		}
 		return result
 	}
@@ -92,7 +92,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if m.authService.GetTokenType(claims) != "access" {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌类型错误", "token_type", claims.TokenType)
-			result.Error = errors.ErrUnauthorized("无效的令牌类型")
+			result.Error = errors.ErrUnauthorized.Errorf("无效的令牌类型")
 		}
 		return result
 	}
@@ -101,7 +101,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 	if m.authService.IsTokenExpired(claims) {
 		if strictMode {
 			slog.WarnContext(ctx, "认证失败：令牌已过期", "user_id", claims.UserID)
-			result.Error = errors.ErrUnauthorized("访问令牌已过期")
+			result.Error = errors.ErrUnauthorized.Errorf("访问令牌已过期")
 		}
 		return result
 	}
@@ -119,10 +119,10 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 		if err != nil {
 			if ent.IsNotFound(err) {
 				slog.WarnContext(ctx, "认证失败：令牌不存在或已撤销", "user_id", claims.UserID)
-				result.Error = errors.ErrUnauthorized("访问令牌无效")
+				result.Error = errors.ErrUnauthorized.Errorf("访问令牌无效")
 			} else {
 				slog.ErrorContext(ctx, "认证失败：查询令牌失败", "error", err)
-				result.Error = errors.ErrInternal("系统错误")
+				result.Error = errors.ErrInternal.Errorf("系统错误")
 			}
 			return result
 		}
@@ -137,12 +137,12 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 		if ent.IsNotFound(err) {
 			if strictMode {
 				slog.WarnContext(ctx, "认证失败：用户不存在", "user_id", claims.UserID)
-				result.Error = errors.ErrUnauthorized("用户不存在")
+				result.Error = errors.ErrUnauthorized.Errorf("用户不存在")
 			}
 		} else {
 			if strictMode {
 				slog.ErrorContext(ctx, "认证失败：查询用户失败", "error", err, "user_id", claims.UserID)
-				result.Error = errors.ErrInternal("系统错误")
+				result.Error = errors.ErrInternal.Errorf("系统错误")
 			}
 		}
 		return result
@@ -155,7 +155,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 				"user_id", user.ID,
 				"status", user.Status,
 			)
-			result.Error = errors.ErrForbidden("账户已被停用")
+			result.Error = errors.ErrForbidden.Errorf("账户已被停用")
 		}
 		return result
 	}

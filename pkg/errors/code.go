@@ -1,69 +1,55 @@
 package errors
 
-// API状态码定义 - 5位数字错误码系统
-// 0: 成功
-// 1xxxx: 客户端错误
-// 2xxxx: 服务器错误
-// 3xxxx: 业务错误
+// API状态码定义 - 字符串错误码系统
 const (
 	// 成功
-	OK = 0
+	OK = "ok"
 
 	// 客户端错误 1xxxx
-	BadRequest          = 10400 // 请求参数错误
-	Unauthorized        = 10401 // 未授权
-	Forbidden           = 10403 // 禁止访问
-	NotFound            = 10404 // 资源不存在
-	MethodNotAllowed    = 10405 // 方法不允许
-	Conflict            = 10409 // 资源冲突
-	UnprocessableEntity = 10422 // 数据验证失败
-	TooManyRequests     = 10429 // 请求过于频繁
+	BadRequest          = "bad_request"          // 请求参数错误
+	Unauthorized        = "unauthorized"         // 未授权
+	Forbidden           = "forbidden"            // 禁止访问
+	NotFound            = "not_found"            // 资源不存在
+	MethodNotAllowed    = "method_not_allowed"   // 方法不允许
+	Conflict            = "conflict"             // 资源冲突
+	UnprocessableEntity = "unprocessable_entity" // 数据验证失败
+	TooManyRequests     = "too_many_requests"    // 请求过于频繁
 
 	// 服务器错误 2xxxx
-	InternalServerError = 20500 // 内部服务器错误
-	NotImplemented      = 20501 // 功能未实现
-	BadGateway          = 20502 // 网关错误
-	ServiceUnavailable  = 20503 // 服务不可用
-	GatewayTimeout      = 20504 // 网关超时
+	InternalServerError = "internal_server_error" // 内部服务器错误
+	NotImplemented      = "not_implemented"       // 功能未实现
+	BadGateway          = "bad_gateway"           // 网关错误
+	ServiceUnavailable  = "service_unavailable"   // 服务不可用
+	GatewayTimeout      = "gateway_timeout"       // 网关超时
 
 	// 业务错误码 3xxxx
-	DatabaseError      = 30001 // 数据库错误
-	CacheError         = 30002 // 缓存错误
-	ExternalAPIError   = 30003 // 外部API错误
-	ValidationError    = 30004 // 业务验证错误
-	BusinessLogicError = 30005 // 业务逻辑错误
+	DatabaseError      = "database_error"       // 数据库错误
+	CacheError         = "cache_error"          // 缓存错误
+	ExternalAPIError   = "external_api_error"   // 外部API错误
+	ValidationError    = "validation_error"     // 业务验证错误
+	BusinessLogicError = "business_logic_error" // 业务逻辑错误
 )
 
-// 错误码到消息的映射
-var CodeMessages = map[int]string{
-	OK: "Success",
+// 预置的错误构建器
+var (
+	// ErrDatabase 数据库错误构建器
+	ErrDatabase = Code(DatabaseError).Tags("database")
 
-	BadRequest:          "Bad Request",
-	Unauthorized:        "Unauthorized",
-	Forbidden:           "Forbidden",
-	NotFound:            "Not Found",
-	MethodNotAllowed:    "Method Not Allowed",
-	Conflict:            "Conflict",
-	UnprocessableEntity: "Unprocessable Entity",
-	TooManyRequests:     "Too Many Requests",
+	// ErrBadRequest 请求参数错误构建器
+	ErrBadRequest = Code(BadRequest).Tags("client")
 
-	InternalServerError: "Internal Server Error",
-	NotImplemented:      "Not Implemented",
-	BadGateway:          "Bad Gateway",
-	ServiceUnavailable:  "Service Unavailable",
-	GatewayTimeout:      "Gateway Timeout",
+	// ErrUnauthorized 未授权错误构建器
+	ErrUnauthorized = Code(Unauthorized).Tags("auth")
 
-	DatabaseError:      "Database Error",
-	CacheError:         "Cache Error",
-	ExternalAPIError:   "External API Error",
-	ValidationError:    "Validation Error",
-	BusinessLogicError: "Business Logic Error",
-}
+	// ErrForbidden 禁止访问错误构建器
+	ErrForbidden = Code(Forbidden).Tags("auth")
 
-// GetMessage 根据错误码获取默认消息
-func GetMessage(code int) string {
-	if msg, ok := CodeMessages[code]; ok {
-		return msg
-	}
-	return "Unknown Error"
-}
+	// ErrNotFound 资源不存在错误构建器
+	ErrNotFound = Code(NotFound).Tags("resource")
+
+	// ErrInternal 内部服务器错误构建器
+	ErrInternal = Code(InternalServerError).Tags("server")
+
+	// ErrConflict 资源冲突错误构建器
+	ErrConflict = Code(Conflict).Tags("business")
+)
