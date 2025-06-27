@@ -59,10 +59,10 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 
 // handleAppError 处理自定义业务错误
 func handleAppError(err *errors.AppError, requestID string) *ResponseBuilder {
-	response := Error(err.GetCode(), err.GetMessage()).WithRequestID(requestID)
+	response := Error(err.Code(), err.Message()).WithRequestID(requestID)
 
 	// 将context字段转换为错误详情
-	if context := err.GetContext(); len(context) > 0 {
+	if context := err.Context(); len(context) > 0 {
 		var errorDetails []*errors.ErrorDetail
 		for field, value := range context {
 			errorDetails = append(errorDetails, &errors.ErrorDetail{

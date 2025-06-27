@@ -6,21 +6,13 @@ import (
 )
 
 // AppErrorBuilder 链式错误构建器
-type AppErrorBuilder struct {
-	code    string
-	message string
-	in      string
-	tags    []string
-	traceID string
-	context map[string]any
-	cause   error
-}
+type AppErrorBuilder AppError
 
 func newAppErrorBuilder() AppErrorBuilder {
 	return AppErrorBuilder{
 		code:    "",
 		message: "",
-		in:      "",
+		domain:  "",
 		tags:    make([]string, 0),
 		traceID: "",
 		context: make(map[string]any),
@@ -33,7 +25,7 @@ func (b AppErrorBuilder) copy() AppErrorBuilder {
 	return AppErrorBuilder{
 		code:    b.code,
 		message: b.message,
-		in:      b.in,
+		domain:  b.domain,
 		tags:    b.tags,
 		traceID: b.traceID,
 		context: b.context,
@@ -53,10 +45,10 @@ func (b AppErrorBuilder) Message(message string) AppErrorBuilder {
 	return b2
 }
 
-// In 设置服务名称
-func (b AppErrorBuilder) In(in string) AppErrorBuilder {
+// In sets the domain or feature category for the error.
+func (b AppErrorBuilder) In(doamin string) AppErrorBuilder {
 	b2 := b.copy()
-	b2.in = in
+	b2.domain = doamin
 	return b2
 }
 
@@ -84,24 +76,11 @@ func (b AppErrorBuilder) With(key string, value any) AppErrorBuilder {
 	return b2
 }
 
-// build 构建 AppError
-func (b AppErrorBuilder) build() AppError {
-	return AppError{
-		Code:    b.code,
-		Message: "",
-		In:      b.in,
-		Tags:    b.tags,
-		TraceID: b.traceID,
-		Context: b.context,
-		Cause:   b.cause,
-	}
-}
-
 // Errorf 创建带格式化消息的错误
 func (b AppErrorBuilder) Errorf(format string, args ...any) error {
 	b2 := b.copy()
 	b2.message = fmt.Sprintf(format, args...)
-	return b2.build()
+	return AppError(b2)
 }
 
 // Wrapf 包装错误并添加格式化消息
@@ -113,7 +92,7 @@ func (b AppErrorBuilder) Wrapf(err error, format string, args ...any) error {
 	b2 := b.copy()
 	b2.cause = err
 	b2.message = fmt.Sprintf(format, args...)
-	return b2.build()
+	return AppError(b2)
 }
 
 func (b AppErrorBuilder) Wrap(err error) error {
@@ -123,9 +102,15 @@ func (b AppErrorBuilder) Wrap(err error) error {
 
 	b2 := b.copy()
 	b2.cause = err
-	return b2.build()
+	return AppError(b2)
 }
 
 func (b AppErrorBuilder) Join(err ...error) error {
 	return b.Wrap(errors.Join(err...))
+}
+
+func (b AppErrorBuilder) New(message string) error {
+	b2 := b.copy()
+	b2.cause = errors.New(message)
+	return AppError(b2)
 }

@@ -7,9 +7,9 @@ func Code(code string) AppErrorBuilder {
 	return newAppErrorBuilder().Code(code)
 }
 
-// In 创建带服务名称的错误构建器
-func In(service string) AppErrorBuilder {
-	return newAppErrorBuilder().In(service)
+// In creates an error builder with a domain or feature category.
+func In(doamin string) AppErrorBuilder {
+	return newAppErrorBuilder().In(doamin)
 }
 
 // Tags 创建带标签的错误构建器
@@ -31,7 +31,7 @@ func With(key string, value any) AppErrorBuilder {
 
 // New 创建新的结构化错误
 func New(message string) error {
-	return newAppErrorBuilder().Message(message).build()
+	return newAppErrorBuilder().New(message)
 }
 
 // Errorf 创建格式化错误
