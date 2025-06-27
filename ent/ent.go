@@ -12,13 +12,8 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/liukeshao/echo-template/ent/menu"
-	"github.com/liukeshao/echo-template/ent/permission"
-	"github.com/liukeshao/echo-template/ent/role"
-	"github.com/liukeshao/echo-template/ent/todo"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/ent/userrole"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -79,13 +74,8 @@ var (
 func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			menu.Table:       menu.ValidColumn,
-			permission.Table: permission.ValidColumn,
-			role.Table:       role.ValidColumn,
-			todo.Table:       todo.ValidColumn,
-			token.Table:      token.ValidColumn,
-			user.Table:       user.ValidColumn,
-			userrole.Table:   userrole.ValidColumn,
+			token.Table: token.ValidColumn,
+			user.Table:  user.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

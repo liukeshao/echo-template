@@ -44,15 +44,9 @@ type User struct {
 type UserEdges struct {
 	// Tokens holds the value of the tokens edge.
 	Tokens []*Token `json:"tokens,omitempty"`
-	// Roles holds the value of the roles edge.
-	Roles []*Role `json:"roles,omitempty"`
-	// UserRoles holds the value of the user_roles edge.
-	UserRoles []*UserRole `json:"user_roles,omitempty"`
-	// GrantedRoles holds the value of the granted_roles edge.
-	GrantedRoles []*UserRole `json:"granted_roles,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [4]bool
+	loadedTypes [1]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -62,33 +56,6 @@ func (e UserEdges) TokensOrErr() ([]*Token, error) {
 		return e.Tokens, nil
 	}
 	return nil, &NotLoadedError{edge: "tokens"}
-}
-
-// RolesOrErr returns the Roles value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserEdges) RolesOrErr() ([]*Role, error) {
-	if e.loadedTypes[1] {
-		return e.Roles, nil
-	}
-	return nil, &NotLoadedError{edge: "roles"}
-}
-
-// UserRolesOrErr returns the UserRoles value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserEdges) UserRolesOrErr() ([]*UserRole, error) {
-	if e.loadedTypes[2] {
-		return e.UserRoles, nil
-	}
-	return nil, &NotLoadedError{edge: "user_roles"}
-}
-
-// GrantedRolesOrErr returns the GrantedRoles value or an error if the edge
-// was not loaded in eager-loading.
-func (e UserEdges) GrantedRolesOrErr() ([]*UserRole, error) {
-	if e.loadedTypes[3] {
-		return e.GrantedRoles, nil
-	}
-	return nil, &NotLoadedError{edge: "granted_roles"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -188,21 +155,6 @@ func (u *User) Value(name string) (ent.Value, error) {
 // QueryTokens queries the "tokens" edge of the User entity.
 func (u *User) QueryTokens() *TokenQuery {
 	return NewUserClient(u.config).QueryTokens(u)
-}
-
-// QueryRoles queries the "roles" edge of the User entity.
-func (u *User) QueryRoles() *RoleQuery {
-	return NewUserClient(u.config).QueryRoles(u)
-}
-
-// QueryUserRoles queries the "user_roles" edge of the User entity.
-func (u *User) QueryUserRoles() *UserRoleQuery {
-	return NewUserClient(u.config).QueryUserRoles(u)
-}
-
-// QueryGrantedRoles queries the "granted_roles" edge of the User entity.
-func (u *User) QueryGrantedRoles() *UserRoleQuery {
-	return NewUserClient(u.config).QueryGrantedRoles(u)
 }
 
 // Update returns a builder for updating this User.

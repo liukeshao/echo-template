@@ -60,18 +60,6 @@ func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		// 一个用户可以有多个token
 		edge.To("tokens", Token.Type),
-
-		// 用户拥有的角色（多对多，通过UserRole表）
-		edge.From("roles", Role.Type).
-			Ref("users"),
-
-		// 用户角色关联表
-		edge.From("user_roles", UserRole.Type).
-			Ref("user"),
-
-		// 用户作为授权者的角色分配记录
-		edge.From("granted_roles", UserRole.Type).
-			Ref("granter"),
 	}
 }
 
