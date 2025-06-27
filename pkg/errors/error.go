@@ -11,7 +11,7 @@ type AppError struct {
 	Message string         // 错误消息
 	Context map[string]any // 结构化上下文
 	Cause   error          // 原始错误
-	Service string         // 服务名称
+	In      string         // 服务名称
 	Tags    []string       // 标签
 	TraceID string         // 链路追踪ID
 }
@@ -64,8 +64,8 @@ func (e AppError) LogValue() slog.Value {
 		slog.String("message", e.Message),
 	}
 
-	if e.Service != "" {
-		attrs = append(attrs, slog.String("service", e.Service))
+	if e.In != "" {
+		attrs = append(attrs, slog.String("in", e.In))
 	}
 
 	if len(e.Tags) > 0 {

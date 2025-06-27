@@ -1,6 +1,7 @@
 package errors
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -8,7 +9,7 @@ import (
 type AppErrorBuilder struct {
 	code    string
 	message string
-	service string
+	in      string
 	tags    []string
 	traceID string
 	context map[string]any
@@ -19,7 +20,7 @@ func newAppErrorBuilder() AppErrorBuilder {
 	return AppErrorBuilder{
 		code:    "",
 		message: "",
-		service: "",
+		in:      "",
 		tags:    make([]string, 0),
 		traceID: "",
 		context: make(map[string]any),
@@ -32,7 +33,7 @@ func (b AppErrorBuilder) copy() AppErrorBuilder {
 	return AppErrorBuilder{
 		code:    b.code,
 		message: b.message,
-		service: b.service,
+		in:      b.in,
 		tags:    b.tags,
 		traceID: b.traceID,
 		context: b.context,
@@ -53,9 +54,9 @@ func (b AppErrorBuilder) Message(message string) AppErrorBuilder {
 }
 
 // In 设置服务名称
-func (b AppErrorBuilder) In(service string) AppErrorBuilder {
+func (b AppErrorBuilder) In(in string) AppErrorBuilder {
 	b2 := b.copy()
-	b2.service = service
+	b2.in = in
 	return b2
 }
 
@@ -88,7 +89,7 @@ func (b AppErrorBuilder) build() AppError {
 	return AppError{
 		Code:    b.code,
 		Message: "",
-		Service: b.service,
+		In:      b.in,
 		Tags:    b.tags,
 		TraceID: b.traceID,
 		Context: b.context,
@@ -123,4 +124,8 @@ func (b AppErrorBuilder) Wrap(err error) error {
 	b2 := b.copy()
 	b2.cause = err
 	return b2.build()
+}
+
+func (b AppErrorBuilder) Join(err ...error) error {
+	return b.Wrap(errors.Join(err...))
 }
