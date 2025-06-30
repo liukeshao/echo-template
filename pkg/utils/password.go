@@ -22,9 +22,3 @@ func HashPassword(password string) (string, error) {
 func VerifyPassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
-
-// IsPasswordValid 检查密码是否符合要求
-func IsPasswordValid(password string) bool {
-	// 密码长度至少8位
-	return len(password) >= 8
-}

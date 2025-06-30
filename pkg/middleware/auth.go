@@ -111,7 +111,6 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 		dbToken, err := m.orm.Token.Query().
 			Where(
 				token.Token(tokenString),
-				token.DeletedAt(0),
 				token.IsRevoked(false),
 				token.TypeEQ(token.TypeAccess),
 			).
@@ -131,7 +130,7 @@ func (m *AuthMiddleware) extractAndValidateToken(c echo.Context, strictMode bool
 
 	// 查找用户
 	user, err := m.orm.User.Query().
-		Where(userEnt.ID(claims.UserID), userEnt.DeletedAt(0)).
+		Where(userEnt.ID(claims.UserID)).
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {

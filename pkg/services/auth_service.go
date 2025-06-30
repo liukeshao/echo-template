@@ -140,7 +140,7 @@ func (s *AuthService) GetTokenType(claims *types.JWTClaims) string {
 func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*types.AuthOutput, error) {
 	// 检查用户名是否已存在
 	existingByUsername, err := s.orm.User.Query().
-		Where(userEnt.Username(in.Username), userEnt.DeletedAt(0)).
+		Where(userEnt.Username(in.Username)).
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		slog.ErrorContext(ctx, "检查用户名失败", "error", err, "username", in.Username)
@@ -154,7 +154,7 @@ func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*t
 
 	// 检查邮箱是否已存在
 	existingByEmail, err := s.orm.User.Query().
-		Where(userEnt.Email(in.Email), userEnt.DeletedAt(0)).
+		Where(userEnt.Email(in.Email)).
 		Only(ctx)
 	if err != nil && !ent.IsNotFound(err) {
 		slog.ErrorContext(ctx, "检查邮箱失败", "error", err, "email", in.Email)
@@ -207,7 +207,7 @@ func (s *AuthService) Register(ctx context.Context, in *types.RegisterInput) (*t
 func (s *AuthService) Login(ctx context.Context, in *types.LoginInput) (*types.AuthOutput, error) {
 	// 查找用户
 	user, err := s.orm.User.Query().
-		Where(userEnt.Email(in.Email), userEnt.DeletedAt(0)).
+		Where(userEnt.Email(in.Email)).
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -286,7 +286,6 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 	dbToken, err := s.orm.Token.Query().
 		Where(
 			token.Token(refreshTokenString),
-			token.DeletedAt(0),
 			token.IsRevoked(false),
 		).
 		Only(ctx)
@@ -301,7 +300,7 @@ func (s *AuthService) RefreshToken(ctx context.Context, refreshTokenString strin
 
 	// 查找用户
 	user, err := s.orm.User.Query().
-		Where(userEnt.ID(claims.UserID), userEnt.DeletedAt(0)).
+		Where(userEnt.ID(claims.UserID)).
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -349,7 +348,6 @@ func (s *AuthService) RevokeToken(ctx context.Context, tokenString string) error
 	dbToken, err := s.orm.Token.Query().
 		Where(
 			token.Token(tokenString),
-			token.DeletedAt(0),
 		).
 		Only(ctx)
 	if err != nil {
