@@ -1,0 +1,35 @@
+type: object
+properties:
+  id:
+    type: string
+    description: 用户ID (ULID格式)
+    example: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+  username:
+    type: string
+    description: 用户名
+    example: john_doe
+  email:
+    type: string
+    format: email
+    description: 用户邮箱
+    example: john@example.com
+  status:
+    type: string
+    enum:
+      - active
+      - inactive
+      - suspended
+    description: 用户状态
+    example: active
+  last_login_at:
+    type:
+      - string
+      - 'null'
+    format: date-time
+    description: 最后登录时间
+    example: '2024-01-01T10:00:00Z'
+  created_at:
+    type: string
+    format: date-time
+    description: 创建时间
+    example: '2024-01-01T10:00:00Z'

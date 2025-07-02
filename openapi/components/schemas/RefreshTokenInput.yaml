@@ -1,0 +1,8 @@
+type: object
+required:
+  - refresh_token
+properties:
+  refresh_token:
+    type: string
+    description: 刷新令牌
+    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...

@@ -1,0 +1,85 @@
+get:
+  tags:
+    - 用户管理
+  summary: 获取用户列表
+  description: 分页获取用户列表，支持按状态筛选和关键词搜索
+  operationId: listUsers
+  security:
+    - BearerAuth: []
+  parameters:
+    - name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+      description: 页码，从1开始
+      example: 1
+    - name: page_size
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+      description: 每页数量，最大100
+      example: 20
+    - name: status
+      in: query
+      schema:
+        type: string
+        enum:
+          - active
+          - inactive
+          - suspended
+      description: 按状态筛选用户
+      example: active
+    - name: keyword
+      in: query
+      schema:
+        type: string
+      description: 搜索关键词，用于搜索用户名或邮箱
+      example: john
+  responses:
+    '200':
+      description: 用户列表
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: ../components/schemas/Response.yaml
+              - type: object
+                properties:
+                  data:
+                    oneOf:
+                      - $ref: ../components/schemas/ListUsersOutput.yaml
+                      - type: 'null'
+                    description: 成功时返回用户列表和分页信息，失败时为null
+          examples:
+            success:
+              summary: 获取成功
+              value:
+                code: 0
+                message: 获取用户列表成功
+                data:
+                  page: 1
+                  page_size: 20
+                  total: 150
+                  total_page: 8
+                  has_next: true
+                  has_prev: false
+                  users:
+                    - id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+                      username: john_doe
+                      email: john@example.com
+                      status: active
+                      last_login_at: '2024-01-01T10:00:00Z'
+                      created_at: '2024-01-01T10:00:00Z'
+                    - id: 01ARZ3NDEKTSV4RRFFQ69G5FAW
+                      username: jane_doe
+                      email: jane@example.com
+                      status: inactive
+                      last_login_at: null
+                      created_at: '2024-01-02T10:00:00Z'
+                timestamp: 1641024000
+                request_id: req_123

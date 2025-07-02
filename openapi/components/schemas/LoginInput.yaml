@@ -1,0 +1,14 @@
+type: object
+required:
+  - email
+  - password
+properties:
+  email:
+    type: string
+    format: email
+    description: 用户邮箱
+    example: john@example.com
+  password:
+    type: string
+    description: 用户密码
+    example: password123

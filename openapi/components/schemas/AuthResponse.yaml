@@ -1,0 +1,9 @@
+allOf:
+  - $ref: ./Response.yaml
+  - type: object
+    properties:
+      data:
+        oneOf:
+          - $ref: ./AuthOutput.yaml
+          - type: 'null'
+        description: 认证成功时返回用户信息和令牌数据，失败时为null

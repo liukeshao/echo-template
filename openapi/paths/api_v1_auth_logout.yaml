@@ -1,0 +1,24 @@
+post:
+  tags:
+    - 认证管理
+  summary: 用户登出
+  description: 撤销当前访问令牌
+  operationId: logout
+  security:
+    - BearerAuth: []
+  responses:
+    '200':
+      description: 登出结果
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/SuccessResponse.yaml
+          examples:
+            success:
+              summary: 登出成功
+              value:
+                code: 0
+                message: 登出成功
+                data: null
+                timestamp: 1641024000
+                request_id: req_123

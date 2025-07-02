@@ -1,0 +1,9 @@
+allOf:
+  - $ref: ./Response.yaml
+  - type: object
+    properties:
+      data:
+        oneOf:
+          - $ref: ./UserInfo.yaml
+          - type: 'null'
+        description: 成功时返回用户详细信息，失败时为null

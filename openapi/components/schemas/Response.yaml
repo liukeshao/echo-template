@@ -1,0 +1,40 @@
+type: object
+required:
+  - code
+  - message
+  - data
+  - timestamp
+properties:
+  code:
+    type: integer
+    description: 业务状态码，0表示成功，非0表示失败
+    example: 0
+  message:
+    type: string
+    description: 响应消息
+    example: Success
+  data:
+    type:
+      - object
+      - array
+      - string
+      - number
+      - boolean
+      - 'null'
+    description: 响应数据，可以为任意类型或null
+    example: null
+  errors:
+    type: array
+    items:
+      type: string
+    description: 错误详情列表
+    example: []
+  timestamp:
+    type: integer
+    format: int64
+    description: 响应时间戳
+    example: 1641024000
+  request_id:
+    type: string
+    description: 请求ID
+    example: req_123

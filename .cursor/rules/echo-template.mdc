@@ -1,0 +1,136 @@
+---
+description: 项目开发规范
+globs: 
+alwaysApply: false
+---
+# Echo Template 项目开发规范
+
+## 技术栈
+- **框架**: Echo v4 + Ent ORM + SQLite + Viper + Zog 验证
+- **文档**: OpenAPI 3.1.0 + Redocly
+
+## 核心规范
+
+### 1. 命名约定
+- **输入**: `XxxInput` (RegisterInput, CreateUserInput)
+- **输出**: `XxxOutput` (UserOutput, AuthOutput)  
+- **列表**: `ListXxxInput/Output` (ListUsersInput, ListUsersOutput)
+
+### 2. 类型定义
+- **位置**: `pkg/types/` 目录，按模块分文件
+- **验证**: 所有 Input 类型必须实现 `Validate() []string` 方法
+
+```go
+type CreateUserInput struct {
+    Username string `json:"username"`
+    Email    string `json:"email"`
+    Password string `json:"password"`
+}
+
+func (i *CreateUserInput) Validate() []string {
+    // 返回验证错误列表
+}
+```
+
+### 3. Handler 模式
+```go
+// 注册Handler
+func init() {
+    Register(new(UserHandler))
+}
+
+// 实现Handler接口
+func (h *UserHandler) Init(c *services.Container) error {
+    h.userService = c.User
+    return nil
+}
+
+func (h *UserHandler) Routes(g *echo.Group) {
+    api := g.Group("/api/v1/users")
+    api.POST("", h.CreateUser)
+}
+
+// Handler实现
+func (h *UserHandler) CreateUser(c echo.Context) error {
+    var in types.CreateUserInput
+    if err := c.Bind(&in); err != nil {
+        return errors.BadRequestError()
+    }
+    
+    if errs := in.Validate(); len(errs) > 0 {
+        return ValidationError(c, errs)
+    }
+    
+    out, err := h.userService.Create(ctx, &in)
+    if err != nil {
+        return err
+    }
+    
+    return Success(c, out)
+}
+```
+
+### 4. 响应格式
+```go
+type Response struct {
+    Code      int         `json:"code"`                 // 0=成功, 非0=失败
+    Message   string      `json:"message"`              // 响应消息
+    Data      interface{} `json:"data"`                 // 响应数据
+    Errors    []string    `json:"errors,omitempty"`     // 错误详情
+    Timestamp int64       `json:"timestamp"`            // 时间戳
+    RequestID string      `json:"request_id,omitempty"` // 请求ID
+}
+
+// 使用方式
+return Success(c, data)
+return ValidationError(c, errs)
+```
+
+## API 开发流程
+
+### API-First 模式
+1. **定义规范**: 在 [openapi/openapi.yaml](mdc:openapi/openapi.yaml) 中定义API
+2. **校验规范**: `make docs-lint`
+3. **生成文档**: `make docs-build`
+4. **实现代码**: 按规范实现Handler和类型
+
+### 常用命令
+```bash
+make docs           # 校验规范并生成文档
+make run            # 启动服务
+make ent-gen        # 生成Ent代码
+make ent-new name=Entity  # 创建新实体
+```
+
+## 项目结构
+```
+echo-template/
+├── cmd/web/main.go     # 主程序
+├── openapi/            # API规范
+├── pkg/
+│   ├── handlers/       # HTTP处理器
+│   ├── services/       # 业务服务
+│   ├── types/          # 类型定义
+│   ├── middleware/     # 中间件
+│   ├── errors/         # 错误处理
+│   └── utils/          # 工具函数
+├── ent/                # 数据模型
+└── static/docs/        # 生成的文档
+```
+
+## 开发原则
+- **API优先**: 先定义OpenAPI规范，后实现代码
+- **类型安全**: Input验证 + 统一响应格式
+- **依赖注入**: 通过容器管理服务依赖
+- **HTTP 200**: 统一使用200状态码，通过code字段区分业务状态
+- **规范同步**: 确保OpenAPI规范与代码实现保持一致
+
+## 日志规范
+```go
+import "log/slog"
+slog.InfoContext(ctx, "处理请求", "user_id", userID)
+slog.ErrorContext(ctx, "业务错误", "error", err)
+```
+
+---
+**记住**: 规范先行，文档驱动，统一响应，保持同步！

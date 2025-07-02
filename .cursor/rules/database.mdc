@@ -1,0 +1,320 @@
+---
+description: 数据库设计规范
+globs: 
+alwaysApply: false
+---
+# 数据库设计规范
+
+## 通用字段规范
+
+### 主键设计
+- **id**: 使用 `string` 类型，格式为 ULID (Universally Unique Lexicographically Sortable Identifier)
+  - 长度：26个字符
+  - 编码：Base32
+  - 特点：按时间排序、全局唯一、URL安全
+  - 示例：`01ARZ3NDEKTSV4RRFFQ69G5FAV`
+
+### 时间戳字段
+- **created_at**: `datetime` 类型，记录创建时间
+  - 格式：`YYYY-MM-DD HH:MM:SS`
+  - 精度：秒级或毫秒级（根据需要）
+  - 必填字段，在记录创建时自动设置
+  
+- **updated_at**: `datetime` 类型，记录最后更新时间
+  - 格式：`YYYY-MM-DD HH:MM:SS`
+  - 精度：秒级或毫秒级（根据需要）
+  - 必填字段，在记录创建/更新时自动设置
+
+- **deleted_at**: `bigint` 类型，逻辑删除时间戳（毫秒）
+  - 存储格式：13位数字（毫秒级时间戳）
+  - `0` 表示未删除，非零值表示删除时间戳
+  - 默认值：`0`
+  - 用于软删除，保留数据完整性
+
+## 表结构示例
+
+```sql
+-- 用户表示例（支持逻辑删除）
+CREATE TABLE users (
+    id VARCHAR(26) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at BIGINT NOT NULL DEFAULT 0
+);
+
+-- 文章表示例（支持逻辑删除）
+CREATE TABLE posts (
+    id VARCHAR(26) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT,
+    user_id VARCHAR(26) NOT NULL, -- 关联字段，不使用外键约束
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at BIGINT NOT NULL DEFAULT 0
+);
+
+-- 用户配置表示例
+CREATE TABLE user_profiles (
+    id VARCHAR(26) PRIMARY KEY,
+    user_id VARCHAR(26) NOT NULL, -- 关联字段，不使用外键约束
+    avatar_url VARCHAR(500),
+    bio TEXT,
+    settings JSON, -- 存储用户设置
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at BIGINT NOT NULL DEFAULT 0
+);
+```
+
+## 逻辑删除与唯一索引
+
+### 唯一索引设计原则
+使用 `bigint` 类型的 `deleted_at` 字段，可以避免 NULL 值问题：
+
+#### 复合唯一索引
+```sql
+-- 邮箱唯一性约束（包含删除状态）
+CREATE UNIQUE INDEX idx_users_email_deleted ON users (email, deleted_at);
+
+-- 复合字段的唯一性约束
+CREATE UNIQUE INDEX idx_user_profiles_user_type_deleted 
+ON user_profiles (user_id, deleted_at);
+```
+
+#### 查询优化索引
+```sql
+-- 单独的查询索引（提高查询性能）
+CREATE INDEX idx_users_email ON users (email);
+CREATE INDEX idx_users_deleted_at ON users (deleted_at);
+CREATE INDEX idx_users_created_at ON users (created_at);
+
+-- 复合查询索引
+CREATE INDEX idx_users_deleted_created ON users (deleted_at, created_at);
+```
+
+## MySQL 实现
+
+### 表结构
+```sql
+-- MySQL 用户表（混合时间类型）
+CREATE TABLE users (
+    id VARCHAR(26) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    deleted_at BIGINT NOT NULL DEFAULT 0,
+    UNIQUE KEY idx_users_email_deleted (email, deleted_at),
+    INDEX idx_users_deleted_at (deleted_at),
+    INDEX idx_users_email (email),
+    INDEX idx_users_created_at (created_at)
+);
+```
+
+### 关联字段索引
+虽然不使用外键约束，但需要为关联字段创建索引以提高查询性能：
+
+```sql
+-- 为关联字段创建索引
+CREATE INDEX idx_posts_user_id ON posts (user_id);
+CREATE INDEX idx_user_profiles_user_id ON user_profiles (user_id);
+
+-- 复合索引（关联字段 + 删除状态）
+CREATE INDEX idx_posts_user_id_deleted ON posts (user_id, deleted_at);
+CREATE INDEX idx_user_profiles_user_id_deleted ON user_profiles (user_id, deleted_at);
+
+-- 复合索引（关联字段 + 创建时间）
+CREATE INDEX idx_posts_user_id_created ON posts (user_id, created_at);
+```
+
+## 逻辑删除操作示例
+
+### 软删除操作
+```sql
+-- 逻辑删除用户
+UPDATE users 
+SET deleted_at = UNIX_TIMESTAMP(NOW(3)) * 1000, updated_at = NOW() 
+WHERE id = '01ARZ3NDEKTSV4RRFFQ69G5FAV' AND deleted_at = 0;
+
+-- 恢复已删除用户
+UPDATE users 
+SET deleted_at = 0, updated_at = NOW() 
+WHERE id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+```
+
+### 查询操作
+```sql
+-- 查询所有有效用户
+SELECT * FROM users WHERE deleted_at = 0;
+
+-- 查询已删除用户
+SELECT * FROM users WHERE deleted_at > 0;
+
+-- 查询特定时间后删除的用户
+SELECT * FROM users WHERE deleted_at > 1703673600000;
+
+-- 查询特定用户（包含已删除）
+SELECT * FROM users WHERE id = '01ARZ3NDEKTSV4RRFFQ69G5FAV';
+
+-- 按创建时间查询有效用户
+SELECT * FROM users 
+WHERE deleted_at = 0 
+  AND created_at >= '2023-12-01 00:00:00'
+ORDER BY created_at DESC;
+```
+
+### 级联删除操作
+```sql
+-- 软删除用户及相关数据（需要在事务中执行）
+START TRANSACTION;
+
+-- 删除用户
+UPDATE users 
+SET deleted_at = UNIX_TIMESTAMP(NOW(3)) * 1000, updated_at = NOW() 
+WHERE id = '01ARZ3NDEKTSV4RRFFQ69G5FAV' AND deleted_at = 0;
+
+-- 删除用户的文章
+UPDATE posts 
+SET deleted_at = UNIX_TIMESTAMP(NOW(3)) * 1000, updated_at = NOW() 
+WHERE user_id = '01ARZ3NDEKTSV4RRFFQ69G5FAV' AND deleted_at = 0;
+
+-- 删除用户配置
+UPDATE user_profiles 
+SET deleted_at = UNIX_TIMESTAMP(NOW(3)) * 1000, updated_at = NOW() 
+WHERE user_id = '01ARZ3NDEKTSV4RRFFQ69G5FAV' AND deleted_at = 0;
+
+COMMIT;
+```
+
+### 数据完整性检查
+```sql
+-- 检查孤立的文章记录
+SELECT p.id, p.title 
+FROM posts p 
+LEFT JOIN users u ON p.user_id = u.id 
+WHERE p.deleted_at = 0 
+  AND (u.id IS NULL OR u.deleted_at > 0);
+
+-- 检查孤立的用户配置记录
+SELECT up.id, up.user_id 
+FROM user_profiles up 
+LEFT JOIN users u ON up.user_id = u.id 
+WHERE up.deleted_at = 0 
+  AND (u.id IS NULL OR u.deleted_at > 0);
+
+-- 清理孤立数据
+UPDATE posts 
+SET deleted_at = UNIX_TIMESTAMP(NOW(3)) * 1000, updated_at = NOW()
+WHERE deleted_at = 0 
+  AND user_id NOT IN (
+    SELECT id FROM users WHERE deleted_at = 0
+  );
+```
+
+## 数据完整性
+
+### 约束规范
+- 所有表必须包含 `id`, `created_at`, `updated_at`, `deleted_at` 字段
+- `deleted_at` 字段默认值为 `0`，不允许 NULL
+- **不使用数据库外键约束**，通过应用层保证数据完整性
+- 邮箱等唯一字段必须设置复合唯一约束（包含 deleted_at）
+- 必填字段设置 NOT NULL 约束
+
+### 应用层数据完整性保证原则
+- **数据验证**：创建或更新记录前验证关联数据的存在性
+- **事务操作**：关联数据的创建、更新、删除使用事务保证一致性
+- **级联策略**：定义清晰的级联删除和恢复策略
+- **定期检查**：设置定时任务检查和清理孤立数据
+- **错误处理**：优雅处理关联数据不存在的情况
+
+## 命名规范
+
+### 表名
+- 使用复数形式的小写英文单词
+- 单词间用下划线分隔
+- 示例：`users`, `posts`, `user_profiles`
+
+### 字段名
+- 使用小写英文单词
+- 单词间用下划线分隔
+- 布尔字段以 `is_` 或 `has_` 开头
+- 外键字段以 `_id` 结尾
+- 示例：`user_name`, `is_active`, `has_avatar`, `user_id`
+
+### 索引命名
+- 格式：`idx_{表名}_{字段名}` 或 `idx_{表名}_{字段1}_{字段2}`
+- 唯一索引格式：`idx_{表名}_{字段名}_deleted`
+- 示例：`idx_users_email_deleted`, `idx_posts_user_id_deleted`
+
+## 最佳实践
+
+1. **数据迁移**
+   - 每次结构变更都要有对应的迁移脚本
+   - 迁移脚本必须可回滚
+   - 生产环境迁移前必须在测试环境验证
+   - **逻辑删除迁移**：为现有表添加 `deleted_at BIGINT NOT NULL DEFAULT 0`
+   - **关联字段索引**：迁移时为所有关联字段创建必要的索引
+
+2. **性能优化**
+   - 大表分页查询使用游标分页而非OFFSET
+   - 避免SELECT *，明确指定需要的字段
+   - 合理使用数据库连接池
+   - **逻辑删除优化**：定期清理老旧的已删除数据（归档或硬删除）
+   - 使用复合索引优化查询性能
+   - **关联查询优化**：为频繁的关联查询创建合适的复合索引
+
+3. **数据安全**
+   - 敏感数据加密存储
+   - 定期备份数据
+   - 限制数据库访问权限
+   - **逻辑删除安全**：敏感数据在逻辑删除后应考虑加密或脱敏
+   - **应用层验证**：所有数据操作都要经过应用层验证
+
+4. **监控告警**
+   - 监控慢查询
+   - 监控连接数
+   - 监控磁盘使用率
+   - **逻辑删除监控**：监控已删除数据的比例，及时清理避免性能影响
+   - **数据一致性监控**：定期检查孤立数据和关联完整性
+
+5. **应用层数据完整性管理**
+   - **统一数据访问层**：通过 Repository 模式封装数据访问
+   - **事务管理**：关联数据的创建、更新、删除使用事务保证一致性
+   - **验证机制**：在应用层实现所有关联数据的验证逻辑
+   - **定期数据检查**：设置定时任务检查和清理孤立数据
+   - **操作日志**：记录所有重要的数据操作，便于问题追踪
+
+## 逻辑删除注意事项
+
+### 查询默认行为
+- **默认查询应排除已删除记录**：`WHERE deleted_at = 0`
+- 明确需要包含已删除记录时才特殊处理
+- 使用视图或查询构建器封装默认行为
+
+### 数据一致性
+- **应用层保证一致性**：不依赖数据库外键，通过应用逻辑确保数据一致性
+- 避免已删除的父记录有未删除的子记录
+- 考虑业务场景决定级联删除策略
+- **定期一致性检查**：设置定时任务检查数据完整性
+
+### 性能考虑
+- 定期分析已删除数据的比例
+- 当已删除数据过多时考虑归档策略
+- 监控查询性能，及时调整索引策略
+- 使用时间戳范围查询进行数据清理
+
+### 混合时间类型注意事项
+- **datetime 类型**：用于 created_at 和 updated_at，便于时间范围查询和排序
+- **bigint 类型**：用于 deleted_at，避免 NULL 值问题，保证唯一索引正常工作
+- 查询时注意不同时间类型的比较和过滤
+- 应用层需要正确处理两种时间类型的转换
+
+### 无外键设计注意事项
+- **关联字段验证**：在应用层严格验证所有关联字段的有效性
+- **索引策略**：为所有关联字段创建适当的索引以优化查询性能
+- **级联操作**：在应用层实现级联删除和恢复逻辑
+- **数据清理**：定期清理孤立数据，保持数据库整洁
+- **错误处理**：优雅处理关联数据不存在的情况
+- **文档维护**：清晰记录表之间的关联关系，便于团队理解

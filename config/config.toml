@@ -1,0 +1,32 @@
+[http]
+hostname = ""
+port = 8000
+readTimeout = "5s"
+writeTimeout = "10s"
+idleTimeout = "2m"
+shutdownTimeout = "10s"
+
+[app]
+name = "echo-template"
+# We manually set this rather than using the HTTP settings in order to build absolute URLs for users
+# since it's likely your app's HTTP settings are not identical to what is exposed by your server.
+host = "http://localhost:8000"
+environment = "local"
+timeout = "20s"
+
+# API文档配置
+[app.docs]
+enabled = true  # 本地和开发环境启用，生产环境请设置为false
+path = "/docs"
+title = "Echo Template API Documentation"
+
+# JWT配置
+[jwt]
+secret = "your-super-secret-jwt-key-change-this-in-production"
+accessTokenExpiry = "24h"   # Access token 过期时间
+refreshTokenExpiry = "168h" # Refresh token 过期时间 (7天)
+issuer = "echo-template"    # Token发行者
+
+[database]
+driver = "sqlite3"
+connection = "dbs/main.db?_journal=WAL&_timeout=5000&_fk=true"

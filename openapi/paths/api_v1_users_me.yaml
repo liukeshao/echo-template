@@ -1,0 +1,72 @@
+get:
+  tags:
+    - 用户管理
+  summary: 获取当前用户信息
+  description: 获取当前登录用户的详细信息
+  operationId: getCurrentUser
+  security:
+    - BearerAuth: []
+  responses:
+    '200':
+      description: 当前用户信息
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/UserResponse.yaml
+          examples:
+            success:
+              summary: 获取成功
+              value:
+                code: 0
+                message: 获取用户信息成功
+                data:
+                  id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+                  username: john_doe
+                  email: john@example.com
+                  status: active
+                  last_login_at: '2024-01-01T10:00:00Z'
+                  created_at: '2024-01-01T10:00:00Z'
+                timestamp: 1641024000
+                request_id: req_123
+put:
+  tags:
+    - 用户管理
+  summary: 更新当前用户信息
+  description: 更新当前登录用户的信息（不包括密码）
+  operationId: updateCurrentUser
+  security:
+    - BearerAuth: []
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/UpdateUserInput.yaml
+        examples:
+          default:
+            summary: 更新用户信息示例
+            value:
+              username: john_smith
+              email: john.smith@example.com
+  responses:
+    '200':
+      description: 更新结果
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/UserResponse.yaml
+          examples:
+            success:
+              summary: 更新成功
+              value:
+                code: 0
+                message: 用户信息更新成功
+                data:
+                  id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+                  username: john_smith
+                  email: john.smith@example.com
+                  status: active
+                  last_login_at: '2024-01-01T10:00:00Z'
+                  created_at: '2024-01-01T10:00:00Z'
+                timestamp: 1641024000
+                request_id: req_123

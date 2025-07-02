@@ -1,0 +1,53 @@
+post:
+  tags:
+    - 认证管理
+  summary: 用户登录
+  description: 使用邮箱和密码登录
+  operationId: login
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: ../components/schemas/LoginInput.yaml
+        examples:
+          default:
+            summary: 用户登录示例
+            value:
+              email: john@example.com
+              password: password123
+  responses:
+    '200':
+      description: 登录结果
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas/AuthResponse.yaml
+          examples:
+            success:
+              summary: 登录成功
+              value:
+                code: 0
+                message: 登录成功
+                data:
+                  user:
+                    id: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+                    username: john_doe
+                    email: john@example.com
+                    status: active
+                    last_login_at: '2024-01-01T10:00:00Z'
+                    created_at: '2024-01-01T10:00:00Z'
+                  access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  refresh_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  expires_at: 1641024000
+                timestamp: 1641024000
+                request_id: req_123
+            unauthorized:
+              summary: 邮箱或密码错误
+              value:
+                code: 40101
+                message: 邮箱或密码错误
+                data: null
+                errors: []
+                timestamp: 1641024000
+                request_id: req_123

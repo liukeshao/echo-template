@@ -1,0 +1,48 @@
+# Redocly 配置文件
+# 用于 OpenAPI 文档的校验和生成
+
+# 使用新的配置格式
+extends:
+  - recommended
+
+rules:
+  # 必需规则
+  operation-operationId: error
+  operation-summary: error
+  operation-tag-defined: error
+  no-unresolved-refs: error
+  operation-2xx-response: error
+  
+  # 建议规则 - 设为警告而非错误
+  operation-description: warn
+  paths-kebab-case: warn
+  
+  # 放宽的规则
+  no-example-value-and-externalValue: off
+  operation-4xx-response: off  # 项目使用统一HTTP 200响应格式
+  security-defined: off  # 公开接口不需要安全定义
+  no-server-example.com: off  # 允许localhost和example.com
+  no-invalid-media-type-examples: warn  # 示例验证设为警告
+
+# 文档主题配置
+theme:
+  openapi:
+    theme:
+      colors:
+        primary:
+          main: '#2E7D32'      # 主色调（绿色）
+        success:
+          main: '#4CAF50'      # 成功色
+        error:
+          main: '#F44336'      # 错误色
+      typography:
+        fontSize: '14px'
+        fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif'
+      sidebar:
+        backgroundColor: '#f8f9fa'
+        activeTextColor: '#2E7D32'
+    
+    # 功能配置
+    hideDownloadButton: false
+    expandResponses: 'all'
+    sortPropsAlphabetically: true 

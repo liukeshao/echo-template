@@ -1,0 +1,50 @@
+package handlers
+
+import (
+	"log/slog"
+	"net/http"
+
+	echomw "github.com/labstack/echo/v4/middleware"
+	"github.com/liukeshao/echo-template/pkg/middleware"
+	"github.com/liukeshao/echo-template/pkg/services"
+)
+
+// BuildRouter builds the router.
+func BuildRouter(c *services.Container) error {
+	// 创建logger实例用于错误处理
+	logger := slog.Default()
+
+	// 设置自定义错误处理器
+	c.Web.HTTPErrorHandler = EchoErrorHandler(logger)
+
+	// 静态文件服务 - 提供Stoplight Elements资源
+	c.Web.Static("/static", "static")
+
+	// Non-static file route group.
+	g := c.Web.Group("")
+
+	g.Use(
+		echomw.RemoveTrailingSlashWithConfig(echomw.TrailingSlashConfig{
+			RedirectCode: http.StatusMovedPermanently,
+		}),
+		echomw.Recover(),
+		echomw.RequestIDWithConfig(echomw.RequestIDConfig{
+			RequestIDHandler: middleware.RequestIDHandler,
+		}),
+		echomw.Gzip(),
+		echomw.TimeoutWithConfig(echomw.TimeoutConfig{
+			Timeout: c.Config.App.Timeout,
+		}),
+	)
+
+	// Initialize and register all handlers.
+	for _, h := range GetHandlers() {
+		if err := h.Init(c); err != nil {
+			return err
+		}
+
+		h.Routes(g)
+	}
+
+	return nil
+}

@@ -1,0 +1,60 @@
+openapi: 3.1.0
+info:
+  title: Echo Template API
+  description: |
+    基于 Echo 框架的模板项目 API 文档
+
+    ## 响应格式说明
+    所有API响应都使用统一的格式，HTTP状态码固定为200，通过 `code` 字段区分成功和失败：
+    - `code = 0`: 请求成功
+    - `code != 0`: 请求失败，具体错误码请参考错误码表
+
+    ## 认证说明
+    需要认证的接口使用 Bearer Token 认证，在请求头中添加：
+    ```
+    Authorization: Bearer <access_token>
+    ```
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: support@example.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+servers:
+  - url: http://localhost:8000
+    description: 开发环境
+  - url: https://api.example.com
+    description: 生产环境
+tags:
+  - name: 认证管理
+    description: 用户注册、登录、令牌管理等认证相关接口
+  - name: 用户管理
+    description: 用户信息查询和管理接口
+paths:
+  /api/v1/auth/register:
+    $ref: paths/api_v1_auth_register.yaml
+  /api/v1/auth/login:
+    $ref: paths/api_v1_auth_login.yaml
+  /api/v1/auth/refresh:
+    $ref: paths/api_v1_auth_refresh.yaml
+  /api/v1/auth/logout:
+    $ref: paths/api_v1_auth_logout.yaml
+  /api/v1/users/me:
+    $ref: paths/api_v1_users_me.yaml
+  /api/v1/users/me/change-password:
+    $ref: paths/api_v1_users_me_change-password.yaml
+  /api/v1/users:
+    $ref: paths/api_v1_users.yaml
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'JWT访问令牌，格式: Bearer <token>'
+x-tagGroups:
+  - name: 核心功能
+    tags:
+      - 认证管理
+      - 用户管理

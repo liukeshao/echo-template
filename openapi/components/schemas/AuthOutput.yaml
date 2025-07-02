@@ -1,0 +1,17 @@
+type: object
+properties:
+  user:
+    $ref: ./UserInfo.yaml
+  access_token:
+    type: string
+    description: 访问令牌
+    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  refresh_token:
+    type: string
+    description: 刷新令牌
+    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  expires_at:
+    type: integer
+    format: int64
+    description: 访问令牌过期时间戳
+    example: 1641024000
