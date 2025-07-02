@@ -1,9 +1,0 @@
-allOf:
-  - $ref: ./PageOutput.yaml
-  - type: object
-    properties:
-      users:
-        type: array
-        items:
-          $ref: ./UserInfo.yaml
-        description: 用户列表

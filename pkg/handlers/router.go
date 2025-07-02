@@ -17,9 +17,6 @@ func BuildRouter(c *services.Container) error {
 	// 设置自定义错误处理器
 	c.Web.HTTPErrorHandler = EchoErrorHandler(logger)
 
-	// 静态文件服务 - 提供Stoplight Elements资源
-	c.Web.Static("/static", "static")
-
 	// Non-static file route group.
 	g := c.Web.Group("")
 
