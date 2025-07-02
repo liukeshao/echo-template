@@ -89,14 +89,13 @@ return ValidationError(c, errs)
 ## API 开发流程
 
 ### API-First 模式
-1. **定义规范**: 在 [openapi/openapi.yaml](mdc:openapi/openapi.yaml) 中定义API
+1. **定义规范**: 在 [api-specs/openapi/openapi.yaml](mdc:api-specs/openapi/openapi.yaml) 中定义API，基于redocly多目录最佳实践
 2. **校验规范**: `make docs-lint`
-3. **生成文档**: `make docs-build`
-4. **实现代码**: 按规范实现Handler和类型
+3. **实现代码**: 按规范实现Handler和类型
 
 ### 常用命令
 ```bash
-make docs           # 校验规范并生成文档
+make docs-lint      # 校验 OpenAPI 规范
 make run            # 启动服务
 make ent-gen        # 生成Ent代码
 make ent-new name=Entity  # 创建新实体
@@ -106,7 +105,9 @@ make ent-new name=Entity  # 创建新实体
 ```
 echo-template/
 ├── cmd/web/main.go     # 主程序
-├── openapi/            # API规范
+├── api-specs/          # API规范
+│   ├── openapi/        # OpenAPI规范源文件
+│   └── package.json    # Redocly依赖管理
 ├── pkg/
 │   ├── handlers/       # HTTP处理器
 │   ├── services/       # 业务服务
@@ -114,9 +115,26 @@ echo-template/
 │   ├── middleware/     # 中间件
 │   ├── errors/         # 错误处理
 │   └── utils/          # 工具函数
-├── ent/                # 数据模型
-└── static/docs/        # 生成的文档
+└── ent/                # 数据模型
 ```
+
+## 文档规范 (Redocly)
+
+### 多文件组织
+- **根文件**: `api-specs/openapi/openapi.yaml` - 主要的API定义
+- **路径分离**: `api-specs/openapi/paths/` - 每个API端点单独文件
+- **组件分离**: `api-specs/openapi/components/schemas/` - 数据模型定义
+- **配置文件**: `api-specs/redocly.yaml` - Redocly配置和规则
+
+### 文档生成
+- **本地预览**: `cd api-specs && npm start`
+- **规范验证**: `make docs-lint`
+
+### 规范约定
+- 认证操作（注册/登录/刷新）使用 `security: []`
+- 需要认证的操作使用 `BearerAuth` 安全方案
+- 统一使用 200 状态码，通过 `code` 字段区分业务状态
+- 所有响应都继承自统一的 `Response` schema
 
 ## 开发原则
 - **API优先**: 先定义OpenAPI规范，后实现代码
@@ -124,6 +142,7 @@ echo-template/
 - **依赖注入**: 通过容器管理服务依赖
 - **HTTP 200**: 统一使用200状态码，通过code字段区分业务状态
 - **规范同步**: 确保OpenAPI规范与代码实现保持一致
+- **文档驱动**: 基于 Redocly 最佳实践维护API文档
 
 ## 日志规范
 ```go
@@ -134,3 +153,5 @@ slog.ErrorContext(ctx, "业务错误", "error", err)
 
 ---
 **记住**: 规范先行，文档驱动，统一响应，保持同步！
+
+**文档工作流**: 在 `api-specs/` 目录维护OpenAPI规范，使用 `make docs-lint` 命令验证文档。

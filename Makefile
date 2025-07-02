@@ -32,27 +32,3 @@ check-updates: ## Check for direct dependency updates
 docs-lint: ## 校验 OpenAPI 规范
 	@echo "🔍 校验 OpenAPI 规范..."
 	@cd api-specs && npm test
-
-.PHONY: docs-build
-docs-build: ## 生成静态 HTML 文档到 api-specs
-	@echo "🏗️  生成静态 HTML 文档..."
-	@cd api-specs && redocly build-docs openapi/openapi.yaml --output docs/index.html
-	@echo "✅ 文档生成完成: api-specs/docs/index.html"
-
-.PHONY: docs-bundle
-docs-bundle: ## 生成单文件 OpenAPI 规范
-	@echo "📦 生成单文件 OpenAPI 规范..."
-	@cd api-specs && npm run build
-	@echo "✅ 规范包生成完成: api-specs/dist/bundle.yaml"
-
-.PHONY: docs-clean
-docs-clean: ## 清理生成的文档文件
-	@echo "🧹 清理文档文件..."
-	@rm -rf api-specs/docs api-specs/dist
-
-.PHONY: docs-check
-docs-check: docs-lint docs-build docs-bundle ## 完整的文档检查和构建
-	@echo "✅ 文档检查和构建完成！"
-
-.PHONY: docs
-docs: docs-check ## docs-check 的别名
