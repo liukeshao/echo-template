@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -27,6 +28,7 @@ type UserQuery struct {
 	predicates        []predicate.User
 	withTokens        *TokenQuery
 	withDepartmentRel *DepartmentQuery
+	withPositionRel   *PositionQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -100,6 +102,28 @@ func (uq *UserQuery) QueryDepartmentRel() *DepartmentQuery {
 			sqlgraph.From(user.Table, user.FieldID, selector),
 			sqlgraph.To(department.Table, department.FieldID),
 			sqlgraph.Edge(sqlgraph.M2O, false, user.DepartmentRelTable, user.DepartmentRelColumn),
+		)
+		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
+		return fromU, nil
+	}
+	return query
+}
+
+// QueryPositionRel chains the current query on the "position_rel" edge.
+func (uq *UserQuery) QueryPositionRel() *PositionQuery {
+	query := (&PositionClient{config: uq.config}).Query()
+	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
+		if err := uq.prepareQuery(ctx); err != nil {
+			return nil, err
+		}
+		selector := uq.sqlQuery(ctx)
+		if err := selector.Err(); err != nil {
+			return nil, err
+		}
+		step := sqlgraph.NewStep(
+			sqlgraph.From(user.Table, user.FieldID, selector),
+			sqlgraph.To(position.Table, position.FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, user.PositionRelTable, user.PositionRelColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(uq.driver.Dialect(), step)
 		return fromU, nil
@@ -301,6 +325,7 @@ func (uq *UserQuery) Clone() *UserQuery {
 		predicates:        append([]predicate.User{}, uq.predicates...),
 		withTokens:        uq.withTokens.Clone(),
 		withDepartmentRel: uq.withDepartmentRel.Clone(),
+		withPositionRel:   uq.withPositionRel.Clone(),
 		// clone intermediate query.
 		sql:  uq.sql.Clone(),
 		path: uq.path,
@@ -326,6 +351,17 @@ func (uq *UserQuery) WithDepartmentRel(opts ...func(*DepartmentQuery)) *UserQuer
 		opt(query)
 	}
 	uq.withDepartmentRel = query
+	return uq
+}
+
+// WithPositionRel tells the query-builder to eager-load the nodes that are connected to
+// the "position_rel" edge. The optional arguments are used to configure the query builder of the edge.
+func (uq *UserQuery) WithPositionRel(opts ...func(*PositionQuery)) *UserQuery {
+	query := (&PositionClient{config: uq.config}).Query()
+	for _, opt := range opts {
+		opt(query)
+	}
+	uq.withPositionRel = query
 	return uq
 }
 
@@ -407,9 +443,10 @@ func (uq *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	var (
 		nodes       = []*User{}
 		_spec       = uq.querySpec()
-		loadedTypes = [2]bool{
+		loadedTypes = [3]bool{
 			uq.withTokens != nil,
 			uq.withDepartmentRel != nil,
+			uq.withPositionRel != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -440,6 +477,12 @@ func (uq *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	if query := uq.withDepartmentRel; query != nil {
 		if err := uq.loadDepartmentRel(ctx, query, nodes, nil,
 			func(n *User, e *Department) { n.Edges.DepartmentRel = e }); err != nil {
+			return nil, err
+		}
+	}
+	if query := uq.withPositionRel; query != nil {
+		if err := uq.loadPositionRel(ctx, query, nodes, nil,
+			func(n *User, e *Position) { n.Edges.PositionRel = e }); err != nil {
 			return nil, err
 		}
 	}
@@ -505,6 +548,35 @@ func (uq *UserQuery) loadDepartmentRel(ctx context.Context, query *DepartmentQue
 	}
 	return nil
 }
+func (uq *UserQuery) loadPositionRel(ctx context.Context, query *PositionQuery, nodes []*User, init func(*User), assign func(*User, *Position)) error {
+	ids := make([]string, 0, len(nodes))
+	nodeids := make(map[string][]*User)
+	for i := range nodes {
+		fk := nodes[i].PositionID
+		if _, ok := nodeids[fk]; !ok {
+			ids = append(ids, fk)
+		}
+		nodeids[fk] = append(nodeids[fk], nodes[i])
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	query.Where(position.IDIn(ids...))
+	neighbors, err := query.All(ctx)
+	if err != nil {
+		return err
+	}
+	for _, n := range neighbors {
+		nodes, ok := nodeids[n.ID]
+		if !ok {
+			return fmt.Errorf(`unexpected foreign-key "position_id" returned %v`, n.ID)
+		}
+		for i := range nodes {
+			assign(nodes[i], n)
+		}
+	}
+	return nil
+}
 
 func (uq *UserQuery) sqlCount(ctx context.Context) (int, error) {
 	_spec := uq.querySpec()
@@ -533,6 +605,9 @@ func (uq *UserQuery) querySpec() *sqlgraph.QuerySpec {
 		}
 		if uq.withDepartmentRel != nil {
 			_spec.Node.AddColumnOnce(user.FieldDepartmentID)
+		}
+		if uq.withPositionRel != nil {
+			_spec.Node.AddColumnOnce(user.FieldPositionID)
 		}
 	}
 	if ps := uq.predicates; len(ps) > 0 {

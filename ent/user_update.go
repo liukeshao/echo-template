@@ -12,6 +12,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -199,6 +200,26 @@ func (uu *UserUpdate) ClearPosition() *UserUpdate {
 	return uu
 }
 
+// SetPositionID sets the "position_id" field.
+func (uu *UserUpdate) SetPositionID(s string) *UserUpdate {
+	uu.mutation.SetPositionID(s)
+	return uu
+}
+
+// SetNillablePositionID sets the "position_id" field if the given value is not nil.
+func (uu *UserUpdate) SetNillablePositionID(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetPositionID(*s)
+	}
+	return uu
+}
+
+// ClearPositionID clears the value of the "position_id" field.
+func (uu *UserUpdate) ClearPositionID() *UserUpdate {
+	uu.mutation.ClearPositionID()
+	return uu
+}
+
 // SetRoles sets the "roles" field.
 func (uu *UserUpdate) SetRoles(s string) *UserUpdate {
 	uu.mutation.SetRoles(s)
@@ -329,6 +350,25 @@ func (uu *UserUpdate) SetDepartmentRel(d *Department) *UserUpdate {
 	return uu.SetDepartmentRelID(d.ID)
 }
 
+// SetPositionRelID sets the "position_rel" edge to the Position entity by ID.
+func (uu *UserUpdate) SetPositionRelID(id string) *UserUpdate {
+	uu.mutation.SetPositionRelID(id)
+	return uu
+}
+
+// SetNillablePositionRelID sets the "position_rel" edge to the Position entity by ID if the given value is not nil.
+func (uu *UserUpdate) SetNillablePositionRelID(id *string) *UserUpdate {
+	if id != nil {
+		uu = uu.SetPositionRelID(*id)
+	}
+	return uu
+}
+
+// SetPositionRel sets the "position_rel" edge to the Position entity.
+func (uu *UserUpdate) SetPositionRel(p *Position) *UserUpdate {
+	return uu.SetPositionRelID(p.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uu *UserUpdate) Mutation() *UserMutation {
 	return uu.mutation
@@ -358,6 +398,12 @@ func (uu *UserUpdate) RemoveTokens(t ...*Token) *UserUpdate {
 // ClearDepartmentRel clears the "department_rel" edge to the Department entity.
 func (uu *UserUpdate) ClearDepartmentRel() *UserUpdate {
 	uu.mutation.ClearDepartmentRel()
+	return uu
+}
+
+// ClearPositionRel clears the "position_rel" edge to the Position entity.
+func (uu *UserUpdate) ClearPositionRel() *UserUpdate {
+	uu.mutation.ClearPositionRel()
 	return uu
 }
 
@@ -443,6 +489,11 @@ func (uu *UserUpdate) check() error {
 	if v, ok := uu.mutation.Position(); ok {
 		if err := user.PositionValidator(v); err != nil {
 			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.PositionID(); ok {
+		if err := user.PositionIDValidator(v); err != nil {
+			return &ValidationError{Name: "position_id", err: fmt.Errorf(`ent: validator failed for field "User.position_id": %w`, err)}
 		}
 	}
 	if v, ok := uu.mutation.Roles(); ok {
@@ -608,6 +659,35 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if uu.mutation.PositionRelCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.PositionRelTable,
+			Columns: []string{user.PositionRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(position.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uu.mutation.PositionRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.PositionRelTable,
+			Columns: []string{user.PositionRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(position.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -804,6 +884,26 @@ func (uuo *UserUpdateOne) ClearPosition() *UserUpdateOne {
 	return uuo
 }
 
+// SetPositionID sets the "position_id" field.
+func (uuo *UserUpdateOne) SetPositionID(s string) *UserUpdateOne {
+	uuo.mutation.SetPositionID(s)
+	return uuo
+}
+
+// SetNillablePositionID sets the "position_id" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillablePositionID(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetPositionID(*s)
+	}
+	return uuo
+}
+
+// ClearPositionID clears the value of the "position_id" field.
+func (uuo *UserUpdateOne) ClearPositionID() *UserUpdateOne {
+	uuo.mutation.ClearPositionID()
+	return uuo
+}
+
 // SetRoles sets the "roles" field.
 func (uuo *UserUpdateOne) SetRoles(s string) *UserUpdateOne {
 	uuo.mutation.SetRoles(s)
@@ -934,6 +1034,25 @@ func (uuo *UserUpdateOne) SetDepartmentRel(d *Department) *UserUpdateOne {
 	return uuo.SetDepartmentRelID(d.ID)
 }
 
+// SetPositionRelID sets the "position_rel" edge to the Position entity by ID.
+func (uuo *UserUpdateOne) SetPositionRelID(id string) *UserUpdateOne {
+	uuo.mutation.SetPositionRelID(id)
+	return uuo
+}
+
+// SetNillablePositionRelID sets the "position_rel" edge to the Position entity by ID if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillablePositionRelID(id *string) *UserUpdateOne {
+	if id != nil {
+		uuo = uuo.SetPositionRelID(*id)
+	}
+	return uuo
+}
+
+// SetPositionRel sets the "position_rel" edge to the Position entity.
+func (uuo *UserUpdateOne) SetPositionRel(p *Position) *UserUpdateOne {
+	return uuo.SetPositionRelID(p.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uuo *UserUpdateOne) Mutation() *UserMutation {
 	return uuo.mutation
@@ -963,6 +1082,12 @@ func (uuo *UserUpdateOne) RemoveTokens(t ...*Token) *UserUpdateOne {
 // ClearDepartmentRel clears the "department_rel" edge to the Department entity.
 func (uuo *UserUpdateOne) ClearDepartmentRel() *UserUpdateOne {
 	uuo.mutation.ClearDepartmentRel()
+	return uuo
+}
+
+// ClearPositionRel clears the "position_rel" edge to the Position entity.
+func (uuo *UserUpdateOne) ClearPositionRel() *UserUpdateOne {
+	uuo.mutation.ClearPositionRel()
 	return uuo
 }
 
@@ -1061,6 +1186,11 @@ func (uuo *UserUpdateOne) check() error {
 	if v, ok := uuo.mutation.Position(); ok {
 		if err := user.PositionValidator(v); err != nil {
 			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.PositionID(); ok {
+		if err := user.PositionIDValidator(v); err != nil {
+			return &ValidationError{Name: "position_id", err: fmt.Errorf(`ent: validator failed for field "User.position_id": %w`, err)}
 		}
 	}
 	if v, ok := uuo.mutation.Roles(); ok {
@@ -1243,6 +1373,35 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if uuo.mutation.PositionRelCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.PositionRelTable,
+			Columns: []string{user.PositionRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(position.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uuo.mutation.PositionRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.PositionRelTable,
+			Columns: []string{user.PositionRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(position.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

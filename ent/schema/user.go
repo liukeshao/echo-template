@@ -72,6 +72,12 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Comment("岗位"),
 
+		// 岗位ID（关联字段）
+		field.String("position_id").
+			MaxLen(26).
+			Optional().
+			Comment("岗位ID"),
+
 		// 角色（支持多角色，用逗号分隔）
 		field.String("roles").
 			MaxLen(500).
@@ -118,6 +124,11 @@ func (User) Edges() []ent.Edge {
 		edge.To("department_rel", Department.Type).
 			Unique().
 			Field("department_id"),
+
+		// 用户所属岗位（多对一）
+		edge.To("position_rel", Position.Type).
+			Unique().
+			Field("position_id"),
 	}
 }
 
@@ -144,6 +155,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("department"),
 		index.Fields("department_id"),
 		index.Fields("position"),
+		index.Fields("position_id"),
 		index.Fields("roles"),
 		index.Fields("force_change_password"),
 		index.Fields("allow_multi_login"),
@@ -152,6 +164,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("department", "status"),
 		index.Fields("department_id", "status"),
 		index.Fields("position", "status"),
+		index.Fields("position_id", "status"),
 		index.Fields("status", "deleted_at"),
 	}
 }

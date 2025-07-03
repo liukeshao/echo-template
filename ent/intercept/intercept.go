@@ -9,6 +9,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -97,6 +98,33 @@ func (f TraverseDepartment) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.DepartmentQuery", q)
 }
 
+// The PositionFunc type is an adapter to allow the use of ordinary function as a Querier.
+type PositionFunc func(context.Context, *ent.PositionQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f PositionFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.PositionQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.PositionQuery", q)
+}
+
+// The TraversePosition type is an adapter to allow the use of ordinary function as Traverser.
+type TraversePosition func(context.Context, *ent.PositionQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraversePosition) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraversePosition) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.PositionQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.PositionQuery", q)
+}
+
 // The TokenFunc type is an adapter to allow the use of ordinary function as a Querier.
 type TokenFunc func(context.Context, *ent.TokenQuery) (ent.Value, error)
 
@@ -156,6 +184,8 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.DepartmentQuery:
 		return &query[*ent.DepartmentQuery, predicate.Department, department.OrderOption]{typ: ent.TypeDepartment, tq: q}, nil
+	case *ent.PositionQuery:
+		return &query[*ent.PositionQuery, predicate.Position, position.OrderOption]{typ: ent.TypePosition, tq: q}, nil
 	case *ent.TokenQuery:
 		return &query[*ent.TokenQuery, predicate.Token, token.OrderOption]{typ: ent.TypeToken, tq: q}, nil
 	case *ent.UserQuery:
