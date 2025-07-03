@@ -60,6 +60,12 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Comment("所属部门"),
 
+		// 所属部门ID（关联字段）
+		field.String("department_id").
+			MaxLen(26).
+			Optional().
+			Comment("所属部门ID"),
+
 		// 岗位
 		field.String("position").
 			MaxLen(100).
@@ -107,6 +113,11 @@ func (User) Edges() []ent.Edge {
 	return []ent.Edge{
 		// 一个用户可以有多个token
 		edge.To("tokens", Token.Type),
+
+		// 用户所属部门（多对一）
+		edge.To("department_rel", Department.Type).
+			Unique().
+			Field("department_id"),
 	}
 }
 
@@ -131,6 +142,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("username"),
 		index.Fields("phone"),
 		index.Fields("department"),
+		index.Fields("department_id"),
 		index.Fields("position"),
 		index.Fields("roles"),
 		index.Fields("force_change_password"),
@@ -138,6 +150,7 @@ func (User) Indexes() []ent.Index {
 
 		// 复合索引优化查询
 		index.Fields("department", "status"),
+		index.Fields("department_id", "status"),
 		index.Fields("position", "status"),
 		index.Fields("status", "deleted_at"),
 	}

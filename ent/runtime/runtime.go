@@ -5,6 +5,7 @@ package runtime
 import (
 	"time"
 
+	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/schema"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -14,6 +15,118 @@ import (
 // (default values, validators, hooks and policies) and stitches it
 // to their package variables.
 func init() {
+	departmentMixin := schema.Department{}.Mixin()
+	departmentMixinHooks0 := departmentMixin[0].Hooks()
+	department.Hooks[0] = departmentMixinHooks0[0]
+	departmentMixinInters0 := departmentMixin[0].Interceptors()
+	department.Interceptors[0] = departmentMixinInters0[0]
+	departmentMixinFields0 := departmentMixin[0].Fields()
+	_ = departmentMixinFields0
+	departmentFields := schema.Department{}.Fields()
+	_ = departmentFields
+	// departmentDescCreatedAt is the schema descriptor for created_at field.
+	departmentDescCreatedAt := departmentMixinFields0[1].Descriptor()
+	// department.DefaultCreatedAt holds the default value on creation for the created_at field.
+	department.DefaultCreatedAt = departmentDescCreatedAt.Default.(func() time.Time)
+	// departmentDescUpdatedAt is the schema descriptor for updated_at field.
+	departmentDescUpdatedAt := departmentMixinFields0[2].Descriptor()
+	// department.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	department.DefaultUpdatedAt = departmentDescUpdatedAt.Default.(func() time.Time)
+	// department.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	department.UpdateDefaultUpdatedAt = departmentDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// departmentDescDeletedAt is the schema descriptor for deleted_at field.
+	departmentDescDeletedAt := departmentMixinFields0[3].Descriptor()
+	// department.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	department.DefaultDeletedAt = departmentDescDeletedAt.Default.(int64)
+	// departmentDescParentID is the schema descriptor for parent_id field.
+	departmentDescParentID := departmentFields[0].Descriptor()
+	// department.ParentIDValidator is a validator for the "parent_id" field. It is called by the builders before save.
+	department.ParentIDValidator = departmentDescParentID.Validators[0].(func(string) error)
+	// departmentDescName is the schema descriptor for name field.
+	departmentDescName := departmentFields[1].Descriptor()
+	// department.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	department.NameValidator = func() func(string) error {
+		validators := departmentDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// departmentDescCode is the schema descriptor for code field.
+	departmentDescCode := departmentFields[2].Descriptor()
+	// department.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	department.CodeValidator = func() func(string) error {
+		validators := departmentDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// departmentDescManager is the schema descriptor for manager field.
+	departmentDescManager := departmentFields[3].Descriptor()
+	// department.ManagerValidator is a validator for the "manager" field. It is called by the builders before save.
+	department.ManagerValidator = departmentDescManager.Validators[0].(func(string) error)
+	// departmentDescManagerID is the schema descriptor for manager_id field.
+	departmentDescManagerID := departmentFields[4].Descriptor()
+	// department.ManagerIDValidator is a validator for the "manager_id" field. It is called by the builders before save.
+	department.ManagerIDValidator = departmentDescManagerID.Validators[0].(func(string) error)
+	// departmentDescPhone is the schema descriptor for phone field.
+	departmentDescPhone := departmentFields[5].Descriptor()
+	// department.PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
+	department.PhoneValidator = departmentDescPhone.Validators[0].(func(string) error)
+	// departmentDescDescription is the schema descriptor for description field.
+	departmentDescDescription := departmentFields[6].Descriptor()
+	// department.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
+	department.DescriptionValidator = departmentDescDescription.Validators[0].(func(string) error)
+	// departmentDescSortOrder is the schema descriptor for sort_order field.
+	departmentDescSortOrder := departmentFields[7].Descriptor()
+	// department.DefaultSortOrder holds the default value on creation for the sort_order field.
+	department.DefaultSortOrder = departmentDescSortOrder.Default.(int)
+	// departmentDescLevel is the schema descriptor for level field.
+	departmentDescLevel := departmentFields[9].Descriptor()
+	// department.DefaultLevel holds the default value on creation for the level field.
+	department.DefaultLevel = departmentDescLevel.Default.(int)
+	// departmentDescPath is the schema descriptor for path field.
+	departmentDescPath := departmentFields[10].Descriptor()
+	// department.DefaultPath holds the default value on creation for the path field.
+	department.DefaultPath = departmentDescPath.Default.(string)
+	// department.PathValidator is a validator for the "path" field. It is called by the builders before save.
+	department.PathValidator = departmentDescPath.Validators[0].(func(string) error)
+	// departmentDescID is the schema descriptor for id field.
+	departmentDescID := departmentMixinFields0[0].Descriptor()
+	// department.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	department.IDValidator = func() func(string) error {
+		validators := departmentDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	tokenMixin := schema.Token{}.Mixin()
 	tokenMixinHooks0 := tokenMixin[0].Hooks()
 	token.Hooks[0] = tokenMixinHooks0[0]
@@ -185,26 +298,30 @@ func init() {
 	userDescDepartment := userFields[5].Descriptor()
 	// user.DepartmentValidator is a validator for the "department" field. It is called by the builders before save.
 	user.DepartmentValidator = userDescDepartment.Validators[0].(func(string) error)
+	// userDescDepartmentID is the schema descriptor for department_id field.
+	userDescDepartmentID := userFields[6].Descriptor()
+	// user.DepartmentIDValidator is a validator for the "department_id" field. It is called by the builders before save.
+	user.DepartmentIDValidator = userDescDepartmentID.Validators[0].(func(string) error)
 	// userDescPosition is the schema descriptor for position field.
-	userDescPosition := userFields[6].Descriptor()
+	userDescPosition := userFields[7].Descriptor()
 	// user.PositionValidator is a validator for the "position" field. It is called by the builders before save.
 	user.PositionValidator = userDescPosition.Validators[0].(func(string) error)
 	// userDescRoles is the schema descriptor for roles field.
-	userDescRoles := userFields[7].Descriptor()
+	userDescRoles := userFields[8].Descriptor()
 	// user.DefaultRoles holds the default value on creation for the roles field.
 	user.DefaultRoles = userDescRoles.Default.(string)
 	// user.RolesValidator is a validator for the "roles" field. It is called by the builders before save.
 	user.RolesValidator = userDescRoles.Validators[0].(func(string) error)
 	// userDescForceChangePassword is the schema descriptor for force_change_password field.
-	userDescForceChangePassword := userFields[9].Descriptor()
+	userDescForceChangePassword := userFields[10].Descriptor()
 	// user.DefaultForceChangePassword holds the default value on creation for the force_change_password field.
 	user.DefaultForceChangePassword = userDescForceChangePassword.Default.(bool)
 	// userDescAllowMultiLogin is the schema descriptor for allow_multi_login field.
-	userDescAllowMultiLogin := userFields[10].Descriptor()
+	userDescAllowMultiLogin := userFields[11].Descriptor()
 	// user.DefaultAllowMultiLogin holds the default value on creation for the allow_multi_login field.
 	user.DefaultAllowMultiLogin = userDescAllowMultiLogin.Default.(bool)
 	// userDescLastLoginIP is the schema descriptor for last_login_ip field.
-	userDescLastLoginIP := userFields[12].Descriptor()
+	userDescLastLoginIP := userFields[13].Descriptor()
 	// user.LastLoginIPValidator is a validator for the "last_login_ip" field. It is called by the builders before save.
 	user.LastLoginIPValidator = userDescLastLoginIP.Validators[0].(func(string) error)
 	// userDescID is the schema descriptor for id field.

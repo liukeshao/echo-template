@@ -9,6 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
+	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -36,6 +37,8 @@ type User struct {
 	Phone string `json:"phone,omitempty"`
 	// 所属部门
 	Department string `json:"department,omitempty"`
+	// 所属部门ID
+	DepartmentID string `json:"department_id,omitempty"`
 	// 岗位
 	Position string `json:"position,omitempty"`
 	// 用户角色，多个角色用逗号分隔
@@ -60,9 +63,11 @@ type User struct {
 type UserEdges struct {
 	// Tokens holds the value of the tokens edge.
 	Tokens []*Token `json:"tokens,omitempty"`
+	// DepartmentRel holds the value of the department_rel edge.
+	DepartmentRel *Department `json:"department_rel,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [1]bool
+	loadedTypes [2]bool
 }
 
 // TokensOrErr returns the Tokens value or an error if the edge
@@ -74,6 +79,17 @@ func (e UserEdges) TokensOrErr() ([]*Token, error) {
 	return nil, &NotLoadedError{edge: "tokens"}
 }
 
+// DepartmentRelOrErr returns the DepartmentRel value or an error if the edge
+// was not loaded in eager-loading, or loaded but was not found.
+func (e UserEdges) DepartmentRelOrErr() (*Department, error) {
+	if e.DepartmentRel != nil {
+		return e.DepartmentRel, nil
+	} else if e.loadedTypes[1] {
+		return nil, &NotFoundError{label: department.Label}
+	}
+	return nil, &NotLoadedError{edge: "department_rel"}
+}
+
 // scanValues returns the types for scanning values from sql.Rows.
 func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
@@ -83,7 +99,7 @@ func (*User) scanValues(columns []string) ([]any, error) {
 			values[i] = new(sql.NullBool)
 		case user.FieldDeletedAt:
 			values[i] = new(sql.NullInt64)
-		case user.FieldID, user.FieldUsername, user.FieldEmail, user.FieldPasswordHash, user.FieldRealName, user.FieldPhone, user.FieldDepartment, user.FieldPosition, user.FieldRoles, user.FieldStatus, user.FieldLastLoginIP:
+		case user.FieldID, user.FieldUsername, user.FieldEmail, user.FieldPasswordHash, user.FieldRealName, user.FieldPhone, user.FieldDepartment, user.FieldDepartmentID, user.FieldPosition, user.FieldRoles, user.FieldStatus, user.FieldLastLoginIP:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldLastLoginAt:
 			values[i] = new(sql.NullTime)
@@ -162,6 +178,12 @@ func (u *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				u.Department = value.String
 			}
+		case user.FieldDepartmentID:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field department_id", values[i])
+			} else if value.Valid {
+				u.DepartmentID = value.String
+			}
 		case user.FieldPosition:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field position", values[i])
@@ -223,6 +245,11 @@ func (u *User) QueryTokens() *TokenQuery {
 	return NewUserClient(u.config).QueryTokens(u)
 }
 
+// QueryDepartmentRel queries the "department_rel" edge of the User entity.
+func (u *User) QueryDepartmentRel() *DepartmentQuery {
+	return NewUserClient(u.config).QueryDepartmentRel(u)
+}
+
 // Update returns a builder for updating this User.
 // Note that you need to call User.Unwrap() before calling this method if this User
 // was returned from a transaction, and the transaction was committed or rolled back.
@@ -271,6 +298,9 @@ func (u *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("department=")
 	builder.WriteString(u.Department)
+	builder.WriteString(", ")
+	builder.WriteString("department_id=")
+	builder.WriteString(u.DepartmentID)
 	builder.WriteString(", ")
 	builder.WriteString("position=")
 	builder.WriteString(u.Position)

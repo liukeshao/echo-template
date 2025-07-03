@@ -110,6 +110,11 @@ func Department(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldDepartment, v))
 }
 
+// DepartmentID applies equality check predicate on the "department_id" field. It's identical to DepartmentIDEQ.
+func DepartmentID(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDepartmentID, v))
+}
+
 // Position applies equality check predicate on the "position" field. It's identical to PositionEQ.
 func Position(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPosition, v))
@@ -680,6 +685,81 @@ func DepartmentContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldDepartment, v))
 }
 
+// DepartmentIDEQ applies the EQ predicate on the "department_id" field.
+func DepartmentIDEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldDepartmentID, v))
+}
+
+// DepartmentIDNEQ applies the NEQ predicate on the "department_id" field.
+func DepartmentIDNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldDepartmentID, v))
+}
+
+// DepartmentIDIn applies the In predicate on the "department_id" field.
+func DepartmentIDIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldDepartmentID, vs...))
+}
+
+// DepartmentIDNotIn applies the NotIn predicate on the "department_id" field.
+func DepartmentIDNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldDepartmentID, vs...))
+}
+
+// DepartmentIDGT applies the GT predicate on the "department_id" field.
+func DepartmentIDGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldDepartmentID, v))
+}
+
+// DepartmentIDGTE applies the GTE predicate on the "department_id" field.
+func DepartmentIDGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldDepartmentID, v))
+}
+
+// DepartmentIDLT applies the LT predicate on the "department_id" field.
+func DepartmentIDLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldDepartmentID, v))
+}
+
+// DepartmentIDLTE applies the LTE predicate on the "department_id" field.
+func DepartmentIDLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldDepartmentID, v))
+}
+
+// DepartmentIDContains applies the Contains predicate on the "department_id" field.
+func DepartmentIDContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldDepartmentID, v))
+}
+
+// DepartmentIDHasPrefix applies the HasPrefix predicate on the "department_id" field.
+func DepartmentIDHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldDepartmentID, v))
+}
+
+// DepartmentIDHasSuffix applies the HasSuffix predicate on the "department_id" field.
+func DepartmentIDHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldDepartmentID, v))
+}
+
+// DepartmentIDIsNil applies the IsNil predicate on the "department_id" field.
+func DepartmentIDIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldDepartmentID))
+}
+
+// DepartmentIDNotNil applies the NotNil predicate on the "department_id" field.
+func DepartmentIDNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldDepartmentID))
+}
+
+// DepartmentIDEqualFold applies the EqualFold predicate on the "department_id" field.
+func DepartmentIDEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldDepartmentID, v))
+}
+
+// DepartmentIDContainsFold applies the ContainsFold predicate on the "department_id" field.
+func DepartmentIDContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldDepartmentID, v))
+}
+
 // PositionEQ applies the EQ predicate on the "position" field.
 func PositionEQ(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPosition, v))
@@ -1000,6 +1080,29 @@ func HasTokens() predicate.User {
 func HasTokensWith(preds ...predicate.Token) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newTokensStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasDepartmentRel applies the HasEdge predicate on the "department_rel" edge.
+func HasDepartmentRel() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, DepartmentRelTable, DepartmentRelColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasDepartmentRelWith applies the HasEdge predicate on the "department_rel" edge with a given conditions (other predicates).
+func HasDepartmentRelWith(preds ...predicate.Department) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newDepartmentRelStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

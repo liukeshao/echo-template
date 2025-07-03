@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -158,6 +159,26 @@ func (uu *UserUpdate) ClearDepartment() *UserUpdate {
 	return uu
 }
 
+// SetDepartmentID sets the "department_id" field.
+func (uu *UserUpdate) SetDepartmentID(s string) *UserUpdate {
+	uu.mutation.SetDepartmentID(s)
+	return uu
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableDepartmentID(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetDepartmentID(*s)
+	}
+	return uu
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (uu *UserUpdate) ClearDepartmentID() *UserUpdate {
+	uu.mutation.ClearDepartmentID()
+	return uu
+}
+
 // SetPosition sets the "position" field.
 func (uu *UserUpdate) SetPosition(s string) *UserUpdate {
 	uu.mutation.SetPosition(s)
@@ -289,6 +310,25 @@ func (uu *UserUpdate) AddTokens(t ...*Token) *UserUpdate {
 	return uu.AddTokenIDs(ids...)
 }
 
+// SetDepartmentRelID sets the "department_rel" edge to the Department entity by ID.
+func (uu *UserUpdate) SetDepartmentRelID(id string) *UserUpdate {
+	uu.mutation.SetDepartmentRelID(id)
+	return uu
+}
+
+// SetNillableDepartmentRelID sets the "department_rel" edge to the Department entity by ID if the given value is not nil.
+func (uu *UserUpdate) SetNillableDepartmentRelID(id *string) *UserUpdate {
+	if id != nil {
+		uu = uu.SetDepartmentRelID(*id)
+	}
+	return uu
+}
+
+// SetDepartmentRel sets the "department_rel" edge to the Department entity.
+func (uu *UserUpdate) SetDepartmentRel(d *Department) *UserUpdate {
+	return uu.SetDepartmentRelID(d.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uu *UserUpdate) Mutation() *UserMutation {
 	return uu.mutation
@@ -313,6 +353,12 @@ func (uu *UserUpdate) RemoveTokens(t ...*Token) *UserUpdate {
 		ids[i] = t[i].ID
 	}
 	return uu.RemoveTokenIDs(ids...)
+}
+
+// ClearDepartmentRel clears the "department_rel" edge to the Department entity.
+func (uu *UserUpdate) ClearDepartmentRel() *UserUpdate {
+	uu.mutation.ClearDepartmentRel()
+	return uu
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -387,6 +433,11 @@ func (uu *UserUpdate) check() error {
 	if v, ok := uu.mutation.Department(); ok {
 		if err := user.DepartmentValidator(v); err != nil {
 			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.DepartmentID(); ok {
+		if err := user.DepartmentIDValidator(v); err != nil {
+			return &ValidationError{Name: "department_id", err: fmt.Errorf(`ent: validator failed for field "User.department_id": %w`, err)}
 		}
 	}
 	if v, ok := uu.mutation.Position(); ok {
@@ -528,6 +579,35 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(token.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if uu.mutation.DepartmentRelCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.DepartmentRelTable,
+			Columns: []string{user.DepartmentRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uu.mutation.DepartmentRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.DepartmentRelTable,
+			Columns: []string{user.DepartmentRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -684,6 +764,26 @@ func (uuo *UserUpdateOne) ClearDepartment() *UserUpdateOne {
 	return uuo
 }
 
+// SetDepartmentID sets the "department_id" field.
+func (uuo *UserUpdateOne) SetDepartmentID(s string) *UserUpdateOne {
+	uuo.mutation.SetDepartmentID(s)
+	return uuo
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableDepartmentID(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetDepartmentID(*s)
+	}
+	return uuo
+}
+
+// ClearDepartmentID clears the value of the "department_id" field.
+func (uuo *UserUpdateOne) ClearDepartmentID() *UserUpdateOne {
+	uuo.mutation.ClearDepartmentID()
+	return uuo
+}
+
 // SetPosition sets the "position" field.
 func (uuo *UserUpdateOne) SetPosition(s string) *UserUpdateOne {
 	uuo.mutation.SetPosition(s)
@@ -815,6 +915,25 @@ func (uuo *UserUpdateOne) AddTokens(t ...*Token) *UserUpdateOne {
 	return uuo.AddTokenIDs(ids...)
 }
 
+// SetDepartmentRelID sets the "department_rel" edge to the Department entity by ID.
+func (uuo *UserUpdateOne) SetDepartmentRelID(id string) *UserUpdateOne {
+	uuo.mutation.SetDepartmentRelID(id)
+	return uuo
+}
+
+// SetNillableDepartmentRelID sets the "department_rel" edge to the Department entity by ID if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableDepartmentRelID(id *string) *UserUpdateOne {
+	if id != nil {
+		uuo = uuo.SetDepartmentRelID(*id)
+	}
+	return uuo
+}
+
+// SetDepartmentRel sets the "department_rel" edge to the Department entity.
+func (uuo *UserUpdateOne) SetDepartmentRel(d *Department) *UserUpdateOne {
+	return uuo.SetDepartmentRelID(d.ID)
+}
+
 // Mutation returns the UserMutation object of the builder.
 func (uuo *UserUpdateOne) Mutation() *UserMutation {
 	return uuo.mutation
@@ -839,6 +958,12 @@ func (uuo *UserUpdateOne) RemoveTokens(t ...*Token) *UserUpdateOne {
 		ids[i] = t[i].ID
 	}
 	return uuo.RemoveTokenIDs(ids...)
+}
+
+// ClearDepartmentRel clears the "department_rel" edge to the Department entity.
+func (uuo *UserUpdateOne) ClearDepartmentRel() *UserUpdateOne {
+	uuo.mutation.ClearDepartmentRel()
+	return uuo
 }
 
 // Where appends a list predicates to the UserUpdate builder.
@@ -926,6 +1051,11 @@ func (uuo *UserUpdateOne) check() error {
 	if v, ok := uuo.mutation.Department(); ok {
 		if err := user.DepartmentValidator(v); err != nil {
 			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.DepartmentID(); ok {
+		if err := user.DepartmentIDValidator(v); err != nil {
+			return &ValidationError{Name: "department_id", err: fmt.Errorf(`ent: validator failed for field "User.department_id": %w`, err)}
 		}
 	}
 	if v, ok := uuo.mutation.Position(); ok {
@@ -1084,6 +1214,35 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(token.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if uuo.mutation.DepartmentRelCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.DepartmentRelTable,
+			Columns: []string{user.DepartmentRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := uuo.mutation.DepartmentRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.DepartmentRelTable,
+			Columns: []string{user.DepartmentRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

@@ -8,6 +8,110 @@ import (
 )
 
 var (
+	// DepartmentsColumns holds the columns for the "departments" table.
+	DepartmentsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "code", Type: field.TypeString, Size: 50},
+		{Name: "manager", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "manager_id", Type: field.TypeString, Nullable: true, Size: 26},
+		{Name: "phone", Type: field.TypeString, Nullable: true, Size: 20},
+		{Name: "description", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
+		{Name: "level", Type: field.TypeInt, Default: 0},
+		{Name: "path", Type: field.TypeString, Size: 1000, Default: ""},
+		{Name: "parent_id", Type: field.TypeString, Nullable: true, Size: 26},
+	}
+	// DepartmentsTable holds the schema information for the "departments" table.
+	DepartmentsTable = &schema.Table{
+		Name:       "departments",
+		Columns:    DepartmentsColumns,
+		PrimaryKey: []*schema.Column{DepartmentsColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "departments_departments_parent",
+				Columns:    []*schema.Column{DepartmentsColumns[14]},
+				RefColumns: []*schema.Column{DepartmentsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "department_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[3]},
+			},
+			{
+				Name:    "department_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[1]},
+			},
+			{
+				Name:    "department_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[2]},
+			},
+			{
+				Name:    "department_code_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{DepartmentsColumns[5], DepartmentsColumns[3]},
+			},
+			{
+				Name:    "department_parent_id",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[14]},
+			},
+			{
+				Name:    "department_status",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[11]},
+			},
+			{
+				Name:    "department_manager_id",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[7]},
+			},
+			{
+				Name:    "department_level",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[12]},
+			},
+			{
+				Name:    "department_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[10]},
+			},
+			{
+				Name:    "department_parent_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[14], DepartmentsColumns[11]},
+			},
+			{
+				Name:    "department_parent_id_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[14], DepartmentsColumns[10]},
+			},
+			{
+				Name:    "department_status_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[11], DepartmentsColumns[3]},
+			},
+			{
+				Name:    "department_level_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[12], DepartmentsColumns[10]},
+			},
+			{
+				Name:    "department_path",
+				Unique:  false,
+				Columns: []*schema.Column{DepartmentsColumns[13]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
@@ -106,12 +210,21 @@ var (
 		{Name: "allow_multi_login", Type: field.TypeBool, Default: true},
 		{Name: "last_login_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_login_ip", Type: field.TypeString, Nullable: true, Size: 45},
+		{Name: "department_id", Type: field.TypeString, Nullable: true, Size: 26},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
 		Name:       "users",
 		Columns:    UsersColumns,
 		PrimaryKey: []*schema.Column{UsersColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "users_departments_department_rel",
+				Columns:    []*schema.Column{UsersColumns[17]},
+				RefColumns: []*schema.Column{DepartmentsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
 		Indexes: []*schema.Index{
 			{
 				Name:    "user_deleted_at",
@@ -169,6 +282,11 @@ var (
 				Columns: []*schema.Column{UsersColumns[9]},
 			},
 			{
+				Name:    "user_department_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[17]},
+			},
+			{
 				Name:    "user_position",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[10]},
@@ -194,6 +312,11 @@ var (
 				Columns: []*schema.Column{UsersColumns[9], UsersColumns[12]},
 			},
 			{
+				Name:    "user_department_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[17], UsersColumns[12]},
+			},
+			{
 				Name:    "user_position_status",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[10], UsersColumns[12]},
@@ -207,11 +330,14 @@ var (
 	}
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
+		DepartmentsTable,
 		TokensTable,
 		UsersTable,
 	}
 )
 
 func init() {
+	DepartmentsTable.ForeignKeys[0].RefTable = DepartmentsTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
+	UsersTable.ForeignKeys[0].RefTable = DepartmentsTable
 }

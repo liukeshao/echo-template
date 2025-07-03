@@ -33,8 +33,9 @@ type Container struct {
 	// ORM stores a client to the ORM.
 	ORM *ent.Client
 
-	Auth *AuthService
-	User *UserService
+	Auth       *AuthService
+	User       *UserService
+	Department *DepartmentService
 }
 
 // NewContainer creates and initializes a new Container.
@@ -45,6 +46,7 @@ func NewContainer() *Container {
 	c.initDatabase()
 	c.initORM()
 	c.initAuth()
+	c.initServices()
 	return c
 }
 
@@ -111,6 +113,11 @@ func (c *Container) initORM() {
 func (c *Container) initAuth() {
 	jwtConfig := NewJWTConfigFromConfig(c.Config.JWT)
 	c.Auth = NewAuthService(c.ORM, jwtConfig)
+}
+
+func (c *Container) initServices() {
+	c.User = NewUserService(c.ORM)
+	c.Department = NewDepartmentService(c.ORM)
 }
 
 // openDB opens a database connection.

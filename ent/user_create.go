@@ -10,6 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
+	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
 )
@@ -119,6 +120,20 @@ func (uc *UserCreate) SetDepartment(s string) *UserCreate {
 func (uc *UserCreate) SetNillableDepartment(s *string) *UserCreate {
 	if s != nil {
 		uc.SetDepartment(*s)
+	}
+	return uc
+}
+
+// SetDepartmentID sets the "department_id" field.
+func (uc *UserCreate) SetDepartmentID(s string) *UserCreate {
+	uc.mutation.SetDepartmentID(s)
+	return uc
+}
+
+// SetNillableDepartmentID sets the "department_id" field if the given value is not nil.
+func (uc *UserCreate) SetNillableDepartmentID(s *string) *UserCreate {
+	if s != nil {
+		uc.SetDepartmentID(*s)
 	}
 	return uc
 }
@@ -240,6 +255,25 @@ func (uc *UserCreate) AddTokens(t ...*Token) *UserCreate {
 		ids[i] = t[i].ID
 	}
 	return uc.AddTokenIDs(ids...)
+}
+
+// SetDepartmentRelID sets the "department_rel" edge to the Department entity by ID.
+func (uc *UserCreate) SetDepartmentRelID(id string) *UserCreate {
+	uc.mutation.SetDepartmentRelID(id)
+	return uc
+}
+
+// SetNillableDepartmentRelID sets the "department_rel" edge to the Department entity by ID if the given value is not nil.
+func (uc *UserCreate) SetNillableDepartmentRelID(id *string) *UserCreate {
+	if id != nil {
+		uc = uc.SetDepartmentRelID(*id)
+	}
+	return uc
+}
+
+// SetDepartmentRel sets the "department_rel" edge to the Department entity.
+func (uc *UserCreate) SetDepartmentRel(d *Department) *UserCreate {
+	return uc.SetDepartmentRelID(d.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -364,6 +398,11 @@ func (uc *UserCreate) check() error {
 	if v, ok := uc.mutation.Department(); ok {
 		if err := user.DepartmentValidator(v); err != nil {
 			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uc.mutation.DepartmentID(); ok {
+		if err := user.DepartmentIDValidator(v); err != nil {
+			return &ValidationError{Name: "department_id", err: fmt.Errorf(`ent: validator failed for field "User.department_id": %w`, err)}
 		}
 	}
 	if v, ok := uc.mutation.Position(); ok {
@@ -516,6 +555,23 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		for _, k := range nodes {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.DepartmentRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.DepartmentRelTable,
+			Columns: []string{user.DepartmentRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(department.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.DepartmentID = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec
