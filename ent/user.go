@@ -30,10 +30,26 @@ type User struct {
 	Email string `json:"email,omitempty"`
 	// 密码哈希值
 	PasswordHash string `json:"-"`
+	// 真实姓名
+	RealName string `json:"real_name,omitempty"`
+	// 手机号
+	Phone string `json:"phone,omitempty"`
+	// 所属部门
+	Department string `json:"department,omitempty"`
+	// 岗位
+	Position string `json:"position,omitempty"`
+	// 用户角色，多个角色用逗号分隔
+	Roles string `json:"roles,omitempty"`
 	// 用户状态：active-活跃，inactive-非活跃，suspended-停用
 	Status user.Status `json:"status,omitempty"`
+	// 是否强制修改密码
+	ForceChangePassword bool `json:"force_change_password,omitempty"`
+	// 是否允许多端登录
+	AllowMultiLogin bool `json:"allow_multi_login,omitempty"`
 	// 最后登录时间
 	LastLoginAt *time.Time `json:"last_login_at,omitempty"`
+	// 最后登录IP
+	LastLoginIP string `json:"last_login_ip,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
 	// The values are being populated by the UserQuery when eager-loading is set.
 	Edges        UserEdges `json:"edges"`
@@ -63,9 +79,11 @@ func (*User) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
+		case user.FieldForceChangePassword, user.FieldAllowMultiLogin:
+			values[i] = new(sql.NullBool)
 		case user.FieldDeletedAt:
 			values[i] = new(sql.NullInt64)
-		case user.FieldID, user.FieldUsername, user.FieldEmail, user.FieldPasswordHash, user.FieldStatus:
+		case user.FieldID, user.FieldUsername, user.FieldEmail, user.FieldPasswordHash, user.FieldRealName, user.FieldPhone, user.FieldDepartment, user.FieldPosition, user.FieldRoles, user.FieldStatus, user.FieldLastLoginIP:
 			values[i] = new(sql.NullString)
 		case user.FieldCreatedAt, user.FieldUpdatedAt, user.FieldLastLoginAt:
 			values[i] = new(sql.NullTime)
@@ -126,11 +144,53 @@ func (u *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				u.PasswordHash = value.String
 			}
+		case user.FieldRealName:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field real_name", values[i])
+			} else if value.Valid {
+				u.RealName = value.String
+			}
+		case user.FieldPhone:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field phone", values[i])
+			} else if value.Valid {
+				u.Phone = value.String
+			}
+		case user.FieldDepartment:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field department", values[i])
+			} else if value.Valid {
+				u.Department = value.String
+			}
+		case user.FieldPosition:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field position", values[i])
+			} else if value.Valid {
+				u.Position = value.String
+			}
+		case user.FieldRoles:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field roles", values[i])
+			} else if value.Valid {
+				u.Roles = value.String
+			}
 		case user.FieldStatus:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field status", values[i])
 			} else if value.Valid {
 				u.Status = user.Status(value.String)
+			}
+		case user.FieldForceChangePassword:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field force_change_password", values[i])
+			} else if value.Valid {
+				u.ForceChangePassword = value.Bool
+			}
+		case user.FieldAllowMultiLogin:
+			if value, ok := values[i].(*sql.NullBool); !ok {
+				return fmt.Errorf("unexpected type %T for field allow_multi_login", values[i])
+			} else if value.Valid {
+				u.AllowMultiLogin = value.Bool
 			}
 		case user.FieldLastLoginAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -138,6 +198,12 @@ func (u *User) assignValues(columns []string, values []any) error {
 			} else if value.Valid {
 				u.LastLoginAt = new(time.Time)
 				*u.LastLoginAt = value.Time
+			}
+		case user.FieldLastLoginIP:
+			if value, ok := values[i].(*sql.NullString); !ok {
+				return fmt.Errorf("unexpected type %T for field last_login_ip", values[i])
+			} else if value.Valid {
+				u.LastLoginIP = value.String
 			}
 		default:
 			u.selectValues.Set(columns[i], values[i])
@@ -197,13 +263,37 @@ func (u *User) String() string {
 	builder.WriteString(", ")
 	builder.WriteString("password_hash=<sensitive>")
 	builder.WriteString(", ")
+	builder.WriteString("real_name=")
+	builder.WriteString(u.RealName)
+	builder.WriteString(", ")
+	builder.WriteString("phone=")
+	builder.WriteString(u.Phone)
+	builder.WriteString(", ")
+	builder.WriteString("department=")
+	builder.WriteString(u.Department)
+	builder.WriteString(", ")
+	builder.WriteString("position=")
+	builder.WriteString(u.Position)
+	builder.WriteString(", ")
+	builder.WriteString("roles=")
+	builder.WriteString(u.Roles)
+	builder.WriteString(", ")
 	builder.WriteString("status=")
 	builder.WriteString(fmt.Sprintf("%v", u.Status))
+	builder.WriteString(", ")
+	builder.WriteString("force_change_password=")
+	builder.WriteString(fmt.Sprintf("%v", u.ForceChangePassword))
+	builder.WriteString(", ")
+	builder.WriteString("allow_multi_login=")
+	builder.WriteString(fmt.Sprintf("%v", u.AllowMultiLogin))
 	builder.WriteString(", ")
 	if v := u.LastLoginAt; v != nil {
 		builder.WriteString("last_login_at=")
 		builder.WriteString(v.Format(time.ANSIC))
 	}
+	builder.WriteString(", ")
+	builder.WriteString("last_login_ip=")
+	builder.WriteString(u.LastLoginIP)
 	builder.WriteByte(')')
 	return builder.String()
 }

@@ -96,8 +96,16 @@ var (
 		{Name: "username", Type: field.TypeString, Size: 50},
 		{Name: "email", Type: field.TypeString, Size: 255},
 		{Name: "password_hash", Type: field.TypeString, Size: 255},
+		{Name: "real_name", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "phone", Type: field.TypeString, Nullable: true, Size: 20},
+		{Name: "department", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "position", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "roles", Type: field.TypeString, Size: 500, Default: "user"},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive", "suspended"}, Default: "active"},
+		{Name: "force_change_password", Type: field.TypeBool, Default: false},
+		{Name: "allow_multi_login", Type: field.TypeBool, Default: true},
 		{Name: "last_login_at", Type: field.TypeTime, Nullable: true},
+		{Name: "last_login_ip", Type: field.TypeString, Nullable: true, Size: 45},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -131,9 +139,14 @@ var (
 				Columns: []*schema.Column{UsersColumns[4], UsersColumns[3]},
 			},
 			{
+				Name:    "user_phone_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{UsersColumns[8], UsersColumns[3]},
+			},
+			{
 				Name:    "user_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[7]},
+				Columns: []*schema.Column{UsersColumns[12]},
 			},
 			{
 				Name:    "user_email",
@@ -144,6 +157,51 @@ var (
 				Name:    "user_username",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[4]},
+			},
+			{
+				Name:    "user_phone",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[8]},
+			},
+			{
+				Name:    "user_department",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[9]},
+			},
+			{
+				Name:    "user_position",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[10]},
+			},
+			{
+				Name:    "user_roles",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[11]},
+			},
+			{
+				Name:    "user_force_change_password",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[13]},
+			},
+			{
+				Name:    "user_allow_multi_login",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[14]},
+			},
+			{
+				Name:    "user_department_status",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[9], UsersColumns[12]},
+			},
+			{
+				Name:    "user_position_status",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[10], UsersColumns[12]},
+			},
+			{
+				Name:    "user_status_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[12], UsersColumns[3]},
 			},
 		},
 	}

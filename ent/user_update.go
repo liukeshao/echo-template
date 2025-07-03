@@ -98,6 +98,100 @@ func (uu *UserUpdate) SetNillablePasswordHash(s *string) *UserUpdate {
 	return uu
 }
 
+// SetRealName sets the "real_name" field.
+func (uu *UserUpdate) SetRealName(s string) *UserUpdate {
+	uu.mutation.SetRealName(s)
+	return uu
+}
+
+// SetNillableRealName sets the "real_name" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableRealName(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetRealName(*s)
+	}
+	return uu
+}
+
+// ClearRealName clears the value of the "real_name" field.
+func (uu *UserUpdate) ClearRealName() *UserUpdate {
+	uu.mutation.ClearRealName()
+	return uu
+}
+
+// SetPhone sets the "phone" field.
+func (uu *UserUpdate) SetPhone(s string) *UserUpdate {
+	uu.mutation.SetPhone(s)
+	return uu
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (uu *UserUpdate) SetNillablePhone(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetPhone(*s)
+	}
+	return uu
+}
+
+// ClearPhone clears the value of the "phone" field.
+func (uu *UserUpdate) ClearPhone() *UserUpdate {
+	uu.mutation.ClearPhone()
+	return uu
+}
+
+// SetDepartment sets the "department" field.
+func (uu *UserUpdate) SetDepartment(s string) *UserUpdate {
+	uu.mutation.SetDepartment(s)
+	return uu
+}
+
+// SetNillableDepartment sets the "department" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableDepartment(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetDepartment(*s)
+	}
+	return uu
+}
+
+// ClearDepartment clears the value of the "department" field.
+func (uu *UserUpdate) ClearDepartment() *UserUpdate {
+	uu.mutation.ClearDepartment()
+	return uu
+}
+
+// SetPosition sets the "position" field.
+func (uu *UserUpdate) SetPosition(s string) *UserUpdate {
+	uu.mutation.SetPosition(s)
+	return uu
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (uu *UserUpdate) SetNillablePosition(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetPosition(*s)
+	}
+	return uu
+}
+
+// ClearPosition clears the value of the "position" field.
+func (uu *UserUpdate) ClearPosition() *UserUpdate {
+	uu.mutation.ClearPosition()
+	return uu
+}
+
+// SetRoles sets the "roles" field.
+func (uu *UserUpdate) SetRoles(s string) *UserUpdate {
+	uu.mutation.SetRoles(s)
+	return uu
+}
+
+// SetNillableRoles sets the "roles" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableRoles(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetRoles(*s)
+	}
+	return uu
+}
+
 // SetStatus sets the "status" field.
 func (uu *UserUpdate) SetStatus(u user.Status) *UserUpdate {
 	uu.mutation.SetStatus(u)
@@ -108,6 +202,34 @@ func (uu *UserUpdate) SetStatus(u user.Status) *UserUpdate {
 func (uu *UserUpdate) SetNillableStatus(u *user.Status) *UserUpdate {
 	if u != nil {
 		uu.SetStatus(*u)
+	}
+	return uu
+}
+
+// SetForceChangePassword sets the "force_change_password" field.
+func (uu *UserUpdate) SetForceChangePassword(b bool) *UserUpdate {
+	uu.mutation.SetForceChangePassword(b)
+	return uu
+}
+
+// SetNillableForceChangePassword sets the "force_change_password" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableForceChangePassword(b *bool) *UserUpdate {
+	if b != nil {
+		uu.SetForceChangePassword(*b)
+	}
+	return uu
+}
+
+// SetAllowMultiLogin sets the "allow_multi_login" field.
+func (uu *UserUpdate) SetAllowMultiLogin(b bool) *UserUpdate {
+	uu.mutation.SetAllowMultiLogin(b)
+	return uu
+}
+
+// SetNillableAllowMultiLogin sets the "allow_multi_login" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableAllowMultiLogin(b *bool) *UserUpdate {
+	if b != nil {
+		uu.SetAllowMultiLogin(*b)
 	}
 	return uu
 }
@@ -129,6 +251,26 @@ func (uu *UserUpdate) SetNillableLastLoginAt(t *time.Time) *UserUpdate {
 // ClearLastLoginAt clears the value of the "last_login_at" field.
 func (uu *UserUpdate) ClearLastLoginAt() *UserUpdate {
 	uu.mutation.ClearLastLoginAt()
+	return uu
+}
+
+// SetLastLoginIP sets the "last_login_ip" field.
+func (uu *UserUpdate) SetLastLoginIP(s string) *UserUpdate {
+	uu.mutation.SetLastLoginIP(s)
+	return uu
+}
+
+// SetNillableLastLoginIP sets the "last_login_ip" field if the given value is not nil.
+func (uu *UserUpdate) SetNillableLastLoginIP(s *string) *UserUpdate {
+	if s != nil {
+		uu.SetLastLoginIP(*s)
+	}
+	return uu
+}
+
+// ClearLastLoginIP clears the value of the "last_login_ip" field.
+func (uu *UserUpdate) ClearLastLoginIP() *UserUpdate {
+	uu.mutation.ClearLastLoginIP()
 	return uu
 }
 
@@ -232,9 +374,39 @@ func (uu *UserUpdate) check() error {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "User.password_hash": %w`, err)}
 		}
 	}
+	if v, ok := uu.mutation.RealName(); ok {
+		if err := user.RealNameValidator(v); err != nil {
+			return &ValidationError{Name: "real_name", err: fmt.Errorf(`ent: validator failed for field "User.real_name": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.Department(); ok {
+		if err := user.DepartmentValidator(v); err != nil {
+			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.Position(); ok {
+		if err := user.PositionValidator(v); err != nil {
+			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.Roles(); ok {
+		if err := user.RolesValidator(v); err != nil {
+			return &ValidationError{Name: "roles", err: fmt.Errorf(`ent: validator failed for field "User.roles": %w`, err)}
+		}
+	}
 	if v, ok := uu.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
+		}
+	}
+	if v, ok := uu.mutation.LastLoginIP(); ok {
+		if err := user.LastLoginIPValidator(v); err != nil {
+			return &ValidationError{Name: "last_login_ip", err: fmt.Errorf(`ent: validator failed for field "User.last_login_ip": %w`, err)}
 		}
 	}
 	return nil
@@ -270,14 +442,53 @@ func (uu *UserUpdate) sqlSave(ctx context.Context) (n int, err error) {
 	if value, ok := uu.mutation.PasswordHash(); ok {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
 	}
+	if value, ok := uu.mutation.RealName(); ok {
+		_spec.SetField(user.FieldRealName, field.TypeString, value)
+	}
+	if uu.mutation.RealNameCleared() {
+		_spec.ClearField(user.FieldRealName, field.TypeString)
+	}
+	if value, ok := uu.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if uu.mutation.PhoneCleared() {
+		_spec.ClearField(user.FieldPhone, field.TypeString)
+	}
+	if value, ok := uu.mutation.Department(); ok {
+		_spec.SetField(user.FieldDepartment, field.TypeString, value)
+	}
+	if uu.mutation.DepartmentCleared() {
+		_spec.ClearField(user.FieldDepartment, field.TypeString)
+	}
+	if value, ok := uu.mutation.Position(); ok {
+		_spec.SetField(user.FieldPosition, field.TypeString, value)
+	}
+	if uu.mutation.PositionCleared() {
+		_spec.ClearField(user.FieldPosition, field.TypeString)
+	}
+	if value, ok := uu.mutation.Roles(); ok {
+		_spec.SetField(user.FieldRoles, field.TypeString, value)
+	}
 	if value, ok := uu.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := uu.mutation.ForceChangePassword(); ok {
+		_spec.SetField(user.FieldForceChangePassword, field.TypeBool, value)
+	}
+	if value, ok := uu.mutation.AllowMultiLogin(); ok {
+		_spec.SetField(user.FieldAllowMultiLogin, field.TypeBool, value)
 	}
 	if value, ok := uu.mutation.LastLoginAt(); ok {
 		_spec.SetField(user.FieldLastLoginAt, field.TypeTime, value)
 	}
 	if uu.mutation.LastLoginAtCleared() {
 		_spec.ClearField(user.FieldLastLoginAt, field.TypeTime)
+	}
+	if value, ok := uu.mutation.LastLoginIP(); ok {
+		_spec.SetField(user.FieldLastLoginIP, field.TypeString, value)
+	}
+	if uu.mutation.LastLoginIPCleared() {
+		_spec.ClearField(user.FieldLastLoginIP, field.TypeString)
 	}
 	if uu.mutation.TokensCleared() {
 		edge := &sqlgraph.EdgeSpec{
@@ -413,6 +624,100 @@ func (uuo *UserUpdateOne) SetNillablePasswordHash(s *string) *UserUpdateOne {
 	return uuo
 }
 
+// SetRealName sets the "real_name" field.
+func (uuo *UserUpdateOne) SetRealName(s string) *UserUpdateOne {
+	uuo.mutation.SetRealName(s)
+	return uuo
+}
+
+// SetNillableRealName sets the "real_name" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableRealName(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetRealName(*s)
+	}
+	return uuo
+}
+
+// ClearRealName clears the value of the "real_name" field.
+func (uuo *UserUpdateOne) ClearRealName() *UserUpdateOne {
+	uuo.mutation.ClearRealName()
+	return uuo
+}
+
+// SetPhone sets the "phone" field.
+func (uuo *UserUpdateOne) SetPhone(s string) *UserUpdateOne {
+	uuo.mutation.SetPhone(s)
+	return uuo
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillablePhone(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetPhone(*s)
+	}
+	return uuo
+}
+
+// ClearPhone clears the value of the "phone" field.
+func (uuo *UserUpdateOne) ClearPhone() *UserUpdateOne {
+	uuo.mutation.ClearPhone()
+	return uuo
+}
+
+// SetDepartment sets the "department" field.
+func (uuo *UserUpdateOne) SetDepartment(s string) *UserUpdateOne {
+	uuo.mutation.SetDepartment(s)
+	return uuo
+}
+
+// SetNillableDepartment sets the "department" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableDepartment(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetDepartment(*s)
+	}
+	return uuo
+}
+
+// ClearDepartment clears the value of the "department" field.
+func (uuo *UserUpdateOne) ClearDepartment() *UserUpdateOne {
+	uuo.mutation.ClearDepartment()
+	return uuo
+}
+
+// SetPosition sets the "position" field.
+func (uuo *UserUpdateOne) SetPosition(s string) *UserUpdateOne {
+	uuo.mutation.SetPosition(s)
+	return uuo
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillablePosition(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetPosition(*s)
+	}
+	return uuo
+}
+
+// ClearPosition clears the value of the "position" field.
+func (uuo *UserUpdateOne) ClearPosition() *UserUpdateOne {
+	uuo.mutation.ClearPosition()
+	return uuo
+}
+
+// SetRoles sets the "roles" field.
+func (uuo *UserUpdateOne) SetRoles(s string) *UserUpdateOne {
+	uuo.mutation.SetRoles(s)
+	return uuo
+}
+
+// SetNillableRoles sets the "roles" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableRoles(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetRoles(*s)
+	}
+	return uuo
+}
+
 // SetStatus sets the "status" field.
 func (uuo *UserUpdateOne) SetStatus(u user.Status) *UserUpdateOne {
 	uuo.mutation.SetStatus(u)
@@ -423,6 +728,34 @@ func (uuo *UserUpdateOne) SetStatus(u user.Status) *UserUpdateOne {
 func (uuo *UserUpdateOne) SetNillableStatus(u *user.Status) *UserUpdateOne {
 	if u != nil {
 		uuo.SetStatus(*u)
+	}
+	return uuo
+}
+
+// SetForceChangePassword sets the "force_change_password" field.
+func (uuo *UserUpdateOne) SetForceChangePassword(b bool) *UserUpdateOne {
+	uuo.mutation.SetForceChangePassword(b)
+	return uuo
+}
+
+// SetNillableForceChangePassword sets the "force_change_password" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableForceChangePassword(b *bool) *UserUpdateOne {
+	if b != nil {
+		uuo.SetForceChangePassword(*b)
+	}
+	return uuo
+}
+
+// SetAllowMultiLogin sets the "allow_multi_login" field.
+func (uuo *UserUpdateOne) SetAllowMultiLogin(b bool) *UserUpdateOne {
+	uuo.mutation.SetAllowMultiLogin(b)
+	return uuo
+}
+
+// SetNillableAllowMultiLogin sets the "allow_multi_login" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableAllowMultiLogin(b *bool) *UserUpdateOne {
+	if b != nil {
+		uuo.SetAllowMultiLogin(*b)
 	}
 	return uuo
 }
@@ -444,6 +777,26 @@ func (uuo *UserUpdateOne) SetNillableLastLoginAt(t *time.Time) *UserUpdateOne {
 // ClearLastLoginAt clears the value of the "last_login_at" field.
 func (uuo *UserUpdateOne) ClearLastLoginAt() *UserUpdateOne {
 	uuo.mutation.ClearLastLoginAt()
+	return uuo
+}
+
+// SetLastLoginIP sets the "last_login_ip" field.
+func (uuo *UserUpdateOne) SetLastLoginIP(s string) *UserUpdateOne {
+	uuo.mutation.SetLastLoginIP(s)
+	return uuo
+}
+
+// SetNillableLastLoginIP sets the "last_login_ip" field if the given value is not nil.
+func (uuo *UserUpdateOne) SetNillableLastLoginIP(s *string) *UserUpdateOne {
+	if s != nil {
+		uuo.SetLastLoginIP(*s)
+	}
+	return uuo
+}
+
+// ClearLastLoginIP clears the value of the "last_login_ip" field.
+func (uuo *UserUpdateOne) ClearLastLoginIP() *UserUpdateOne {
+	uuo.mutation.ClearLastLoginIP()
 	return uuo
 }
 
@@ -560,9 +913,39 @@ func (uuo *UserUpdateOne) check() error {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "User.password_hash": %w`, err)}
 		}
 	}
+	if v, ok := uuo.mutation.RealName(); ok {
+		if err := user.RealNameValidator(v); err != nil {
+			return &ValidationError{Name: "real_name", err: fmt.Errorf(`ent: validator failed for field "User.real_name": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.Department(); ok {
+		if err := user.DepartmentValidator(v); err != nil {
+			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.Position(); ok {
+		if err := user.PositionValidator(v); err != nil {
+			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.Roles(); ok {
+		if err := user.RolesValidator(v); err != nil {
+			return &ValidationError{Name: "roles", err: fmt.Errorf(`ent: validator failed for field "User.roles": %w`, err)}
+		}
+	}
 	if v, ok := uuo.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
+		}
+	}
+	if v, ok := uuo.mutation.LastLoginIP(); ok {
+		if err := user.LastLoginIPValidator(v); err != nil {
+			return &ValidationError{Name: "last_login_ip", err: fmt.Errorf(`ent: validator failed for field "User.last_login_ip": %w`, err)}
 		}
 	}
 	return nil
@@ -615,14 +998,53 @@ func (uuo *UserUpdateOne) sqlSave(ctx context.Context) (_node *User, err error) 
 	if value, ok := uuo.mutation.PasswordHash(); ok {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
 	}
+	if value, ok := uuo.mutation.RealName(); ok {
+		_spec.SetField(user.FieldRealName, field.TypeString, value)
+	}
+	if uuo.mutation.RealNameCleared() {
+		_spec.ClearField(user.FieldRealName, field.TypeString)
+	}
+	if value, ok := uuo.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+	}
+	if uuo.mutation.PhoneCleared() {
+		_spec.ClearField(user.FieldPhone, field.TypeString)
+	}
+	if value, ok := uuo.mutation.Department(); ok {
+		_spec.SetField(user.FieldDepartment, field.TypeString, value)
+	}
+	if uuo.mutation.DepartmentCleared() {
+		_spec.ClearField(user.FieldDepartment, field.TypeString)
+	}
+	if value, ok := uuo.mutation.Position(); ok {
+		_spec.SetField(user.FieldPosition, field.TypeString, value)
+	}
+	if uuo.mutation.PositionCleared() {
+		_spec.ClearField(user.FieldPosition, field.TypeString)
+	}
+	if value, ok := uuo.mutation.Roles(); ok {
+		_spec.SetField(user.FieldRoles, field.TypeString, value)
+	}
 	if value, ok := uuo.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
+	}
+	if value, ok := uuo.mutation.ForceChangePassword(); ok {
+		_spec.SetField(user.FieldForceChangePassword, field.TypeBool, value)
+	}
+	if value, ok := uuo.mutation.AllowMultiLogin(); ok {
+		_spec.SetField(user.FieldAllowMultiLogin, field.TypeBool, value)
 	}
 	if value, ok := uuo.mutation.LastLoginAt(); ok {
 		_spec.SetField(user.FieldLastLoginAt, field.TypeTime, value)
 	}
 	if uuo.mutation.LastLoginAtCleared() {
 		_spec.ClearField(user.FieldLastLoginAt, field.TypeTime)
+	}
+	if value, ok := uuo.mutation.LastLoginIP(); ok {
+		_spec.SetField(user.FieldLastLoginIP, field.TypeString, value)
+	}
+	if uuo.mutation.LastLoginIPCleared() {
+		_spec.ClearField(user.FieldLastLoginIP, field.TypeString)
 	}
 	if uuo.mutation.TokensCleared() {
 		edge := &sqlgraph.EdgeSpec{

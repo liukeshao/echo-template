@@ -26,6 +26,56 @@ func NewMeService(orm *ent.Client) *MeService {
 	}
 }
 
+// toUserInfo 将用户实体转换为UserInfo
+func (s *UserService) toUserInfo(u *ent.User) *types.UserInfo {
+	// 解析角色字符串为数组
+	var roles []string
+	if u.Roles != "" {
+		roles = strings.Split(u.Roles, ",")
+		// 清理空白字符
+		for i, role := range roles {
+			roles[i] = strings.TrimSpace(role)
+		}
+	} else {
+		roles = []string{}
+	}
+
+	// 处理可选字段的指针转换
+	var realName, phone, department, position, lastLoginIP *string
+	if u.RealName != "" {
+		realName = &u.RealName
+	}
+	if u.Phone != "" {
+		phone = &u.Phone
+	}
+	if u.Department != "" {
+		department = &u.Department
+	}
+	if u.Position != "" {
+		position = &u.Position
+	}
+	if u.LastLoginIP != "" {
+		lastLoginIP = &u.LastLoginIP
+	}
+
+	return &types.UserInfo{
+		ID:                  u.ID,
+		Username:            u.Username,
+		Email:               u.Email,
+		RealName:            realName,
+		Phone:               phone,
+		Department:          department,
+		Position:            position,
+		Roles:               roles,
+		Status:              string(u.Status),
+		ForceChangePassword: u.ForceChangePassword,
+		AllowMultiLogin:     u.AllowMultiLogin,
+		LastLoginAt:         u.LastLoginAt,
+		LastLoginIP:         lastLoginIP,
+		CreatedAt:           u.CreatedAt,
+	}
+}
+
 // CreateUser 创建用户
 func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput) (*types.UserOutput, error) {
 	// 检查用户名是否已存在
@@ -52,6 +102,20 @@ func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput
 		return nil, errors.ErrConflict.With("email", input.Email).Errorf("邮箱已存在")
 	}
 
+	// 检查手机号是否已存在（如果提供了手机号）
+	if input.Phone != nil && *input.Phone != "" {
+		exists, err = s.orm.User.Query().
+			Where(user.PhoneEQ(*input.Phone), user.DeletedAtEQ(0)).
+			Exist(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "检查手机号是否存在失败", "error", err)
+			return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查手机号失败")
+		}
+		if exists {
+			return nil, errors.ErrConflict.With("phone", *input.Phone).Errorf("手机号已存在")
+		}
+	}
+
 	// 生成密码哈希
 	passwordHash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
 	if err != nil {
@@ -65,28 +129,47 @@ func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput
 		status = types.UserStatusActive
 	}
 
+	// 处理角色列表
+	var roles string
+	if len(input.Roles) > 0 {
+		roles = strings.Join(input.Roles, ",")
+	} else {
+		roles = "user" // 默认角色
+	}
+
 	// 创建用户
-	u, err := s.orm.User.Create().
+	createQuery := s.orm.User.Create().
 		SetID(utils.GenerateULID()).
 		SetUsername(input.Username).
 		SetEmail(input.Email).
 		SetPasswordHash(string(passwordHash)).
 		SetStatus(user.Status(status)).
-		Save(ctx)
+		SetRoles(roles).
+		SetForceChangePassword(input.ForceChangePassword).
+		SetAllowMultiLogin(input.AllowMultiLogin)
+
+	// 设置可选字段
+	if input.RealName != nil {
+		createQuery = createQuery.SetRealName(*input.RealName)
+	}
+	if input.Phone != nil {
+		createQuery = createQuery.SetPhone(*input.Phone)
+	}
+	if input.Department != nil {
+		createQuery = createQuery.SetDepartment(*input.Department)
+	}
+	if input.Position != nil {
+		createQuery = createQuery.SetPosition(*input.Position)
+	}
+
+	u, err := createQuery.Save(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "创建用户失败", "error", err)
 		return nil, errors.ErrInternal.With("error", err.Error()).Errorf("创建用户失败")
 	}
 
 	return &types.UserOutput{
-		UserInfo: &types.UserInfo{
-			ID:          u.ID,
-			Username:    u.Username,
-			Email:       u.Email,
-			Status:      string(u.Status),
-			LastLoginAt: u.LastLoginAt,
-			CreatedAt:   u.CreatedAt,
-		},
+		UserInfo: s.toUserInfo(u),
 	}, nil
 }
 
@@ -105,14 +188,7 @@ func (s *MeService) GetUserByID(ctx context.Context, userID string) (*types.User
 	}
 
 	return &types.UserOutput{
-		UserInfo: &types.UserInfo{
-			ID:          u.ID,
-			Username:    u.Username,
-			Email:       u.Email,
-			Status:      string(u.Status),
-			LastLoginAt: u.LastLoginAt,
-			CreatedAt:   u.CreatedAt,
-		},
+		UserInfo: s.toUserInfo(u),
 	}, nil
 }
 
@@ -126,13 +202,30 @@ func (s *MeService) ListUsers(ctx context.Context, input *types.ListUsersInput) 
 		query = query.Where(user.StatusEQ(user.Status(input.Status)))
 	}
 
-	// 根据关键词搜索（用户名或邮箱）
+	// 根据部门筛选
+	if input.Department != "" {
+		query = query.Where(user.DepartmentEQ(input.Department))
+	}
+
+	// 根据岗位筛选
+	if input.Position != "" {
+		query = query.Where(user.PositionEQ(input.Position))
+	}
+
+	// 根据角色筛选
+	if input.Role != "" {
+		query = query.Where(user.RolesContains(input.Role))
+	}
+
+	// 根据关键词搜索（用户名、邮箱、真实姓名、手机号）
 	if input.Keyword != "" {
 		keyword := strings.TrimSpace(input.Keyword)
 		query = query.Where(
 			user.Or(
 				user.UsernameContains(keyword),
 				user.EmailContains(keyword),
+				user.RealNameContains(keyword),
+				user.PhoneContains(keyword),
 			),
 		)
 	}
@@ -158,14 +251,7 @@ func (s *MeService) ListUsers(ctx context.Context, input *types.ListUsersInput) 
 	// 转换为输出格式
 	userInfos := make([]*types.UserInfo, 0, len(users))
 	for _, u := range users {
-		userInfos = append(userInfos, &types.UserInfo{
-			ID:          u.ID,
-			Username:    u.Username,
-			Email:       u.Email,
-			Status:      string(u.Status),
-			LastLoginAt: u.LastLoginAt,
-			CreatedAt:   u.CreatedAt,
-		})
+		userInfos = append(userInfos, s.toUserInfo(u))
 	}
 
 	return &types.ListUsersOutput{
@@ -305,14 +391,7 @@ func (s *MeService) UpdateEmail(ctx context.Context, userID string, input *types
 	}
 
 	return &types.UserOutput{
-		UserInfo: &types.UserInfo{
-			ID:          updatedUser.ID,
-			Username:    updatedUser.Username,
-			Email:       updatedUser.Email,
-			Status:      string(updatedUser.Status),
-			LastLoginAt: updatedUser.LastLoginAt,
-			CreatedAt:   updatedUser.CreatedAt,
-		},
+		UserInfo: s.toUserInfo(updatedUser),
 	}, nil
 }
 
@@ -380,4 +459,315 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, input *ty
 	}
 
 	return nil
+}
+
+// UpdateUser 更新用户（管理员版本）
+func (s *UserService) UpdateUser(ctx context.Context, userID string, input *types.UpdateUserInput) (*types.UserOutput, error) {
+	// 检查用户是否存在
+	_, err := s.orm.User.Query().
+		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		First(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
+			return nil, errors.ErrNotFound.With("user_id", userID).Errorf("用户不存在")
+		}
+		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
+		return nil, errors.ErrInternal.Wrapf(err, "获取用户失败")
+	}
+
+	// 构建更新查询
+	updateQuery := s.orm.User.UpdateOneID(userID)
+
+	// 更新用户名
+	if input.Username != nil {
+		// 检查用户名是否已被其他用户使用
+		exists, err := s.orm.User.Query().
+			Where(
+				user.UsernameEQ(*input.Username),
+				user.DeletedAtEQ(0),
+				user.IDNEQ(userID),
+			).
+			Exist(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
+			return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查用户名失败")
+		}
+		if exists {
+			return nil, errors.ErrConflict.With("username", *input.Username).Errorf("用户名已存在")
+		}
+		updateQuery = updateQuery.SetUsername(*input.Username)
+	}
+
+	// 更新邮箱
+	if input.Email != nil {
+		// 检查邮箱是否已被其他用户使用
+		exists, err := s.orm.User.Query().
+			Where(
+				user.EmailEQ(*input.Email),
+				user.DeletedAtEQ(0),
+				user.IDNEQ(userID),
+			).
+			Exist(ctx)
+		if err != nil {
+			slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
+			return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查邮箱失败")
+		}
+		if exists {
+			return nil, errors.ErrConflict.With("email", *input.Email).Errorf("邮箱已存在")
+		}
+		updateQuery = updateQuery.SetEmail(*input.Email)
+	}
+
+	// 更新手机号
+	if input.Phone != nil {
+		if *input.Phone != "" {
+			// 检查手机号是否已被其他用户使用
+			exists, err := s.orm.User.Query().
+				Where(
+					user.PhoneEQ(*input.Phone),
+					user.DeletedAtEQ(0),
+					user.IDNEQ(userID),
+				).
+				Exist(ctx)
+			if err != nil {
+				slog.ErrorContext(ctx, "检查手机号是否存在失败", "error", err)
+				return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查手机号失败")
+			}
+			if exists {
+				return nil, errors.ErrConflict.With("phone", *input.Phone).Errorf("手机号已存在")
+			}
+		}
+		updateQuery = updateQuery.SetPhone(*input.Phone)
+	}
+
+	// 更新其他字段
+	if input.RealName != nil {
+		updateQuery = updateQuery.SetRealName(*input.RealName)
+	}
+	if input.Department != nil {
+		updateQuery = updateQuery.SetDepartment(*input.Department)
+	}
+	if input.Position != nil {
+		updateQuery = updateQuery.SetPosition(*input.Position)
+	}
+	if len(input.Roles) > 0 {
+		roles := strings.Join(input.Roles, ",")
+		updateQuery = updateQuery.SetRoles(roles)
+	}
+	if input.Status != nil {
+		updateQuery = updateQuery.SetStatus(user.Status(*input.Status))
+	}
+	if input.ForceChangePassword != nil {
+		updateQuery = updateQuery.SetForceChangePassword(*input.ForceChangePassword)
+	}
+	if input.AllowMultiLogin != nil {
+		updateQuery = updateQuery.SetAllowMultiLogin(*input.AllowMultiLogin)
+	}
+
+	// 执行更新
+	updatedUser, err := updateQuery.Save(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "更新用户失败", "error", err, "user_id", userID)
+		return nil, errors.ErrInternal.Wrapf(err, "更新用户失败")
+	}
+
+	slog.InfoContext(ctx, "用户更新成功", "user_id", userID)
+
+	return &types.UserOutput{
+		UserInfo: s.toUserInfo(updatedUser),
+	}, nil
+}
+
+// ResetPassword 重置用户密码（管理员功能）
+func (s *UserService) ResetPassword(ctx context.Context, userID string, input *types.ResetPasswordInput) error {
+	// 检查用户是否存在
+	exists, err := s.orm.User.Query().
+		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Exist(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "检查用户失败")
+	}
+	if !exists {
+		slog.WarnContext(ctx, "用户不存在", "user_id", userID)
+		return errors.ErrNotFound.With("user_id", userID).Errorf("用户不存在")
+	}
+
+	// 生成新密码哈希
+	newPasswordHash, err := bcrypt.GenerateFromPassword([]byte(input.NewPassword), bcrypt.DefaultCost)
+	if err != nil {
+		slog.ErrorContext(ctx, "生成新密码哈希失败", "error", err)
+		return errors.ErrInternal.Wrapf(err, "密码加密失败")
+	}
+
+	// 更新密码和强制修改密码标志
+	updateQuery := s.orm.User.UpdateOneID(userID).
+		SetPasswordHash(string(newPasswordHash)).
+		SetForceChangePassword(input.ForceChangePassword)
+
+	err = updateQuery.Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "重置密码失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "重置密码失败")
+	}
+
+	slog.InfoContext(ctx, "重置密码成功", "user_id", userID)
+	return nil
+}
+
+// SetUserStatus 设置用户状态
+func (s *UserService) SetUserStatus(ctx context.Context, userID string, input *types.SetUserStatusInput) error {
+	// 检查用户是否存在
+	exists, err := s.orm.User.Query().
+		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Exist(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "检查用户失败")
+	}
+	if !exists {
+		slog.WarnContext(ctx, "用户不存在", "user_id", userID)
+		return errors.ErrNotFound.With("user_id", userID).Errorf("用户不存在")
+	}
+
+	// 更新用户状态
+	err = s.orm.User.UpdateOneID(userID).
+		SetStatus(user.Status(input.Status)).
+		Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "设置用户状态失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "设置用户状态失败")
+	}
+
+	slog.InfoContext(ctx, "设置用户状态成功", "user_id", userID, "status", input.Status)
+	return nil
+}
+
+// BatchUpdateStatus 批量更新用户状态
+func (s *UserService) BatchUpdateStatus(ctx context.Context, input *types.BatchUpdateStatusInput) error {
+	// 检查用户是否都存在
+	count, err := s.orm.User.Query().
+		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err)
+		return errors.ErrInternal.Wrapf(err, "检查用户失败")
+	}
+	if count != len(input.UserIDs) {
+		return errors.ErrBadRequest.Errorf("部分用户不存在")
+	}
+
+	// 批量更新状态
+	_, err = s.orm.User.Update().
+		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		SetStatus(user.Status(input.Status)).
+		Save(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "批量更新用户状态失败", "error", err)
+		return errors.ErrInternal.Wrapf(err, "批量更新用户状态失败")
+	}
+
+	slog.InfoContext(ctx, "批量更新用户状态成功", "user_count", len(input.UserIDs), "status", input.Status)
+	return nil
+}
+
+// BatchDeleteUsers 批量删除用户
+func (s *UserService) BatchDeleteUsers(ctx context.Context, input *types.BatchOperationInput) error {
+	// 检查用户是否都存在
+	count, err := s.orm.User.Query().
+		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err)
+		return errors.ErrInternal.Wrapf(err, "检查用户失败")
+	}
+	if count != len(input.UserIDs) {
+		return errors.ErrBadRequest.Errorf("部分用户不存在")
+	}
+
+	// 批量逻辑删除
+	_, err = s.orm.User.Delete().
+		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "批量删除用户失败", "error", err)
+		return errors.ErrInternal.Wrapf(err, "批量删除用户失败")
+	}
+
+	slog.InfoContext(ctx, "批量删除用户成功", "user_count", len(input.UserIDs))
+	return nil
+}
+
+// GetUserStats 获取用户统计信息
+func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput, error) {
+	// 总用户数
+	totalUsers, err := s.orm.User.Query().
+		Where(user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "获取用户总数失败", "error", err)
+		return nil, errors.ErrInternal.Wrapf(err, "获取用户总数失败")
+	}
+
+	// 各状态用户数
+	activeUsers, err := s.orm.User.Query().
+		Where(user.StatusEQ(user.StatusActive), user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		return nil, errors.ErrInternal.Wrapf(err, "获取活跃用户数失败")
+	}
+
+	inactiveUsers, err := s.orm.User.Query().
+		Where(user.StatusEQ(user.StatusInactive), user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		return nil, errors.ErrInternal.Wrapf(err, "获取非活跃用户数失败")
+	}
+
+	suspendedUsers, err := s.orm.User.Query().
+		Where(user.StatusEQ(user.StatusSuspended), user.DeletedAtEQ(0)).
+		Count(ctx)
+	if err != nil {
+		return nil, errors.ErrInternal.Wrapf(err, "获取停用用户数失败")
+	}
+
+	// 部门统计
+	var departmentStats []types.DepartmentStat
+	users, err := s.orm.User.Query().
+		Where(user.DeletedAtEQ(0)).
+		All(ctx)
+	if err != nil {
+		return nil, errors.ErrInternal.Wrapf(err, "获取用户列表失败")
+	}
+
+	// 统计各部门用户数
+	deptCount := make(map[string]int64)
+	for _, u := range users {
+		dept := u.Department
+		if dept == "" {
+			dept = "未分配"
+		}
+		deptCount[dept]++
+	}
+
+	for dept, count := range deptCount {
+		departmentStats = append(departmentStats, types.DepartmentStat{
+			Department: dept,
+			UserCount:  count,
+		})
+	}
+
+	return &types.UserStatsOutput{
+		TotalUsers:     int64(totalUsers),
+		ActiveUsers:    int64(activeUsers),
+		InactiveUsers:  int64(inactiveUsers),
+		SuspendedUsers: int64(suspendedUsers),
+		StatusBreakdown: map[string]int64{
+			types.UserStatusActive:    int64(activeUsers),
+			types.UserStatusInactive:  int64(inactiveUsers),
+			types.UserStatusSuspended: int64(suspendedUsers),
+		},
+		DepartmentStats: departmentStats,
+	}, nil
 }
