@@ -54,15 +54,6 @@ type (
 		Host        string
 		Environment environment
 		Timeout     time.Duration
-		// 文档配置
-		Docs DocsConfig
-	}
-
-	// DocsConfig stores documentation configuration.
-	DocsConfig struct {
-		Enabled bool   // 是否启用API文档
-		Path    string // 文档访问路径
-		Title   string // 文档标题
 	}
 
 	// JWTConfig stores JWT configuration.

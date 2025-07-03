@@ -14,12 +14,6 @@ host = "http://localhost:8000"
 environment = "local"
 timeout = "20s"
 
-# API文档配置
-[app.docs]
-enabled = true  # 本地和开发环境启用，生产环境请设置为false
-path = "/docs"
-title = "Echo Template API Documentation"
-
 # JWT配置
 [jwt]
 secret = "your-super-secret-jwt-key-change-this-in-production"
