@@ -14,6 +14,8 @@ type Tx struct {
 	config
 	// Department is the client for interacting with the Department builders.
 	Department *DepartmentClient
+	// Position is the client for interacting with the Position builders.
+	Position *PositionClient
 	// Token is the client for interacting with the Token builders.
 	Token *TokenClient
 	// User is the client for interacting with the User builders.
@@ -150,6 +152,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Department = NewDepartmentClient(tx.config)
+	tx.Position = NewPositionClient(tx.config)
 	tx.Token = NewTokenClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }

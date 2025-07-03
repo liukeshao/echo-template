@@ -244,7 +244,6 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.Li
 
 	// 根据关键词搜索
 	if input.Keyword != "" {
-		keyword := "%" + input.Keyword + "%"
 		query = query.Where(
 			department.Or(
 				department.NameContains(input.Keyword),
@@ -291,11 +290,7 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.Li
 
 	return &types.ListDepartmentsOutput{
 		Departments: departmentInfos,
-		PageOutput: types.PageOutput{
-			Total:    int64(total),
-			Page:     input.Page,
-			PageSize: input.PageSize,
-		},
+		PageOutput:  types.NewPageOutput(input.PageInput, total),
 	}, nil
 }
 
@@ -746,7 +741,7 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, departmentID s
 	}
 
 	if !check.Deletable {
-		return errors.ErrBadRequest.Errorf(check.Reason)
+		return errors.ErrBadRequest.Errorf("%s", check.Reason)
 	}
 
 	// 执行逻辑删除

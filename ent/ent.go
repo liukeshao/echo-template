@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
 )
@@ -76,6 +77,7 @@ func checkColumn(table, column string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
 			department.Table: department.ValidColumn,
+			position.Table:   position.ValidColumn,
 			token.Table:      token.ValidColumn,
 			user.Table:       user.ValidColumn,
 		})

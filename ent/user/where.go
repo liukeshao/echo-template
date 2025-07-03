@@ -120,6 +120,11 @@ func Position(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPosition, v))
 }
 
+// PositionID applies equality check predicate on the "position_id" field. It's identical to PositionIDEQ.
+func PositionID(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPositionID, v))
+}
+
 // Roles applies equality check predicate on the "roles" field. It's identical to RolesEQ.
 func Roles(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRoles, v))
@@ -835,6 +840,81 @@ func PositionContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldPosition, v))
 }
 
+// PositionIDEQ applies the EQ predicate on the "position_id" field.
+func PositionIDEQ(v string) predicate.User {
+	return predicate.User(sql.FieldEQ(FieldPositionID, v))
+}
+
+// PositionIDNEQ applies the NEQ predicate on the "position_id" field.
+func PositionIDNEQ(v string) predicate.User {
+	return predicate.User(sql.FieldNEQ(FieldPositionID, v))
+}
+
+// PositionIDIn applies the In predicate on the "position_id" field.
+func PositionIDIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldIn(FieldPositionID, vs...))
+}
+
+// PositionIDNotIn applies the NotIn predicate on the "position_id" field.
+func PositionIDNotIn(vs ...string) predicate.User {
+	return predicate.User(sql.FieldNotIn(FieldPositionID, vs...))
+}
+
+// PositionIDGT applies the GT predicate on the "position_id" field.
+func PositionIDGT(v string) predicate.User {
+	return predicate.User(sql.FieldGT(FieldPositionID, v))
+}
+
+// PositionIDGTE applies the GTE predicate on the "position_id" field.
+func PositionIDGTE(v string) predicate.User {
+	return predicate.User(sql.FieldGTE(FieldPositionID, v))
+}
+
+// PositionIDLT applies the LT predicate on the "position_id" field.
+func PositionIDLT(v string) predicate.User {
+	return predicate.User(sql.FieldLT(FieldPositionID, v))
+}
+
+// PositionIDLTE applies the LTE predicate on the "position_id" field.
+func PositionIDLTE(v string) predicate.User {
+	return predicate.User(sql.FieldLTE(FieldPositionID, v))
+}
+
+// PositionIDContains applies the Contains predicate on the "position_id" field.
+func PositionIDContains(v string) predicate.User {
+	return predicate.User(sql.FieldContains(FieldPositionID, v))
+}
+
+// PositionIDHasPrefix applies the HasPrefix predicate on the "position_id" field.
+func PositionIDHasPrefix(v string) predicate.User {
+	return predicate.User(sql.FieldHasPrefix(FieldPositionID, v))
+}
+
+// PositionIDHasSuffix applies the HasSuffix predicate on the "position_id" field.
+func PositionIDHasSuffix(v string) predicate.User {
+	return predicate.User(sql.FieldHasSuffix(FieldPositionID, v))
+}
+
+// PositionIDIsNil applies the IsNil predicate on the "position_id" field.
+func PositionIDIsNil() predicate.User {
+	return predicate.User(sql.FieldIsNull(FieldPositionID))
+}
+
+// PositionIDNotNil applies the NotNil predicate on the "position_id" field.
+func PositionIDNotNil() predicate.User {
+	return predicate.User(sql.FieldNotNull(FieldPositionID))
+}
+
+// PositionIDEqualFold applies the EqualFold predicate on the "position_id" field.
+func PositionIDEqualFold(v string) predicate.User {
+	return predicate.User(sql.FieldEqualFold(FieldPositionID, v))
+}
+
+// PositionIDContainsFold applies the ContainsFold predicate on the "position_id" field.
+func PositionIDContainsFold(v string) predicate.User {
+	return predicate.User(sql.FieldContainsFold(FieldPositionID, v))
+}
+
 // RolesEQ applies the EQ predicate on the "roles" field.
 func RolesEQ(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldRoles, v))
@@ -1103,6 +1183,29 @@ func HasDepartmentRel() predicate.User {
 func HasDepartmentRelWith(preds ...predicate.Department) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newDepartmentRelStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasPositionRel applies the HasEdge predicate on the "position_rel" edge.
+func HasPositionRel() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.M2O, false, PositionRelTable, PositionRelColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasPositionRelWith applies the HasEdge predicate on the "position_rel" edge with a given conditions (other predicates).
+func HasPositionRelWith(preds ...predicate.Position) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newPositionRelStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

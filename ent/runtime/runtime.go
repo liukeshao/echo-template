@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/schema"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
@@ -113,6 +114,92 @@ func init() {
 	// department.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	department.IDValidator = func() func(string) error {
 		validators := departmentDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	positionMixin := schema.Position{}.Mixin()
+	positionMixinHooks0 := positionMixin[0].Hooks()
+	position.Hooks[0] = positionMixinHooks0[0]
+	positionMixinInters0 := positionMixin[0].Interceptors()
+	position.Interceptors[0] = positionMixinInters0[0]
+	positionMixinFields0 := positionMixin[0].Fields()
+	_ = positionMixinFields0
+	positionFields := schema.Position{}.Fields()
+	_ = positionFields
+	// positionDescCreatedAt is the schema descriptor for created_at field.
+	positionDescCreatedAt := positionMixinFields0[1].Descriptor()
+	// position.DefaultCreatedAt holds the default value on creation for the created_at field.
+	position.DefaultCreatedAt = positionDescCreatedAt.Default.(func() time.Time)
+	// positionDescUpdatedAt is the schema descriptor for updated_at field.
+	positionDescUpdatedAt := positionMixinFields0[2].Descriptor()
+	// position.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	position.DefaultUpdatedAt = positionDescUpdatedAt.Default.(func() time.Time)
+	// position.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	position.UpdateDefaultUpdatedAt = positionDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// positionDescDeletedAt is the schema descriptor for deleted_at field.
+	positionDescDeletedAt := positionMixinFields0[3].Descriptor()
+	// position.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	position.DefaultDeletedAt = positionDescDeletedAt.Default.(int64)
+	// positionDescName is the schema descriptor for name field.
+	positionDescName := positionFields[0].Descriptor()
+	// position.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	position.NameValidator = func() func(string) error {
+		validators := positionDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// positionDescCode is the schema descriptor for code field.
+	positionDescCode := positionFields[1].Descriptor()
+	// position.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	position.CodeValidator = func() func(string) error {
+		validators := positionDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// positionDescDescription is the schema descriptor for description field.
+	positionDescDescription := positionFields[2].Descriptor()
+	// position.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
+	position.DescriptionValidator = positionDescDescription.Validators[0].(func(string) error)
+	// positionDescSortOrder is the schema descriptor for sort_order field.
+	positionDescSortOrder := positionFields[3].Descriptor()
+	// position.DefaultSortOrder holds the default value on creation for the sort_order field.
+	position.DefaultSortOrder = positionDescSortOrder.Default.(int)
+	// positionDescID is the schema descriptor for id field.
+	positionDescID := positionMixinFields0[0].Descriptor()
+	// position.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	position.IDValidator = func() func(string) error {
+		validators := positionDescID.Validators
 		fns := [...]func(string) error{
 			validators[0].(func(string) error),
 			validators[1].(func(string) error),
@@ -306,22 +393,26 @@ func init() {
 	userDescPosition := userFields[7].Descriptor()
 	// user.PositionValidator is a validator for the "position" field. It is called by the builders before save.
 	user.PositionValidator = userDescPosition.Validators[0].(func(string) error)
+	// userDescPositionID is the schema descriptor for position_id field.
+	userDescPositionID := userFields[8].Descriptor()
+	// user.PositionIDValidator is a validator for the "position_id" field. It is called by the builders before save.
+	user.PositionIDValidator = userDescPositionID.Validators[0].(func(string) error)
 	// userDescRoles is the schema descriptor for roles field.
-	userDescRoles := userFields[8].Descriptor()
+	userDescRoles := userFields[9].Descriptor()
 	// user.DefaultRoles holds the default value on creation for the roles field.
 	user.DefaultRoles = userDescRoles.Default.(string)
 	// user.RolesValidator is a validator for the "roles" field. It is called by the builders before save.
 	user.RolesValidator = userDescRoles.Validators[0].(func(string) error)
 	// userDescForceChangePassword is the schema descriptor for force_change_password field.
-	userDescForceChangePassword := userFields[10].Descriptor()
+	userDescForceChangePassword := userFields[11].Descriptor()
 	// user.DefaultForceChangePassword holds the default value on creation for the force_change_password field.
 	user.DefaultForceChangePassword = userDescForceChangePassword.Default.(bool)
 	// userDescAllowMultiLogin is the schema descriptor for allow_multi_login field.
-	userDescAllowMultiLogin := userFields[11].Descriptor()
+	userDescAllowMultiLogin := userFields[12].Descriptor()
 	// user.DefaultAllowMultiLogin holds the default value on creation for the allow_multi_login field.
 	user.DefaultAllowMultiLogin = userDescAllowMultiLogin.Default.(bool)
 	// userDescLastLoginIP is the schema descriptor for last_login_ip field.
-	userDescLastLoginIP := userFields[13].Descriptor()
+	userDescLastLoginIP := userFields[14].Descriptor()
 	// user.LastLoginIPValidator is a validator for the "last_login_ip" field. It is called by the builders before save.
 	user.LastLoginIPValidator = userDescLastLoginIP.Validators[0].(func(string) error)
 	// userDescID is the schema descriptor for id field.

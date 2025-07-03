@@ -11,6 +11,7 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
 )
@@ -152,6 +153,20 @@ func (uc *UserCreate) SetNillablePosition(s *string) *UserCreate {
 	return uc
 }
 
+// SetPositionID sets the "position_id" field.
+func (uc *UserCreate) SetPositionID(s string) *UserCreate {
+	uc.mutation.SetPositionID(s)
+	return uc
+}
+
+// SetNillablePositionID sets the "position_id" field if the given value is not nil.
+func (uc *UserCreate) SetNillablePositionID(s *string) *UserCreate {
+	if s != nil {
+		uc.SetPositionID(*s)
+	}
+	return uc
+}
+
 // SetRoles sets the "roles" field.
 func (uc *UserCreate) SetRoles(s string) *UserCreate {
 	uc.mutation.SetRoles(s)
@@ -274,6 +289,25 @@ func (uc *UserCreate) SetNillableDepartmentRelID(id *string) *UserCreate {
 // SetDepartmentRel sets the "department_rel" edge to the Department entity.
 func (uc *UserCreate) SetDepartmentRel(d *Department) *UserCreate {
 	return uc.SetDepartmentRelID(d.ID)
+}
+
+// SetPositionRelID sets the "position_rel" edge to the Position entity by ID.
+func (uc *UserCreate) SetPositionRelID(id string) *UserCreate {
+	uc.mutation.SetPositionRelID(id)
+	return uc
+}
+
+// SetNillablePositionRelID sets the "position_rel" edge to the Position entity by ID if the given value is not nil.
+func (uc *UserCreate) SetNillablePositionRelID(id *string) *UserCreate {
+	if id != nil {
+		uc = uc.SetPositionRelID(*id)
+	}
+	return uc
+}
+
+// SetPositionRel sets the "position_rel" edge to the Position entity.
+func (uc *UserCreate) SetPositionRel(p *Position) *UserCreate {
+	return uc.SetPositionRelID(p.ID)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -408,6 +442,11 @@ func (uc *UserCreate) check() error {
 	if v, ok := uc.mutation.Position(); ok {
 		if err := user.PositionValidator(v); err != nil {
 			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if v, ok := uc.mutation.PositionID(); ok {
+		if err := user.PositionIDValidator(v); err != nil {
+			return &ValidationError{Name: "position_id", err: fmt.Errorf(`ent: validator failed for field "User.position_id": %w`, err)}
 		}
 	}
 	if _, ok := uc.mutation.Roles(); !ok {
@@ -572,6 +611,23 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 			edge.Target.Nodes = append(edge.Target.Nodes, k)
 		}
 		_node.DepartmentID = nodes[0]
+		_spec.Edges = append(_spec.Edges, edge)
+	}
+	if nodes := uc.mutation.PositionRelIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.M2O,
+			Inverse: false,
+			Table:   user.PositionRelTable,
+			Columns: []string{user.PositionRelColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(position.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_node.PositionID = nodes[0]
 		_spec.Edges = append(_spec.Edges, edge)
 	}
 	return _node, _spec

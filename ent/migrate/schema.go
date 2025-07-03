@@ -112,6 +112,71 @@ var (
 			},
 		},
 	}
+	// PositionsColumns holds the columns for the "positions" table.
+	PositionsColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "code", Type: field.TypeString, Size: 50},
+		{Name: "description", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive"}, Default: "active"},
+	}
+	// PositionsTable holds the schema information for the "positions" table.
+	PositionsTable = &schema.Table{
+		Name:       "positions",
+		Columns:    PositionsColumns,
+		PrimaryKey: []*schema.Column{PositionsColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "position_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[3]},
+			},
+			{
+				Name:    "position_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[1]},
+			},
+			{
+				Name:    "position_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[2]},
+			},
+			{
+				Name:    "position_name_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{PositionsColumns[4], PositionsColumns[3]},
+			},
+			{
+				Name:    "position_code_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{PositionsColumns[5], PositionsColumns[3]},
+			},
+			{
+				Name:    "position_status",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[8]},
+			},
+			{
+				Name:    "position_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[7]},
+			},
+			{
+				Name:    "position_status_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[8], PositionsColumns[3]},
+			},
+			{
+				Name:    "position_status_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{PositionsColumns[8], PositionsColumns[7]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
@@ -211,6 +276,7 @@ var (
 		{Name: "last_login_at", Type: field.TypeTime, Nullable: true},
 		{Name: "last_login_ip", Type: field.TypeString, Nullable: true, Size: 45},
 		{Name: "department_id", Type: field.TypeString, Nullable: true, Size: 26},
+		{Name: "position_id", Type: field.TypeString, Nullable: true, Size: 26},
 	}
 	// UsersTable holds the schema information for the "users" table.
 	UsersTable = &schema.Table{
@@ -222,6 +288,12 @@ var (
 				Symbol:     "users_departments_department_rel",
 				Columns:    []*schema.Column{UsersColumns[17]},
 				RefColumns: []*schema.Column{DepartmentsColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+			{
+				Symbol:     "users_positions_position_rel",
+				Columns:    []*schema.Column{UsersColumns[18]},
+				RefColumns: []*schema.Column{PositionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 		},
@@ -292,6 +364,11 @@ var (
 				Columns: []*schema.Column{UsersColumns[10]},
 			},
 			{
+				Name:    "user_position_id",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[18]},
+			},
+			{
 				Name:    "user_roles",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[11]},
@@ -322,6 +399,11 @@ var (
 				Columns: []*schema.Column{UsersColumns[10], UsersColumns[12]},
 			},
 			{
+				Name:    "user_position_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{UsersColumns[18], UsersColumns[12]},
+			},
+			{
 				Name:    "user_status_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[12], UsersColumns[3]},
@@ -331,6 +413,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		DepartmentsTable,
+		PositionsTable,
 		TokensTable,
 		UsersTable,
 	}
@@ -340,4 +423,5 @@ func init() {
 	DepartmentsTable.ForeignKeys[0].RefTable = DepartmentsTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.ForeignKeys[0].RefTable = DepartmentsTable
+	UsersTable.ForeignKeys[1].RefTable = PositionsTable
 }
