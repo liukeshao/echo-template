@@ -175,7 +175,7 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 }
 
 // UpdateUser 更新用户
-func (s *UserService) UpdateUser(ctx context.Context, userID string, input *types.UpdateUserInput) (*types.UserOutput, error) {
+func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.UpdateMeInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
 		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
@@ -230,11 +230,6 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 			return nil, errors.ErrConflict.With("email", *input.Email).Errorf("邮箱已存在")
 		}
 		updateQuery = updateQuery.SetEmail(*input.Email)
-	}
-
-	// 更新状态
-	if input.Status != nil {
-		updateQuery = updateQuery.SetStatus(user.Status(*input.Status))
 	}
 
 	// 执行更新

@@ -30,6 +30,7 @@ func ValidationError(c echo.Context, errs []string) error {
 	response := NewResponse(c).
 		WithCode(errors.UnprocessableEntity).
 		WithMessage("Parameter validation failed").
+		WithData(nil).
 		WithErrors(errs)
 	return c.JSON(http.StatusOK, response)
 }

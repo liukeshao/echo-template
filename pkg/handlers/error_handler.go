@@ -25,7 +25,7 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 			requestID = id
 		}
 
-		var response *ResponseBuilder
+		var response *Response
 
 		// 根据错误类型处理
 		switch e := err.(type) {
@@ -59,8 +59,8 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 }
 
 // handleAppError 处理自定义业务错误
-func handleAppError(err *errors.AppError, requestID string) *ResponseBuilder {
-	response := &ResponseBuilder{
+func handleAppError(err *errors.AppError, requestID string) *Response {
+	response := &Response{
 		Code:      err.Code(),
 		Message:   err.Message(),
 		Data:      nil,
@@ -90,8 +90,8 @@ func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logge
 }
 
 // handleUnknownError 处理未知错误
-func handleUnknownError(err error, requestID string) *ResponseBuilder {
-	return &ResponseBuilder{
+func handleUnknownError(err error, requestID string) *Response {
+	return &Response{
 		Code:      errors.InternalServerError,
 		Message:   "Internal Server Error",
 		Data:      nil,

@@ -51,7 +51,7 @@ func (h *UserHandler) Routes(g *echo.Group) {
 }
 
 // Handler实现
-func (h *UserHandler) CreateUser(c echo.Context) error {
+func (h *UserHandler) Create(c echo.Context) error {
     var in types.CreateUserInput
     if err := c.Bind(&in); err != nil {
         return errors.BadRequestError()
@@ -75,7 +75,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 type Response struct {
     Code      int         `json:"code"`                 // 0=成功, 非0=失败
     Message   string      `json:"message"`              // 响应消息
-    Data      interface{} `json:"data"`                 // 响应数据
+    Data      any         `json:"data"`                 // 响应数据
     Errors    []string    `json:"errors,omitempty"`     // 错误详情
     Timestamp int64       `json:"timestamp"`            // 时间戳
     RequestID string      `json:"request_id,omitempty"` // 请求ID
