@@ -34,6 +34,8 @@ const (
 	FieldPhone = "phone"
 	// FieldDepartment holds the string denoting the department field in the database.
 	FieldDepartment = "department"
+	// FieldDepartmentID holds the string denoting the department_id field in the database.
+	FieldDepartmentID = "department_id"
 	// FieldPosition holds the string denoting the position field in the database.
 	FieldPosition = "position"
 	// FieldRoles holds the string denoting the roles field in the database.
@@ -50,6 +52,8 @@ const (
 	FieldLastLoginIP = "last_login_ip"
 	// EdgeTokens holds the string denoting the tokens edge name in mutations.
 	EdgeTokens = "tokens"
+	// EdgeDepartmentRel holds the string denoting the department_rel edge name in mutations.
+	EdgeDepartmentRel = "department_rel"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -59,6 +63,13 @@ const (
 	TokensInverseTable = "tokens"
 	// TokensColumn is the table column denoting the tokens relation/edge.
 	TokensColumn = "user_id"
+	// DepartmentRelTable is the table that holds the department_rel relation/edge.
+	DepartmentRelTable = "users"
+	// DepartmentRelInverseTable is the table name for the Department entity.
+	// It exists in this package in order to avoid circular dependency with the "department" package.
+	DepartmentRelInverseTable = "departments"
+	// DepartmentRelColumn is the table column denoting the department_rel relation/edge.
+	DepartmentRelColumn = "department_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -73,6 +84,7 @@ var Columns = []string{
 	FieldRealName,
 	FieldPhone,
 	FieldDepartment,
+	FieldDepartmentID,
 	FieldPosition,
 	FieldRoles,
 	FieldStatus,
@@ -120,6 +132,8 @@ var (
 	PhoneValidator func(string) error
 	// DepartmentValidator is a validator for the "department" field. It is called by the builders before save.
 	DepartmentValidator func(string) error
+	// DepartmentIDValidator is a validator for the "department_id" field. It is called by the builders before save.
+	DepartmentIDValidator func(string) error
 	// PositionValidator is a validator for the "position" field. It is called by the builders before save.
 	PositionValidator func(string) error
 	// DefaultRoles holds the default value on creation for the "roles" field.
@@ -216,6 +230,11 @@ func ByDepartment(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldDepartment, opts...).ToFunc()
 }
 
+// ByDepartmentID orders the results by the department_id field.
+func ByDepartmentID(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDepartmentID, opts...).ToFunc()
+}
+
 // ByPosition orders the results by the position field.
 func ByPosition(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPosition, opts...).ToFunc()
@@ -264,10 +283,24 @@ func ByTokens(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newTokensStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByDepartmentRelField orders the results by department_rel field.
+func ByDepartmentRelField(field string, opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newDepartmentRelStep(), sql.OrderByField(field, opts...))
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(TokensInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, false, TokensTable, TokensColumn),
+	)
+}
+func newDepartmentRelStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(DepartmentRelInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.M2O, false, DepartmentRelTable, DepartmentRelColumn),
 	)
 }

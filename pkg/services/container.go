@@ -35,6 +35,9 @@ type Container struct {
 
 	Auth *AuthService
 	Me   *MeService
+
+	User       *UserService
+	Department *DepartmentService
 }
 
 // NewContainer creates and initializes a new Container.
@@ -46,6 +49,7 @@ func NewContainer() *Container {
 	c.initORM()
 	c.initAuth()
 	c.initMe()
+	c.initServices()
 	return c
 }
 
@@ -116,6 +120,11 @@ func (c *Container) initAuth() {
 
 func (c *Container) initMe() {
 	c.Me = NewMeService(c.ORM)
+}
+
+func (c *Container) initServices() {
+	c.User = NewUserService(c.ORM)
+	c.Department = NewDepartmentService(c.ORM)
 }
 
 // openDB opens a database connection.
