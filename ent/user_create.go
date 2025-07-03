@@ -81,6 +81,76 @@ func (uc *UserCreate) SetPasswordHash(s string) *UserCreate {
 	return uc
 }
 
+// SetRealName sets the "real_name" field.
+func (uc *UserCreate) SetRealName(s string) *UserCreate {
+	uc.mutation.SetRealName(s)
+	return uc
+}
+
+// SetNillableRealName sets the "real_name" field if the given value is not nil.
+func (uc *UserCreate) SetNillableRealName(s *string) *UserCreate {
+	if s != nil {
+		uc.SetRealName(*s)
+	}
+	return uc
+}
+
+// SetPhone sets the "phone" field.
+func (uc *UserCreate) SetPhone(s string) *UserCreate {
+	uc.mutation.SetPhone(s)
+	return uc
+}
+
+// SetNillablePhone sets the "phone" field if the given value is not nil.
+func (uc *UserCreate) SetNillablePhone(s *string) *UserCreate {
+	if s != nil {
+		uc.SetPhone(*s)
+	}
+	return uc
+}
+
+// SetDepartment sets the "department" field.
+func (uc *UserCreate) SetDepartment(s string) *UserCreate {
+	uc.mutation.SetDepartment(s)
+	return uc
+}
+
+// SetNillableDepartment sets the "department" field if the given value is not nil.
+func (uc *UserCreate) SetNillableDepartment(s *string) *UserCreate {
+	if s != nil {
+		uc.SetDepartment(*s)
+	}
+	return uc
+}
+
+// SetPosition sets the "position" field.
+func (uc *UserCreate) SetPosition(s string) *UserCreate {
+	uc.mutation.SetPosition(s)
+	return uc
+}
+
+// SetNillablePosition sets the "position" field if the given value is not nil.
+func (uc *UserCreate) SetNillablePosition(s *string) *UserCreate {
+	if s != nil {
+		uc.SetPosition(*s)
+	}
+	return uc
+}
+
+// SetRoles sets the "roles" field.
+func (uc *UserCreate) SetRoles(s string) *UserCreate {
+	uc.mutation.SetRoles(s)
+	return uc
+}
+
+// SetNillableRoles sets the "roles" field if the given value is not nil.
+func (uc *UserCreate) SetNillableRoles(s *string) *UserCreate {
+	if s != nil {
+		uc.SetRoles(*s)
+	}
+	return uc
+}
+
 // SetStatus sets the "status" field.
 func (uc *UserCreate) SetStatus(u user.Status) *UserCreate {
 	uc.mutation.SetStatus(u)
@@ -95,6 +165,34 @@ func (uc *UserCreate) SetNillableStatus(u *user.Status) *UserCreate {
 	return uc
 }
 
+// SetForceChangePassword sets the "force_change_password" field.
+func (uc *UserCreate) SetForceChangePassword(b bool) *UserCreate {
+	uc.mutation.SetForceChangePassword(b)
+	return uc
+}
+
+// SetNillableForceChangePassword sets the "force_change_password" field if the given value is not nil.
+func (uc *UserCreate) SetNillableForceChangePassword(b *bool) *UserCreate {
+	if b != nil {
+		uc.SetForceChangePassword(*b)
+	}
+	return uc
+}
+
+// SetAllowMultiLogin sets the "allow_multi_login" field.
+func (uc *UserCreate) SetAllowMultiLogin(b bool) *UserCreate {
+	uc.mutation.SetAllowMultiLogin(b)
+	return uc
+}
+
+// SetNillableAllowMultiLogin sets the "allow_multi_login" field if the given value is not nil.
+func (uc *UserCreate) SetNillableAllowMultiLogin(b *bool) *UserCreate {
+	if b != nil {
+		uc.SetAllowMultiLogin(*b)
+	}
+	return uc
+}
+
 // SetLastLoginAt sets the "last_login_at" field.
 func (uc *UserCreate) SetLastLoginAt(t time.Time) *UserCreate {
 	uc.mutation.SetLastLoginAt(t)
@@ -105,6 +203,20 @@ func (uc *UserCreate) SetLastLoginAt(t time.Time) *UserCreate {
 func (uc *UserCreate) SetNillableLastLoginAt(t *time.Time) *UserCreate {
 	if t != nil {
 		uc.SetLastLoginAt(*t)
+	}
+	return uc
+}
+
+// SetLastLoginIP sets the "last_login_ip" field.
+func (uc *UserCreate) SetLastLoginIP(s string) *UserCreate {
+	uc.mutation.SetLastLoginIP(s)
+	return uc
+}
+
+// SetNillableLastLoginIP sets the "last_login_ip" field if the given value is not nil.
+func (uc *UserCreate) SetNillableLastLoginIP(s *string) *UserCreate {
+	if s != nil {
+		uc.SetLastLoginIP(*s)
 	}
 	return uc
 }
@@ -185,9 +297,21 @@ func (uc *UserCreate) defaults() error {
 		v := user.DefaultDeletedAt
 		uc.mutation.SetDeletedAt(v)
 	}
+	if _, ok := uc.mutation.Roles(); !ok {
+		v := user.DefaultRoles
+		uc.mutation.SetRoles(v)
+	}
 	if _, ok := uc.mutation.Status(); !ok {
 		v := user.DefaultStatus
 		uc.mutation.SetStatus(v)
+	}
+	if _, ok := uc.mutation.ForceChangePassword(); !ok {
+		v := user.DefaultForceChangePassword
+		uc.mutation.SetForceChangePassword(v)
+	}
+	if _, ok := uc.mutation.AllowMultiLogin(); !ok {
+		v := user.DefaultAllowMultiLogin
+		uc.mutation.SetAllowMultiLogin(v)
 	}
 	return nil
 }
@@ -227,12 +351,51 @@ func (uc *UserCreate) check() error {
 			return &ValidationError{Name: "password_hash", err: fmt.Errorf(`ent: validator failed for field "User.password_hash": %w`, err)}
 		}
 	}
+	if v, ok := uc.mutation.RealName(); ok {
+		if err := user.RealNameValidator(v); err != nil {
+			return &ValidationError{Name: "real_name", err: fmt.Errorf(`ent: validator failed for field "User.real_name": %w`, err)}
+		}
+	}
+	if v, ok := uc.mutation.Phone(); ok {
+		if err := user.PhoneValidator(v); err != nil {
+			return &ValidationError{Name: "phone", err: fmt.Errorf(`ent: validator failed for field "User.phone": %w`, err)}
+		}
+	}
+	if v, ok := uc.mutation.Department(); ok {
+		if err := user.DepartmentValidator(v); err != nil {
+			return &ValidationError{Name: "department", err: fmt.Errorf(`ent: validator failed for field "User.department": %w`, err)}
+		}
+	}
+	if v, ok := uc.mutation.Position(); ok {
+		if err := user.PositionValidator(v); err != nil {
+			return &ValidationError{Name: "position", err: fmt.Errorf(`ent: validator failed for field "User.position": %w`, err)}
+		}
+	}
+	if _, ok := uc.mutation.Roles(); !ok {
+		return &ValidationError{Name: "roles", err: errors.New(`ent: missing required field "User.roles"`)}
+	}
+	if v, ok := uc.mutation.Roles(); ok {
+		if err := user.RolesValidator(v); err != nil {
+			return &ValidationError{Name: "roles", err: fmt.Errorf(`ent: validator failed for field "User.roles": %w`, err)}
+		}
+	}
 	if _, ok := uc.mutation.Status(); !ok {
 		return &ValidationError{Name: "status", err: errors.New(`ent: missing required field "User.status"`)}
 	}
 	if v, ok := uc.mutation.Status(); ok {
 		if err := user.StatusValidator(v); err != nil {
 			return &ValidationError{Name: "status", err: fmt.Errorf(`ent: validator failed for field "User.status": %w`, err)}
+		}
+	}
+	if _, ok := uc.mutation.ForceChangePassword(); !ok {
+		return &ValidationError{Name: "force_change_password", err: errors.New(`ent: missing required field "User.force_change_password"`)}
+	}
+	if _, ok := uc.mutation.AllowMultiLogin(); !ok {
+		return &ValidationError{Name: "allow_multi_login", err: errors.New(`ent: missing required field "User.allow_multi_login"`)}
+	}
+	if v, ok := uc.mutation.LastLoginIP(); ok {
+		if err := user.LastLoginIPValidator(v); err != nil {
+			return &ValidationError{Name: "last_login_ip", err: fmt.Errorf(`ent: validator failed for field "User.last_login_ip": %w`, err)}
 		}
 	}
 	if v, ok := uc.mutation.ID(); ok {
@@ -299,13 +462,45 @@ func (uc *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldPasswordHash, field.TypeString, value)
 		_node.PasswordHash = value
 	}
+	if value, ok := uc.mutation.RealName(); ok {
+		_spec.SetField(user.FieldRealName, field.TypeString, value)
+		_node.RealName = value
+	}
+	if value, ok := uc.mutation.Phone(); ok {
+		_spec.SetField(user.FieldPhone, field.TypeString, value)
+		_node.Phone = value
+	}
+	if value, ok := uc.mutation.Department(); ok {
+		_spec.SetField(user.FieldDepartment, field.TypeString, value)
+		_node.Department = value
+	}
+	if value, ok := uc.mutation.Position(); ok {
+		_spec.SetField(user.FieldPosition, field.TypeString, value)
+		_node.Position = value
+	}
+	if value, ok := uc.mutation.Roles(); ok {
+		_spec.SetField(user.FieldRoles, field.TypeString, value)
+		_node.Roles = value
+	}
 	if value, ok := uc.mutation.Status(); ok {
 		_spec.SetField(user.FieldStatus, field.TypeEnum, value)
 		_node.Status = value
 	}
+	if value, ok := uc.mutation.ForceChangePassword(); ok {
+		_spec.SetField(user.FieldForceChangePassword, field.TypeBool, value)
+		_node.ForceChangePassword = value
+	}
+	if value, ok := uc.mutation.AllowMultiLogin(); ok {
+		_spec.SetField(user.FieldAllowMultiLogin, field.TypeBool, value)
+		_node.AllowMultiLogin = value
+	}
 	if value, ok := uc.mutation.LastLoginAt(); ok {
 		_spec.SetField(user.FieldLastLoginAt, field.TypeTime, value)
 		_node.LastLoginAt = &value
+	}
+	if value, ok := uc.mutation.LastLoginIP(); ok {
+		_spec.SetField(user.FieldLastLoginIP, field.TypeString, value)
+		_node.LastLoginIP = value
 	}
 	if nodes := uc.mutation.TokensIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{

@@ -42,17 +42,63 @@ func (User) Fields() []ent.Field {
 			Sensitive().
 			Comment("密码哈希值"),
 
+		// 真实姓名
+		field.String("real_name").
+			MaxLen(100).
+			Optional().
+			Comment("真实姓名"),
+
+		// 手机号
+		field.String("phone").
+			MaxLen(20).
+			Optional().
+			Comment("手机号"),
+
+		// 所属部门
+		field.String("department").
+			MaxLen(100).
+			Optional().
+			Comment("所属部门"),
+
+		// 岗位
+		field.String("position").
+			MaxLen(100).
+			Optional().
+			Comment("岗位"),
+
+		// 角色（支持多角色，用逗号分隔）
+		field.String("roles").
+			MaxLen(500).
+			Default("user").
+			Comment("用户角色，多个角色用逗号分隔"),
+
 		// 用户状态
 		field.Enum("status").
 			Values(types.UserStatuses()...).
 			Default("active").
 			Comment("用户状态：active-活跃，inactive-非活跃，suspended-停用"),
 
+		// 是否需要强制修改密码
+		field.Bool("force_change_password").
+			Default(false).
+			Comment("是否强制修改密码"),
+
+		// 是否允许多端登录
+		field.Bool("allow_multi_login").
+			Default(true).
+			Comment("是否允许多端登录"),
+
 		// 最后登录时间
 		field.Time("last_login_at").
 			Optional().
 			Nillable().
 			Comment("最后登录时间"),
+
+		// 最后登录IP
+		field.String("last_login_ip").
+			MaxLen(45).
+			Optional().
+			Comment("最后登录IP"),
 	}
 }
 
@@ -75,9 +121,24 @@ func (User) Indexes() []ent.Index {
 		index.Fields("username", "deleted_at").
 			Unique(),
 
+		// 手机号唯一索引（包含删除状态）
+		index.Fields("phone", "deleted_at").
+			Unique(),
+
 		// 查询优化索引
 		index.Fields("status"),
 		index.Fields("email"),
 		index.Fields("username"),
+		index.Fields("phone"),
+		index.Fields("department"),
+		index.Fields("position"),
+		index.Fields("roles"),
+		index.Fields("force_change_password"),
+		index.Fields("allow_multi_login"),
+
+		// 复合索引优化查询
+		index.Fields("department", "status"),
+		index.Fields("position", "status"),
+		index.Fields("status", "deleted_at"),
 	}
 }

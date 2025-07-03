@@ -173,6 +173,40 @@ func init() {
 			return nil
 		}
 	}()
+	// userDescRealName is the schema descriptor for real_name field.
+	userDescRealName := userFields[3].Descriptor()
+	// user.RealNameValidator is a validator for the "real_name" field. It is called by the builders before save.
+	user.RealNameValidator = userDescRealName.Validators[0].(func(string) error)
+	// userDescPhone is the schema descriptor for phone field.
+	userDescPhone := userFields[4].Descriptor()
+	// user.PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
+	user.PhoneValidator = userDescPhone.Validators[0].(func(string) error)
+	// userDescDepartment is the schema descriptor for department field.
+	userDescDepartment := userFields[5].Descriptor()
+	// user.DepartmentValidator is a validator for the "department" field. It is called by the builders before save.
+	user.DepartmentValidator = userDescDepartment.Validators[0].(func(string) error)
+	// userDescPosition is the schema descriptor for position field.
+	userDescPosition := userFields[6].Descriptor()
+	// user.PositionValidator is a validator for the "position" field. It is called by the builders before save.
+	user.PositionValidator = userDescPosition.Validators[0].(func(string) error)
+	// userDescRoles is the schema descriptor for roles field.
+	userDescRoles := userFields[7].Descriptor()
+	// user.DefaultRoles holds the default value on creation for the roles field.
+	user.DefaultRoles = userDescRoles.Default.(string)
+	// user.RolesValidator is a validator for the "roles" field. It is called by the builders before save.
+	user.RolesValidator = userDescRoles.Validators[0].(func(string) error)
+	// userDescForceChangePassword is the schema descriptor for force_change_password field.
+	userDescForceChangePassword := userFields[9].Descriptor()
+	// user.DefaultForceChangePassword holds the default value on creation for the force_change_password field.
+	user.DefaultForceChangePassword = userDescForceChangePassword.Default.(bool)
+	// userDescAllowMultiLogin is the schema descriptor for allow_multi_login field.
+	userDescAllowMultiLogin := userFields[10].Descriptor()
+	// user.DefaultAllowMultiLogin holds the default value on creation for the allow_multi_login field.
+	user.DefaultAllowMultiLogin = userDescAllowMultiLogin.Default.(bool)
+	// userDescLastLoginIP is the schema descriptor for last_login_ip field.
+	userDescLastLoginIP := userFields[12].Descriptor()
+	// user.LastLoginIPValidator is a validator for the "last_login_ip" field. It is called by the builders before save.
+	user.LastLoginIPValidator = userDescLastLoginIP.Validators[0].(func(string) error)
 	// userDescID is the schema descriptor for id field.
 	userDescID := userMixinFields0[0].Descriptor()
 	// user.IDValidator is a validator for the "id" field. It is called by the builders before save.

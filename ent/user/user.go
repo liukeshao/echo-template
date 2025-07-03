@@ -28,10 +28,26 @@ const (
 	FieldEmail = "email"
 	// FieldPasswordHash holds the string denoting the password_hash field in the database.
 	FieldPasswordHash = "password_hash"
+	// FieldRealName holds the string denoting the real_name field in the database.
+	FieldRealName = "real_name"
+	// FieldPhone holds the string denoting the phone field in the database.
+	FieldPhone = "phone"
+	// FieldDepartment holds the string denoting the department field in the database.
+	FieldDepartment = "department"
+	// FieldPosition holds the string denoting the position field in the database.
+	FieldPosition = "position"
+	// FieldRoles holds the string denoting the roles field in the database.
+	FieldRoles = "roles"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
+	// FieldForceChangePassword holds the string denoting the force_change_password field in the database.
+	FieldForceChangePassword = "force_change_password"
+	// FieldAllowMultiLogin holds the string denoting the allow_multi_login field in the database.
+	FieldAllowMultiLogin = "allow_multi_login"
 	// FieldLastLoginAt holds the string denoting the last_login_at field in the database.
 	FieldLastLoginAt = "last_login_at"
+	// FieldLastLoginIP holds the string denoting the last_login_ip field in the database.
+	FieldLastLoginIP = "last_login_ip"
 	// EdgeTokens holds the string denoting the tokens edge name in mutations.
 	EdgeTokens = "tokens"
 	// Table holds the table name of the user in the database.
@@ -54,8 +70,16 @@ var Columns = []string{
 	FieldUsername,
 	FieldEmail,
 	FieldPasswordHash,
+	FieldRealName,
+	FieldPhone,
+	FieldDepartment,
+	FieldPosition,
+	FieldRoles,
 	FieldStatus,
+	FieldForceChangePassword,
+	FieldAllowMultiLogin,
 	FieldLastLoginAt,
+	FieldLastLoginIP,
 }
 
 // ValidColumn reports if the column name is valid (part of the table columns).
@@ -90,6 +114,24 @@ var (
 	EmailValidator func(string) error
 	// PasswordHashValidator is a validator for the "password_hash" field. It is called by the builders before save.
 	PasswordHashValidator func(string) error
+	// RealNameValidator is a validator for the "real_name" field. It is called by the builders before save.
+	RealNameValidator func(string) error
+	// PhoneValidator is a validator for the "phone" field. It is called by the builders before save.
+	PhoneValidator func(string) error
+	// DepartmentValidator is a validator for the "department" field. It is called by the builders before save.
+	DepartmentValidator func(string) error
+	// PositionValidator is a validator for the "position" field. It is called by the builders before save.
+	PositionValidator func(string) error
+	// DefaultRoles holds the default value on creation for the "roles" field.
+	DefaultRoles string
+	// RolesValidator is a validator for the "roles" field. It is called by the builders before save.
+	RolesValidator func(string) error
+	// DefaultForceChangePassword holds the default value on creation for the "force_change_password" field.
+	DefaultForceChangePassword bool
+	// DefaultAllowMultiLogin holds the default value on creation for the "allow_multi_login" field.
+	DefaultAllowMultiLogin bool
+	// LastLoginIPValidator is a validator for the "last_login_ip" field. It is called by the builders before save.
+	LastLoginIPValidator func(string) error
 	// IDValidator is a validator for the "id" field. It is called by the builders before save.
 	IDValidator func(string) error
 )
@@ -159,14 +201,54 @@ func ByPasswordHash(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPasswordHash, opts...).ToFunc()
 }
 
+// ByRealName orders the results by the real_name field.
+func ByRealName(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRealName, opts...).ToFunc()
+}
+
+// ByPhone orders the results by the phone field.
+func ByPhone(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPhone, opts...).ToFunc()
+}
+
+// ByDepartment orders the results by the department field.
+func ByDepartment(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldDepartment, opts...).ToFunc()
+}
+
+// ByPosition orders the results by the position field.
+func ByPosition(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldPosition, opts...).ToFunc()
+}
+
+// ByRoles orders the results by the roles field.
+func ByRoles(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldRoles, opts...).ToFunc()
+}
+
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
 }
 
+// ByForceChangePassword orders the results by the force_change_password field.
+func ByForceChangePassword(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldForceChangePassword, opts...).ToFunc()
+}
+
+// ByAllowMultiLogin orders the results by the allow_multi_login field.
+func ByAllowMultiLogin(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldAllowMultiLogin, opts...).ToFunc()
+}
+
 // ByLastLoginAt orders the results by the last_login_at field.
 func ByLastLoginAt(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldLastLoginAt, opts...).ToFunc()
+}
+
+// ByLastLoginIP orders the results by the last_login_ip field.
+func ByLastLoginIP(opts ...sql.OrderTermOption) OrderOption {
+	return sql.OrderByField(FieldLastLoginIP, opts...).ToFunc()
 }
 
 // ByTokensCount orders the results by tokens count.

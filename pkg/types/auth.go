@@ -87,12 +87,20 @@ type AuthOutput struct {
 
 // UserInfo 用户信息
 type UserInfo struct {
-	ID          string     `json:"id"`            // 用户ID
-	Username    string     `json:"username"`      // 用户名
-	Email       string     `json:"email"`         // 邮箱
-	Status      string     `json:"status"`        // 状态
-	LastLoginAt *time.Time `json:"last_login_at"` // 最后登录时间
-	CreatedAt   time.Time  `json:"created_at"`    // 创建时间
+	ID                  string     `json:"id"`                    // 用户ID
+	Username            string     `json:"username"`              // 用户名
+	Email               string     `json:"email"`                 // 邮箱
+	RealName            *string    `json:"real_name,omitempty"`   // 真实姓名
+	Phone               *string    `json:"phone,omitempty"`       // 手机号
+	Department          *string    `json:"department,omitempty"`  // 所属部门
+	Position            *string    `json:"position,omitempty"`    // 岗位
+	Roles               []string   `json:"roles"`                 // 用户角色列表
+	Status              string     `json:"status"`                // 状态
+	ForceChangePassword bool       `json:"force_change_password"` // 是否强制修改密码
+	AllowMultiLogin     bool       `json:"allow_multi_login"`     // 是否允许多端登录
+	LastLoginAt         *time.Time `json:"last_login_at"`         // 最后登录时间
+	LastLoginIP         *string    `json:"last_login_ip"`         // 最后登录IP
+	CreatedAt           time.Time  `json:"created_at"`            // 创建时间
 }
 
 // JWTClaims JWT声明结构
