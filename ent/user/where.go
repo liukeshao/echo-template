@@ -125,11 +125,6 @@ func PositionID(v string) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldPositionID, v))
 }
 
-// Roles applies equality check predicate on the "roles" field. It's identical to RolesEQ.
-func Roles(v string) predicate.User {
-	return predicate.User(sql.FieldEQ(FieldRoles, v))
-}
-
 // ForceChangePassword applies equality check predicate on the "force_change_password" field. It's identical to ForceChangePasswordEQ.
 func ForceChangePassword(v bool) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldForceChangePassword, v))
@@ -915,71 +910,6 @@ func PositionIDContainsFold(v string) predicate.User {
 	return predicate.User(sql.FieldContainsFold(FieldPositionID, v))
 }
 
-// RolesEQ applies the EQ predicate on the "roles" field.
-func RolesEQ(v string) predicate.User {
-	return predicate.User(sql.FieldEQ(FieldRoles, v))
-}
-
-// RolesNEQ applies the NEQ predicate on the "roles" field.
-func RolesNEQ(v string) predicate.User {
-	return predicate.User(sql.FieldNEQ(FieldRoles, v))
-}
-
-// RolesIn applies the In predicate on the "roles" field.
-func RolesIn(vs ...string) predicate.User {
-	return predicate.User(sql.FieldIn(FieldRoles, vs...))
-}
-
-// RolesNotIn applies the NotIn predicate on the "roles" field.
-func RolesNotIn(vs ...string) predicate.User {
-	return predicate.User(sql.FieldNotIn(FieldRoles, vs...))
-}
-
-// RolesGT applies the GT predicate on the "roles" field.
-func RolesGT(v string) predicate.User {
-	return predicate.User(sql.FieldGT(FieldRoles, v))
-}
-
-// RolesGTE applies the GTE predicate on the "roles" field.
-func RolesGTE(v string) predicate.User {
-	return predicate.User(sql.FieldGTE(FieldRoles, v))
-}
-
-// RolesLT applies the LT predicate on the "roles" field.
-func RolesLT(v string) predicate.User {
-	return predicate.User(sql.FieldLT(FieldRoles, v))
-}
-
-// RolesLTE applies the LTE predicate on the "roles" field.
-func RolesLTE(v string) predicate.User {
-	return predicate.User(sql.FieldLTE(FieldRoles, v))
-}
-
-// RolesContains applies the Contains predicate on the "roles" field.
-func RolesContains(v string) predicate.User {
-	return predicate.User(sql.FieldContains(FieldRoles, v))
-}
-
-// RolesHasPrefix applies the HasPrefix predicate on the "roles" field.
-func RolesHasPrefix(v string) predicate.User {
-	return predicate.User(sql.FieldHasPrefix(FieldRoles, v))
-}
-
-// RolesHasSuffix applies the HasSuffix predicate on the "roles" field.
-func RolesHasSuffix(v string) predicate.User {
-	return predicate.User(sql.FieldHasSuffix(FieldRoles, v))
-}
-
-// RolesEqualFold applies the EqualFold predicate on the "roles" field.
-func RolesEqualFold(v string) predicate.User {
-	return predicate.User(sql.FieldEqualFold(FieldRoles, v))
-}
-
-// RolesContainsFold applies the ContainsFold predicate on the "roles" field.
-func RolesContainsFold(v string) predicate.User {
-	return predicate.User(sql.FieldContainsFold(FieldRoles, v))
-}
-
 // StatusEQ applies the EQ predicate on the "status" field.
 func StatusEQ(v Status) predicate.User {
 	return predicate.User(sql.FieldEQ(FieldStatus, v))
@@ -1206,6 +1136,29 @@ func HasPositionRel() predicate.User {
 func HasPositionRelWith(preds ...predicate.Position) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := newPositionRelStep()
+		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
+			for _, p := range preds {
+				p(s)
+			}
+		})
+	})
+}
+
+// HasUserRoles applies the HasEdge predicate on the "user_roles" edge.
+func HasUserRoles() predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := sqlgraph.NewStep(
+			sqlgraph.From(Table, FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, UserRolesTable, UserRolesColumn),
+		)
+		sqlgraph.HasNeighbors(s, step)
+	})
+}
+
+// HasUserRolesWith applies the HasEdge predicate on the "user_roles" edge with a given conditions (other predicates).
+func HasUserRolesWith(preds ...predicate.UserRole) predicate.User {
+	return predicate.User(func(s *sql.Selector) {
+		step := newUserRolesStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

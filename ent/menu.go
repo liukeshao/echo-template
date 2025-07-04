@@ -62,9 +62,11 @@ type MenuEdges struct {
 	Parent *Menu `json:"parent,omitempty"`
 	// Children holds the value of the children edge.
 	Children []*Menu `json:"children,omitempty"`
+	// RoleMenus holds the value of the role_menus edge.
+	RoleMenus []*RoleMenu `json:"role_menus,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
-	loadedTypes [2]bool
+	loadedTypes [3]bool
 }
 
 // ParentOrErr returns the Parent value or an error if the edge
@@ -85,6 +87,15 @@ func (e MenuEdges) ChildrenOrErr() ([]*Menu, error) {
 		return e.Children, nil
 	}
 	return nil, &NotLoadedError{edge: "children"}
+}
+
+// RoleMenusOrErr returns the RoleMenus value or an error if the edge
+// was not loaded in eager-loading.
+func (e MenuEdges) RoleMenusOrErr() ([]*RoleMenu, error) {
+	if e.loadedTypes[2] {
+		return e.RoleMenus, nil
+	}
+	return nil, &NotLoadedError{edge: "role_menus"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -239,6 +250,11 @@ func (m *Menu) QueryParent() *MenuQuery {
 // QueryChildren queries the "children" edge of the Menu entity.
 func (m *Menu) QueryChildren() *MenuQuery {
 	return NewMenuClient(m.config).QueryChildren(m)
+}
+
+// QueryRoleMenus queries the "role_menus" edge of the Menu entity.
+func (m *Menu) QueryRoleMenus() *RoleMenuQuery {
+	return NewMenuClient(m.config).QueryRoleMenus(m)
 }
 
 // Update returns a builder for updating this Menu.

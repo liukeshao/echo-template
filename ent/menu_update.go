@@ -13,6 +13,7 @@ import (
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/predicate"
+	"github.com/liukeshao/echo-template/ent/rolemenu"
 )
 
 // MenuUpdate is the builder for updating Menu entities.
@@ -306,6 +307,21 @@ func (mu *MenuUpdate) AddChildren(m ...*Menu) *MenuUpdate {
 	return mu.AddChildIDs(ids...)
 }
 
+// AddRoleMenuIDs adds the "role_menus" edge to the RoleMenu entity by IDs.
+func (mu *MenuUpdate) AddRoleMenuIDs(ids ...string) *MenuUpdate {
+	mu.mutation.AddRoleMenuIDs(ids...)
+	return mu
+}
+
+// AddRoleMenus adds the "role_menus" edges to the RoleMenu entity.
+func (mu *MenuUpdate) AddRoleMenus(r ...*RoleMenu) *MenuUpdate {
+	ids := make([]string, len(r))
+	for i := range r {
+		ids[i] = r[i].ID
+	}
+	return mu.AddRoleMenuIDs(ids...)
+}
+
 // Mutation returns the MenuMutation object of the builder.
 func (mu *MenuUpdate) Mutation() *MenuMutation {
 	return mu.mutation
@@ -336,6 +352,27 @@ func (mu *MenuUpdate) RemoveChildren(m ...*Menu) *MenuUpdate {
 		ids[i] = m[i].ID
 	}
 	return mu.RemoveChildIDs(ids...)
+}
+
+// ClearRoleMenus clears all "role_menus" edges to the RoleMenu entity.
+func (mu *MenuUpdate) ClearRoleMenus() *MenuUpdate {
+	mu.mutation.ClearRoleMenus()
+	return mu
+}
+
+// RemoveRoleMenuIDs removes the "role_menus" edge to RoleMenu entities by IDs.
+func (mu *MenuUpdate) RemoveRoleMenuIDs(ids ...string) *MenuUpdate {
+	mu.mutation.RemoveRoleMenuIDs(ids...)
+	return mu
+}
+
+// RemoveRoleMenus removes "role_menus" edges to RoleMenu entities.
+func (mu *MenuUpdate) RemoveRoleMenus(r ...*RoleMenu) *MenuUpdate {
+	ids := make([]string, len(r))
+	for i := range r {
+		ids[i] = r[i].ID
+	}
+	return mu.RemoveRoleMenuIDs(ids...)
 }
 
 // Save executes the query and returns the number of nodes affected by the update operation.
@@ -580,6 +617,51 @@ func (mu *MenuUpdate) sqlSave(ctx context.Context) (n int, err error) {
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(menu.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if mu.mutation.RoleMenusCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := mu.mutation.RemovedRoleMenusIDs(); len(nodes) > 0 && !mu.mutation.RoleMenusCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := mu.mutation.RoleMenusIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {
@@ -885,6 +967,21 @@ func (muo *MenuUpdateOne) AddChildren(m ...*Menu) *MenuUpdateOne {
 	return muo.AddChildIDs(ids...)
 }
 
+// AddRoleMenuIDs adds the "role_menus" edge to the RoleMenu entity by IDs.
+func (muo *MenuUpdateOne) AddRoleMenuIDs(ids ...string) *MenuUpdateOne {
+	muo.mutation.AddRoleMenuIDs(ids...)
+	return muo
+}
+
+// AddRoleMenus adds the "role_menus" edges to the RoleMenu entity.
+func (muo *MenuUpdateOne) AddRoleMenus(r ...*RoleMenu) *MenuUpdateOne {
+	ids := make([]string, len(r))
+	for i := range r {
+		ids[i] = r[i].ID
+	}
+	return muo.AddRoleMenuIDs(ids...)
+}
+
 // Mutation returns the MenuMutation object of the builder.
 func (muo *MenuUpdateOne) Mutation() *MenuMutation {
 	return muo.mutation
@@ -915,6 +1012,27 @@ func (muo *MenuUpdateOne) RemoveChildren(m ...*Menu) *MenuUpdateOne {
 		ids[i] = m[i].ID
 	}
 	return muo.RemoveChildIDs(ids...)
+}
+
+// ClearRoleMenus clears all "role_menus" edges to the RoleMenu entity.
+func (muo *MenuUpdateOne) ClearRoleMenus() *MenuUpdateOne {
+	muo.mutation.ClearRoleMenus()
+	return muo
+}
+
+// RemoveRoleMenuIDs removes the "role_menus" edge to RoleMenu entities by IDs.
+func (muo *MenuUpdateOne) RemoveRoleMenuIDs(ids ...string) *MenuUpdateOne {
+	muo.mutation.RemoveRoleMenuIDs(ids...)
+	return muo
+}
+
+// RemoveRoleMenus removes "role_menus" edges to RoleMenu entities.
+func (muo *MenuUpdateOne) RemoveRoleMenus(r ...*RoleMenu) *MenuUpdateOne {
+	ids := make([]string, len(r))
+	for i := range r {
+		ids[i] = r[i].ID
+	}
+	return muo.RemoveRoleMenuIDs(ids...)
 }
 
 // Where appends a list predicates to the MenuUpdate builder.
@@ -1189,6 +1307,51 @@ func (muo *MenuUpdateOne) sqlSave(ctx context.Context) (_node *Menu, err error) 
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
 				IDSpec: sqlgraph.NewFieldSpec(menu.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Add = append(_spec.Edges.Add, edge)
+	}
+	if muo.mutation.RoleMenusCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
+			},
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := muo.mutation.RemovedRoleMenusIDs(); len(nodes) > 0 && !muo.mutation.RoleMenusCleared() {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
+			},
+		}
+		for _, k := range nodes {
+			edge.Target.Nodes = append(edge.Target.Nodes, k)
+		}
+		_spec.Edges.Clear = append(_spec.Edges.Clear, edge)
+	}
+	if nodes := muo.mutation.RoleMenusIDs(); len(nodes) > 0 {
+		edge := &sqlgraph.EdgeSpec{
+			Rel:     sqlgraph.O2M,
+			Inverse: false,
+			Table:   menu.RoleMenusTable,
+			Columns: []string{menu.RoleMenusColumn},
+			Bidi:    false,
+			Target: &sqlgraph.EdgeTarget{
+				IDSpec: sqlgraph.NewFieldSpec(rolemenu.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

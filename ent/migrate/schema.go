@@ -293,6 +293,161 @@ var (
 			},
 		},
 	}
+	// RolesColumns holds the columns for the "roles" table.
+	RolesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "code", Type: field.TypeString, Size: 50},
+		{Name: "description", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"enabled", "disabled"}, Default: "enabled"},
+		{Name: "data_scope", Type: field.TypeEnum, Enums: []string{"all", "dept_sub", "dept", "self", "custom"}, Default: "all"},
+		{Name: "dept_ids", Type: field.TypeJSON, Nullable: true},
+		{Name: "is_builtin", Type: field.TypeBool, Default: false},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "remark", Type: field.TypeString, Nullable: true, Size: 500},
+	}
+	// RolesTable holds the schema information for the "roles" table.
+	RolesTable = &schema.Table{
+		Name:       "roles",
+		Columns:    RolesColumns,
+		PrimaryKey: []*schema.Column{RolesColumns[0]},
+		Indexes: []*schema.Index{
+			{
+				Name:    "role_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[3]},
+			},
+			{
+				Name:    "role_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[1]},
+			},
+			{
+				Name:    "role_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[2]},
+			},
+			{
+				Name:    "role_name_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{RolesColumns[4], RolesColumns[3]},
+			},
+			{
+				Name:    "role_code_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{RolesColumns[5], RolesColumns[3]},
+			},
+			{
+				Name:    "role_status",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[7]},
+			},
+			{
+				Name:    "role_is_builtin",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[10]},
+			},
+			{
+				Name:    "role_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[11]},
+			},
+			{
+				Name:    "role_data_scope",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[8]},
+			},
+			{
+				Name:    "role_status_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[7], RolesColumns[3]},
+			},
+			{
+				Name:    "role_status_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[7], RolesColumns[11]},
+			},
+			{
+				Name:    "role_is_builtin_status",
+				Unique:  false,
+				Columns: []*schema.Column{RolesColumns[10], RolesColumns[7]},
+			},
+		},
+	}
+	// RoleMenusColumns holds the columns for the "role_menus" table.
+	RoleMenusColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "menu_id", Type: field.TypeString, Size: 26},
+		{Name: "role_id", Type: field.TypeString, Size: 26},
+	}
+	// RoleMenusTable holds the schema information for the "role_menus" table.
+	RoleMenusTable = &schema.Table{
+		Name:       "role_menus",
+		Columns:    RoleMenusColumns,
+		PrimaryKey: []*schema.Column{RoleMenusColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "role_menus_menus_role_menus",
+				Columns:    []*schema.Column{RoleMenusColumns[4]},
+				RefColumns: []*schema.Column{MenusColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "role_menus_roles_role_menus",
+				Columns:    []*schema.Column{RoleMenusColumns[5]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "rolemenu_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[3]},
+			},
+			{
+				Name:    "rolemenu_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[1]},
+			},
+			{
+				Name:    "rolemenu_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[2]},
+			},
+			{
+				Name:    "rolemenu_role_id_menu_id_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{RoleMenusColumns[5], RoleMenusColumns[4], RoleMenusColumns[3]},
+			},
+			{
+				Name:    "rolemenu_role_id",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[5]},
+			},
+			{
+				Name:    "rolemenu_menu_id",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[4]},
+			},
+			{
+				Name:    "rolemenu_role_id_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[5], RoleMenusColumns[3]},
+			},
+			{
+				Name:    "rolemenu_menu_id_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{RoleMenusColumns[4], RoleMenusColumns[3]},
+			},
+		},
+	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
@@ -385,7 +540,6 @@ var (
 		{Name: "phone", Type: field.TypeString, Nullable: true, Size: 20},
 		{Name: "department", Type: field.TypeString, Nullable: true, Size: 100},
 		{Name: "position", Type: field.TypeString, Nullable: true, Size: 100},
-		{Name: "roles", Type: field.TypeString, Size: 500, Default: "user"},
 		{Name: "status", Type: field.TypeEnum, Enums: []string{"active", "inactive", "suspended"}, Default: "active"},
 		{Name: "force_change_password", Type: field.TypeBool, Default: false},
 		{Name: "allow_multi_login", Type: field.TypeBool, Default: true},
@@ -402,13 +556,13 @@ var (
 		ForeignKeys: []*schema.ForeignKey{
 			{
 				Symbol:     "users_departments_department_rel",
-				Columns:    []*schema.Column{UsersColumns[17]},
+				Columns:    []*schema.Column{UsersColumns[16]},
 				RefColumns: []*schema.Column{DepartmentsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
 			{
 				Symbol:     "users_positions_position_rel",
-				Columns:    []*schema.Column{UsersColumns[18]},
+				Columns:    []*schema.Column{UsersColumns[17]},
 				RefColumns: []*schema.Column{PositionsColumns[0]},
 				OnDelete:   schema.SetNull,
 			},
@@ -447,7 +601,7 @@ var (
 			{
 				Name:    "user_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[11]},
 			},
 			{
 				Name:    "user_email",
@@ -472,7 +626,7 @@ var (
 			{
 				Name:    "user_department_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[17]},
+				Columns: []*schema.Column{UsersColumns[16]},
 			},
 			{
 				Name:    "user_position",
@@ -482,47 +636,113 @@ var (
 			{
 				Name:    "user_position_id",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[18]},
-			},
-			{
-				Name:    "user_roles",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[11]},
+				Columns: []*schema.Column{UsersColumns[17]},
 			},
 			{
 				Name:    "user_force_change_password",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[13]},
+				Columns: []*schema.Column{UsersColumns[12]},
 			},
 			{
 				Name:    "user_allow_multi_login",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[14]},
+				Columns: []*schema.Column{UsersColumns[13]},
 			},
 			{
 				Name:    "user_department_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[9], UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[9], UsersColumns[11]},
 			},
 			{
 				Name:    "user_department_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[17], UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[16], UsersColumns[11]},
 			},
 			{
 				Name:    "user_position_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[10], UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[10], UsersColumns[11]},
 			},
 			{
 				Name:    "user_position_id_status",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[18], UsersColumns[12]},
+				Columns: []*schema.Column{UsersColumns[17], UsersColumns[11]},
 			},
 			{
 				Name:    "user_status_deleted_at",
 				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[12], UsersColumns[3]},
+				Columns: []*schema.Column{UsersColumns[11], UsersColumns[3]},
+			},
+		},
+	}
+	// UserRolesColumns holds the columns for the "user_roles" table.
+	UserRolesColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "role_id", Type: field.TypeString, Size: 26},
+		{Name: "user_id", Type: field.TypeString, Size: 26},
+	}
+	// UserRolesTable holds the schema information for the "user_roles" table.
+	UserRolesTable = &schema.Table{
+		Name:       "user_roles",
+		Columns:    UserRolesColumns,
+		PrimaryKey: []*schema.Column{UserRolesColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "user_roles_roles_user_roles",
+				Columns:    []*schema.Column{UserRolesColumns[4]},
+				RefColumns: []*schema.Column{RolesColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+			{
+				Symbol:     "user_roles_users_user_roles",
+				Columns:    []*schema.Column{UserRolesColumns[5]},
+				RefColumns: []*schema.Column{UsersColumns[0]},
+				OnDelete:   schema.NoAction,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "userrole_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[3]},
+			},
+			{
+				Name:    "userrole_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[1]},
+			},
+			{
+				Name:    "userrole_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[2]},
+			},
+			{
+				Name:    "userrole_user_id_role_id_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{UserRolesColumns[5], UserRolesColumns[4], UserRolesColumns[3]},
+			},
+			{
+				Name:    "userrole_user_id",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[5]},
+			},
+			{
+				Name:    "userrole_role_id",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[4]},
+			},
+			{
+				Name:    "userrole_user_id_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[5], UserRolesColumns[3]},
+			},
+			{
+				Name:    "userrole_role_id_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{UserRolesColumns[4], UserRolesColumns[3]},
 			},
 		},
 	}
@@ -531,15 +751,22 @@ var (
 		DepartmentsTable,
 		MenusTable,
 		PositionsTable,
+		RolesTable,
+		RoleMenusTable,
 		TokensTable,
 		UsersTable,
+		UserRolesTable,
 	}
 )
 
 func init() {
 	DepartmentsTable.ForeignKeys[0].RefTable = DepartmentsTable
 	MenusTable.ForeignKeys[0].RefTable = MenusTable
+	RoleMenusTable.ForeignKeys[0].RefTable = MenusTable
+	RoleMenusTable.ForeignKeys[1].RefTable = RolesTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.ForeignKeys[0].RefTable = DepartmentsTable
 	UsersTable.ForeignKeys[1].RefTable = PositionsTable
+	UserRolesTable.ForeignKeys[0].RefTable = RolesTable
+	UserRolesTable.ForeignKeys[1].RefTable = UsersTable
 }

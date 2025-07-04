@@ -40,8 +40,6 @@ const (
 	FieldPosition = "position"
 	// FieldPositionID holds the string denoting the position_id field in the database.
 	FieldPositionID = "position_id"
-	// FieldRoles holds the string denoting the roles field in the database.
-	FieldRoles = "roles"
 	// FieldStatus holds the string denoting the status field in the database.
 	FieldStatus = "status"
 	// FieldForceChangePassword holds the string denoting the force_change_password field in the database.
@@ -58,6 +56,8 @@ const (
 	EdgeDepartmentRel = "department_rel"
 	// EdgePositionRel holds the string denoting the position_rel edge name in mutations.
 	EdgePositionRel = "position_rel"
+	// EdgeUserRoles holds the string denoting the user_roles edge name in mutations.
+	EdgeUserRoles = "user_roles"
 	// Table holds the table name of the user in the database.
 	Table = "users"
 	// TokensTable is the table that holds the tokens relation/edge.
@@ -81,6 +81,13 @@ const (
 	PositionRelInverseTable = "positions"
 	// PositionRelColumn is the table column denoting the position_rel relation/edge.
 	PositionRelColumn = "position_id"
+	// UserRolesTable is the table that holds the user_roles relation/edge.
+	UserRolesTable = "user_roles"
+	// UserRolesInverseTable is the table name for the UserRole entity.
+	// It exists in this package in order to avoid circular dependency with the "userrole" package.
+	UserRolesInverseTable = "user_roles"
+	// UserRolesColumn is the table column denoting the user_roles relation/edge.
+	UserRolesColumn = "user_id"
 )
 
 // Columns holds all SQL columns for user fields.
@@ -98,7 +105,6 @@ var Columns = []string{
 	FieldDepartmentID,
 	FieldPosition,
 	FieldPositionID,
-	FieldRoles,
 	FieldStatus,
 	FieldForceChangePassword,
 	FieldAllowMultiLogin,
@@ -150,10 +156,6 @@ var (
 	PositionValidator func(string) error
 	// PositionIDValidator is a validator for the "position_id" field. It is called by the builders before save.
 	PositionIDValidator func(string) error
-	// DefaultRoles holds the default value on creation for the "roles" field.
-	DefaultRoles string
-	// RolesValidator is a validator for the "roles" field. It is called by the builders before save.
-	RolesValidator func(string) error
 	// DefaultForceChangePassword holds the default value on creation for the "force_change_password" field.
 	DefaultForceChangePassword bool
 	// DefaultAllowMultiLogin holds the default value on creation for the "allow_multi_login" field.
@@ -259,11 +261,6 @@ func ByPositionID(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldPositionID, opts...).ToFunc()
 }
 
-// ByRoles orders the results by the roles field.
-func ByRoles(opts ...sql.OrderTermOption) OrderOption {
-	return sql.OrderByField(FieldRoles, opts...).ToFunc()
-}
-
 // ByStatus orders the results by the status field.
 func ByStatus(opts ...sql.OrderTermOption) OrderOption {
 	return sql.OrderByField(FieldStatus, opts...).ToFunc()
@@ -316,6 +313,20 @@ func ByPositionRelField(field string, opts ...sql.OrderTermOption) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newPositionRelStep(), sql.OrderByField(field, opts...))
 	}
 }
+
+// ByUserRolesCount orders the results by user_roles count.
+func ByUserRolesCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newUserRolesStep(), opts...)
+	}
+}
+
+// ByUserRoles orders the results by user_roles terms.
+func ByUserRoles(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newUserRolesStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newTokensStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -335,5 +346,12 @@ func newPositionRelStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(PositionRelInverseTable, FieldID),
 		sqlgraph.Edge(sqlgraph.M2O, false, PositionRelTable, PositionRelColumn),
+	)
+}
+func newUserRolesStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(UserRolesInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, UserRolesTable, UserRolesColumn),
 	)
 }

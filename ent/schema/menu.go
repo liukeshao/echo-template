@@ -111,6 +111,9 @@ func (Menu) Edges() []ent.Edge {
 		// 子菜单（一对多）
 		edge.From("children", Menu.Type).
 			Ref("parent"),
+
+		// 角色菜单关联表（一对多）
+		edge.To("role_menus", RoleMenu.Type),
 	}
 }
 

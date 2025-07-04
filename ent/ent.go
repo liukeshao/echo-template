@@ -15,8 +15,11 @@ import (
 	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/position"
+	"github.com/liukeshao/echo-template/ent/role"
+	"github.com/liukeshao/echo-template/ent/rolemenu"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/ent/userrole"
 )
 
 // ent aliases to avoid import conflicts in user's code.
@@ -80,8 +83,11 @@ func checkColumn(table, column string) error {
 			department.Table: department.ValidColumn,
 			menu.Table:       menu.ValidColumn,
 			position.Table:   position.ValidColumn,
+			role.Table:       role.ValidColumn,
+			rolemenu.Table:   rolemenu.ValidColumn,
 			token.Table:      token.ValidColumn,
 			user.Table:       user.ValidColumn,
+			userrole.Table:   userrole.ValidColumn,
 		})
 	})
 	return columnCheck(table, column)

@@ -12,8 +12,11 @@ import (
 	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/predicate"
+	"github.com/liukeshao/echo-template/ent/role"
+	"github.com/liukeshao/echo-template/ent/rolemenu"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/ent/userrole"
 )
 
 // The Query interface represents an operation that queries a graph.
@@ -153,6 +156,60 @@ func (f TraversePosition) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.PositionQuery", q)
 }
 
+// The RoleFunc type is an adapter to allow the use of ordinary function as a Querier.
+type RoleFunc func(context.Context, *ent.RoleQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f RoleFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.RoleQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.RoleQuery", q)
+}
+
+// The TraverseRole type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseRole func(context.Context, *ent.RoleQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseRole) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseRole) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.RoleQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.RoleQuery", q)
+}
+
+// The RoleMenuFunc type is an adapter to allow the use of ordinary function as a Querier.
+type RoleMenuFunc func(context.Context, *ent.RoleMenuQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f RoleMenuFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.RoleMenuQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.RoleMenuQuery", q)
+}
+
+// The TraverseRoleMenu type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseRoleMenu func(context.Context, *ent.RoleMenuQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseRoleMenu) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseRoleMenu) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.RoleMenuQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.RoleMenuQuery", q)
+}
+
 // The TokenFunc type is an adapter to allow the use of ordinary function as a Querier.
 type TokenFunc func(context.Context, *ent.TokenQuery) (ent.Value, error)
 
@@ -207,6 +264,33 @@ func (f TraverseUser) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.UserQuery", q)
 }
 
+// The UserRoleFunc type is an adapter to allow the use of ordinary function as a Querier.
+type UserRoleFunc func(context.Context, *ent.UserRoleQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f UserRoleFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.UserRoleQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.UserRoleQuery", q)
+}
+
+// The TraverseUserRole type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseUserRole func(context.Context, *ent.UserRoleQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseUserRole) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseUserRole) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.UserRoleQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.UserRoleQuery", q)
+}
+
 // NewQuery returns the generic Query interface for the given typed query.
 func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
@@ -216,10 +300,16 @@ func NewQuery(q ent.Query) (Query, error) {
 		return &query[*ent.MenuQuery, predicate.Menu, menu.OrderOption]{typ: ent.TypeMenu, tq: q}, nil
 	case *ent.PositionQuery:
 		return &query[*ent.PositionQuery, predicate.Position, position.OrderOption]{typ: ent.TypePosition, tq: q}, nil
+	case *ent.RoleQuery:
+		return &query[*ent.RoleQuery, predicate.Role, role.OrderOption]{typ: ent.TypeRole, tq: q}, nil
+	case *ent.RoleMenuQuery:
+		return &query[*ent.RoleMenuQuery, predicate.RoleMenu, rolemenu.OrderOption]{typ: ent.TypeRoleMenu, tq: q}, nil
 	case *ent.TokenQuery:
 		return &query[*ent.TokenQuery, predicate.Token, token.OrderOption]{typ: ent.TypeToken, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
+	case *ent.UserRoleQuery:
+		return &query[*ent.UserRoleQuery, predicate.UserRole, userrole.OrderOption]{typ: ent.TypeUserRole, tq: q}, nil
 	default:
 		return nil, fmt.Errorf("unknown query type %T", q)
 	}

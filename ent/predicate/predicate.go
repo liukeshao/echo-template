@@ -15,8 +15,17 @@ type Menu func(*sql.Selector)
 // Position is the predicate function for position builders.
 type Position func(*sql.Selector)
 
+// Role is the predicate function for role builders.
+type Role func(*sql.Selector)
+
+// RoleMenu is the predicate function for rolemenu builders.
+type RoleMenu func(*sql.Selector)
+
 // Token is the predicate function for token builders.
 type Token func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)
+
+// UserRole is the predicate function for userrole builders.
+type UserRole func(*sql.Selector)

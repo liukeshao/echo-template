@@ -38,6 +38,7 @@ type Container struct {
 	Department *DepartmentService
 	Position   *PositionService
 	Menu       *MenuService
+	Role       *RoleService
 }
 
 // NewContainer creates and initializes a new Container.
@@ -122,6 +123,7 @@ func (c *Container) initServices() {
 	c.Department = NewDepartmentService(c.ORM)
 	c.Position = NewPositionService(c.ORM)
 	c.Menu = NewMenuService(c.ORM)
+	c.Role = NewRoleService(c.ORM)
 }
 
 // openDB opens a database connection.
