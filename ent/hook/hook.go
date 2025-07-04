@@ -21,6 +21,18 @@ func (f DepartmentFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, 
 	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.DepartmentMutation", m)
 }
 
+// The MenuFunc type is an adapter to allow the use of ordinary
+// function as Menu mutator.
+type MenuFunc func(context.Context, *ent.MenuMutation) (ent.Value, error)
+
+// Mutate calls f(ctx, m).
+func (f MenuFunc) Mutate(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+	if mv, ok := m.(*ent.MenuMutation); ok {
+		return f(ctx, mv)
+	}
+	return nil, fmt.Errorf("unexpected mutation type %T. expect *ent.MenuMutation", m)
+}
+
 // The PositionFunc type is an adapter to allow the use of ordinary
 // function as Position mutator.
 type PositionFunc func(context.Context, *ent.PositionMutation) (ent.Value, error)
