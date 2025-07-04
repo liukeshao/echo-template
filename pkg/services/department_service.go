@@ -70,7 +70,7 @@ func (s *DepartmentService) toDepartmentInfo(d *ent.Department) *types.Departmen
 func (s *DepartmentService) CreateDepartment(ctx context.Context, input *types.CreateDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门编码是否已存在
 	exists, err := s.orm.Department.Query().
-		Where(department.CodeEQ(input.Code), department.DeletedAtEQ(0)).
+		Where(department.CodeEQ(input.Code)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查部门编码是否存在失败", "error", err)
@@ -84,7 +84,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, input *types.C
 	var parentDept *ent.Department
 	if input.ParentID != nil && *input.ParentID != "" {
 		parentDept, err = s.orm.Department.Query().
-			Where(department.IDEQ(*input.ParentID), department.DeletedAtEQ(0)).
+			Where(department.IDEQ(*input.ParentID)).
 			First(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
@@ -163,7 +163,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, input *types.C
 
 	// 获取部门用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.DepartmentIDEQ(d.ID), user.DeletedAtEQ(0)).
+		Where(user.DepartmentIDEQ(d.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取部门用户数量失败", "error", err)
@@ -180,7 +180,7 @@ func (s *DepartmentService) CreateDepartment(ctx context.Context, input *types.C
 // GetDepartmentByID 根据ID获取部门
 func (s *DepartmentService) GetDepartmentByID(ctx context.Context, departmentID string) (*types.DepartmentOutput, error) {
 	d, err := s.orm.Department.Query().
-		Where(department.IDEQ(departmentID), department.DeletedAtEQ(0)).
+		Where(department.IDEQ(departmentID)).
 		WithParent().
 		First(ctx)
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *DepartmentService) GetDepartmentByID(ctx context.Context, departmentID 
 
 	// 获取部门用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.DepartmentIDEQ(d.ID), user.DeletedAtEQ(0)).
+		Where(user.DepartmentIDEQ(d.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取部门用户数量失败", "error", err)
@@ -215,7 +215,7 @@ func (s *DepartmentService) GetDepartmentByID(ctx context.Context, departmentID 
 // ListDepartments 获取部门列表
 func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.ListDepartmentsInput) (*types.ListDepartmentsOutput, error) {
 	// 构建查询条件
-	query := s.orm.Department.Query().Where(department.DeletedAtEQ(0))
+	query := s.orm.Department.Query()
 
 	// 根据父部门筛选
 	if input.ParentID != nil {
@@ -279,7 +279,7 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.Li
 
 		// 获取部门用户数量
 		userCount, err := s.orm.User.Query().
-			Where(user.DepartmentIDEQ(dept.ID), user.DeletedAtEQ(0)).
+			Where(user.DepartmentIDEQ(dept.ID)).
 			Count(ctx)
 		if err != nil {
 			slog.WarnContext(ctx, "获取部门用户数量失败", "error", err, "department_id", dept.ID)
@@ -298,7 +298,7 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.Li
 func (s *DepartmentService) GetDepartmentTree(ctx context.Context) (*types.DepartmentTreeOutput, error) {
 	// 获取所有启用的部门
 	departments, err := s.orm.Department.Query().
-		Where(department.DeletedAtEQ(0), department.StatusEQ(department.StatusActive)).
+		Where(department.StatusEQ(department.StatusActive)).
 		Order(department.ByLevel(), department.BySortOrder()).
 		All(ctx)
 	if err != nil {
@@ -316,7 +316,7 @@ func (s *DepartmentService) GetDepartmentTree(ctx context.Context) (*types.Depar
 
 		// 获取部门用户数量
 		userCount, err := s.orm.User.Query().
-			Where(user.DepartmentIDEQ(dept.ID), user.DeletedAtEQ(0)).
+			Where(user.DepartmentIDEQ(dept.ID)).
 			Count(ctx)
 		if err != nil {
 			slog.WarnContext(ctx, "获取部门用户数量失败", "error", err, "department_id", dept.ID)
@@ -351,7 +351,7 @@ func (s *DepartmentService) GetDepartmentTree(ctx context.Context) (*types.Depar
 func (s *DepartmentService) UpdateDepartment(ctx context.Context, departmentID string, input *types.UpdateDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门是否存在
 	d, err := s.orm.Department.Query().
-		Where(department.IDEQ(departmentID), department.DeletedAtEQ(0)).
+		Where(department.IDEQ(departmentID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -455,7 +455,7 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, departmentID s
 
 	// 获取部门用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.DepartmentIDEQ(updatedDept.ID), user.DeletedAtEQ(0)).
+		Where(user.DepartmentIDEQ(updatedDept.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取部门用户数量失败", "error", err)
@@ -473,7 +473,7 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, departmentID s
 func (s *DepartmentService) MoveDepartment(ctx context.Context, departmentID string, input *types.MoveDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门是否存在
 	d, err := s.orm.Department.Query().
-		Where(department.IDEQ(departmentID), department.DeletedAtEQ(0)).
+		Where(department.IDEQ(departmentID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -501,7 +501,7 @@ func (s *DepartmentService) MoveDepartment(ctx context.Context, departmentID str
 		}
 
 		newParentDept, err = s.orm.Department.Query().
-			Where(department.IDEQ(*input.ParentID), department.DeletedAtEQ(0)).
+			Where(department.IDEQ(*input.ParentID)).
 			First(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
@@ -564,7 +564,7 @@ func (s *DepartmentService) MoveDepartment(ctx context.Context, departmentID str
 
 	// 获取部门用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.DepartmentIDEQ(updatedDept.ID), user.DeletedAtEQ(0)).
+		Where(user.DepartmentIDEQ(updatedDept.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取部门用户数量失败", "error", err)
@@ -596,7 +596,7 @@ func (s *DepartmentService) isDescendant(ctx context.Context, descendantID, ance
 
 		// 查找当前部门的父部门
 		dept, err := s.orm.Department.Query().
-			Where(department.IDEQ(current), department.DeletedAtEQ(0)).
+			Where(department.IDEQ(current)).
 			First(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
@@ -618,7 +618,7 @@ func (s *DepartmentService) isDescendant(ctx context.Context, descendantID, ance
 func (s *DepartmentService) updateChildrenPathAndLevel(ctx context.Context, tx *ent.Tx, parentID, parentPath string, parentLevel int) error {
 	// 查找所有直接子部门
 	children, err := tx.Department.Query().
-		Where(department.ParentIDEQ(parentID), department.DeletedAtEQ(0)).
+		Where(department.ParentIDEQ(parentID)).
 		All(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "查询子部门失败", "error", err)
@@ -683,7 +683,7 @@ func (s *DepartmentService) SortDepartments(ctx context.Context, input *types.So
 func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, departmentID string) (*types.CheckDepartmentDeletableOutput, error) {
 	// 检查部门是否存在
 	exists, err := s.orm.Department.Query().
-		Where(department.IDEQ(departmentID), department.DeletedAtEQ(0)).
+		Where(department.IDEQ(departmentID)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查部门是否存在失败", "error", err)
@@ -695,7 +695,7 @@ func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, depart
 
 	// 检查是否有关联用户
 	userCount, err := s.orm.User.Query().
-		Where(user.DepartmentIDEQ(departmentID), user.DeletedAtEQ(0)).
+		Where(user.DepartmentIDEQ(departmentID)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查部门关联用户失败", "error", err)
@@ -704,7 +704,7 @@ func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, depart
 
 	// 检查是否有子部门
 	childrenCount, err := s.orm.Department.Query().
-		Where(department.ParentIDEQ(departmentID), department.DeletedAtEQ(0)).
+		Where(department.ParentIDEQ(departmentID)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查子部门失败", "error", err)
@@ -761,7 +761,6 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, departmentID s
 func (s *DepartmentService) GetDepartmentStats(ctx context.Context) (*types.DepartmentStatsOutput, error) {
 	// 获取总部门数
 	total, err := s.orm.Department.Query().
-		Where(department.DeletedAtEQ(0)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取部门总数失败", "error", err)
@@ -770,7 +769,7 @@ func (s *DepartmentService) GetDepartmentStats(ctx context.Context) (*types.Depa
 
 	// 获取启用部门数
 	active, err := s.orm.Department.Query().
-		Where(department.DeletedAtEQ(0), department.StatusEQ(department.StatusActive)).
+		Where(department.StatusEQ(department.StatusActive)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取启用部门数失败", "error", err)
@@ -779,7 +778,7 @@ func (s *DepartmentService) GetDepartmentStats(ctx context.Context) (*types.Depa
 
 	// 获取停用部门数
 	inactive, err := s.orm.Department.Query().
-		Where(department.DeletedAtEQ(0), department.StatusEQ(department.StatusInactive)).
+		Where(department.StatusEQ(department.StatusInactive)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取停用部门数失败", "error", err)
@@ -800,7 +799,6 @@ func (s *DepartmentService) GetDepartmentStats(ctx context.Context) (*types.Depa
 
 	var levelCounts []LevelCountResult
 	err = s.orm.Department.Query().
-		Where(department.DeletedAtEQ(0)).
 		GroupBy(department.FieldLevel).
 		Aggregate(ent.Count()).
 		Scan(ctx, &levelCounts)
