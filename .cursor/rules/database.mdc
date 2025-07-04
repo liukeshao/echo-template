@@ -286,12 +286,62 @@ WHERE deleted_at = 0
    - **定期数据检查**：设置定时任务检查和清理孤立数据
    - **操作日志**：记录所有重要的数据操作，便于问题追踪
 
+## Ent ORM 逻辑删除处理
+
+### 自动拦截机制
+本项目使用 `SoftDeleteMixin` 实现自动逻辑删除处理：
+
+- **查询拦截**：所有查询操作自动添加 `deleted_at = 0` 条件
+- **删除拦截**：所有删除操作自动转换为更新 `deleted_at` 字段
+- **无需显式条件**：正常情况下，查询时无需手动添加 `user.DeletedAtEQ(0)` 等条件
+
+### 拦截器工作原理
+```go
+// SoftDeleteMixin 已配置的拦截器会自动处理
+query := s.orm.User.Query()           // 自动添加 deleted_at = 0
+user, err := query.First(ctx)         // 只返回未删除的记录
+
+// 删除操作自动转换为逻辑删除
+err := s.orm.User.DeleteOneID(userID).Exec(ctx)  // 实际执行更新操作
+```
+
+### 特殊场景处理
+仅在以下场景需要特殊处理：
+
+1. **跳过拦截器**：需要查询已删除记录时
+```go
+// 使用 SkipSoftDelete 跳过拦截器
+ctx = SkipSoftDelete(ctx)
+allUsers, err := s.orm.User.Query().All(ctx)  // 包含已删除记录
+```
+
+2. **唯一性检查**：由于唯一索引包含 deleted_at 字段
+```go
+// 检查用户名唯一性时仍需显式指定（用于唯一索引）
+exists, err := s.orm.User.Query().
+    Where(user.UsernameEQ(username), user.DeletedAtEQ(0)).
+    Exist(ctx)
+```
+
+3. **数据恢复**：恢复已删除记录
+```go
+// 恢复操作需要跳过拦截器
+ctx = SkipSoftDelete(ctx)
+err := s.orm.User.UpdateOneID(userID).SetDeletedAt(0).Exec(ctx)
+```
+
+### 开发规范
+- **默认依赖拦截器**：正常业务查询无需添加 `DeletedAtEQ(0)` 条件
+- **代码简洁性**：利用拦截器减少重复的删除状态判断
+- **特殊场景明确标注**：使用 `SkipSoftDelete` 时添加注释说明原因
+- **测试验证**：确保拦截器在所有查询场景下正常工作
+
 ## 逻辑删除注意事项
 
 ### 查询默认行为
-- **默认查询应排除已删除记录**：`WHERE deleted_at = 0`
-- 明确需要包含已删除记录时才特殊处理
-- 使用视图或查询构建器封装默认行为
+- **默认查询应排除已删除记录**：由 Ent 拦截器自动处理
+- 明确需要包含已删除记录时使用 `SkipSoftDelete(ctx)`
+- 使用拦截器机制替代手动添加 WHERE 条件
 
 ### 数据一致性
 - **应用层保证一致性**：不依赖数据库外键，通过应用逻辑确保数据一致性
