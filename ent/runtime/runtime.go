@@ -8,9 +8,12 @@ import (
 	"github.com/liukeshao/echo-template/ent/department"
 	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/position"
+	"github.com/liukeshao/echo-template/ent/role"
+	"github.com/liukeshao/echo-template/ent/rolemenu"
 	"github.com/liukeshao/echo-template/ent/schema"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/ent/userrole"
 )
 
 // The init function reads all schema descriptors with runtime code
@@ -315,6 +318,178 @@ func init() {
 			return nil
 		}
 	}()
+	roleMixin := schema.Role{}.Mixin()
+	roleMixinHooks0 := roleMixin[0].Hooks()
+	role.Hooks[0] = roleMixinHooks0[0]
+	roleMixinInters0 := roleMixin[0].Interceptors()
+	role.Interceptors[0] = roleMixinInters0[0]
+	roleMixinFields0 := roleMixin[0].Fields()
+	_ = roleMixinFields0
+	roleFields := schema.Role{}.Fields()
+	_ = roleFields
+	// roleDescCreatedAt is the schema descriptor for created_at field.
+	roleDescCreatedAt := roleMixinFields0[1].Descriptor()
+	// role.DefaultCreatedAt holds the default value on creation for the created_at field.
+	role.DefaultCreatedAt = roleDescCreatedAt.Default.(func() time.Time)
+	// roleDescUpdatedAt is the schema descriptor for updated_at field.
+	roleDescUpdatedAt := roleMixinFields0[2].Descriptor()
+	// role.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	role.DefaultUpdatedAt = roleDescUpdatedAt.Default.(func() time.Time)
+	// role.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	role.UpdateDefaultUpdatedAt = roleDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// roleDescDeletedAt is the schema descriptor for deleted_at field.
+	roleDescDeletedAt := roleMixinFields0[3].Descriptor()
+	// role.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	role.DefaultDeletedAt = roleDescDeletedAt.Default.(int64)
+	// roleDescName is the schema descriptor for name field.
+	roleDescName := roleFields[0].Descriptor()
+	// role.NameValidator is a validator for the "name" field. It is called by the builders before save.
+	role.NameValidator = func() func(string) error {
+		validators := roleDescName.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(name string) error {
+			for _, fn := range fns {
+				if err := fn(name); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// roleDescCode is the schema descriptor for code field.
+	roleDescCode := roleFields[1].Descriptor()
+	// role.CodeValidator is a validator for the "code" field. It is called by the builders before save.
+	role.CodeValidator = func() func(string) error {
+		validators := roleDescCode.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(code string) error {
+			for _, fn := range fns {
+				if err := fn(code); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// roleDescDescription is the schema descriptor for description field.
+	roleDescDescription := roleFields[2].Descriptor()
+	// role.DescriptionValidator is a validator for the "description" field. It is called by the builders before save.
+	role.DescriptionValidator = roleDescDescription.Validators[0].(func(string) error)
+	// roleDescIsBuiltin is the schema descriptor for is_builtin field.
+	roleDescIsBuiltin := roleFields[6].Descriptor()
+	// role.DefaultIsBuiltin holds the default value on creation for the is_builtin field.
+	role.DefaultIsBuiltin = roleDescIsBuiltin.Default.(bool)
+	// roleDescSortOrder is the schema descriptor for sort_order field.
+	roleDescSortOrder := roleFields[7].Descriptor()
+	// role.DefaultSortOrder holds the default value on creation for the sort_order field.
+	role.DefaultSortOrder = roleDescSortOrder.Default.(int)
+	// roleDescRemark is the schema descriptor for remark field.
+	roleDescRemark := roleFields[8].Descriptor()
+	// role.RemarkValidator is a validator for the "remark" field. It is called by the builders before save.
+	role.RemarkValidator = roleDescRemark.Validators[0].(func(string) error)
+	// roleDescID is the schema descriptor for id field.
+	roleDescID := roleMixinFields0[0].Descriptor()
+	// role.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	role.IDValidator = func() func(string) error {
+		validators := roleDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	rolemenuMixin := schema.RoleMenu{}.Mixin()
+	rolemenuMixinHooks0 := rolemenuMixin[0].Hooks()
+	rolemenu.Hooks[0] = rolemenuMixinHooks0[0]
+	rolemenuMixinInters0 := rolemenuMixin[0].Interceptors()
+	rolemenu.Interceptors[0] = rolemenuMixinInters0[0]
+	rolemenuMixinFields0 := rolemenuMixin[0].Fields()
+	_ = rolemenuMixinFields0
+	rolemenuFields := schema.RoleMenu{}.Fields()
+	_ = rolemenuFields
+	// rolemenuDescCreatedAt is the schema descriptor for created_at field.
+	rolemenuDescCreatedAt := rolemenuMixinFields0[1].Descriptor()
+	// rolemenu.DefaultCreatedAt holds the default value on creation for the created_at field.
+	rolemenu.DefaultCreatedAt = rolemenuDescCreatedAt.Default.(func() time.Time)
+	// rolemenuDescUpdatedAt is the schema descriptor for updated_at field.
+	rolemenuDescUpdatedAt := rolemenuMixinFields0[2].Descriptor()
+	// rolemenu.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	rolemenu.DefaultUpdatedAt = rolemenuDescUpdatedAt.Default.(func() time.Time)
+	// rolemenu.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	rolemenu.UpdateDefaultUpdatedAt = rolemenuDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// rolemenuDescDeletedAt is the schema descriptor for deleted_at field.
+	rolemenuDescDeletedAt := rolemenuMixinFields0[3].Descriptor()
+	// rolemenu.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	rolemenu.DefaultDeletedAt = rolemenuDescDeletedAt.Default.(int64)
+	// rolemenuDescRoleID is the schema descriptor for role_id field.
+	rolemenuDescRoleID := rolemenuFields[0].Descriptor()
+	// rolemenu.RoleIDValidator is a validator for the "role_id" field. It is called by the builders before save.
+	rolemenu.RoleIDValidator = func() func(string) error {
+		validators := rolemenuDescRoleID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(role string) error {
+			for _, fn := range fns {
+				if err := fn(role); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// rolemenuDescMenuID is the schema descriptor for menu_id field.
+	rolemenuDescMenuID := rolemenuFields[1].Descriptor()
+	// rolemenu.MenuIDValidator is a validator for the "menu_id" field. It is called by the builders before save.
+	rolemenu.MenuIDValidator = func() func(string) error {
+		validators := rolemenuDescMenuID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(menu string) error {
+			for _, fn := range fns {
+				if err := fn(menu); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// rolemenuDescID is the schema descriptor for id field.
+	rolemenuDescID := rolemenuMixinFields0[0].Descriptor()
+	// rolemenu.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	rolemenu.IDValidator = func() func(string) error {
+		validators := rolemenuDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
 	tokenMixin := schema.Token{}.Mixin()
 	tokenMixinHooks0 := tokenMixin[0].Hooks()
 	token.Hooks[0] = tokenMixinHooks0[0]
@@ -498,22 +673,16 @@ func init() {
 	userDescPositionID := userFields[8].Descriptor()
 	// user.PositionIDValidator is a validator for the "position_id" field. It is called by the builders before save.
 	user.PositionIDValidator = userDescPositionID.Validators[0].(func(string) error)
-	// userDescRoles is the schema descriptor for roles field.
-	userDescRoles := userFields[9].Descriptor()
-	// user.DefaultRoles holds the default value on creation for the roles field.
-	user.DefaultRoles = userDescRoles.Default.(string)
-	// user.RolesValidator is a validator for the "roles" field. It is called by the builders before save.
-	user.RolesValidator = userDescRoles.Validators[0].(func(string) error)
 	// userDescForceChangePassword is the schema descriptor for force_change_password field.
-	userDescForceChangePassword := userFields[11].Descriptor()
+	userDescForceChangePassword := userFields[10].Descriptor()
 	// user.DefaultForceChangePassword holds the default value on creation for the force_change_password field.
 	user.DefaultForceChangePassword = userDescForceChangePassword.Default.(bool)
 	// userDescAllowMultiLogin is the schema descriptor for allow_multi_login field.
-	userDescAllowMultiLogin := userFields[12].Descriptor()
+	userDescAllowMultiLogin := userFields[11].Descriptor()
 	// user.DefaultAllowMultiLogin holds the default value on creation for the allow_multi_login field.
 	user.DefaultAllowMultiLogin = userDescAllowMultiLogin.Default.(bool)
 	// userDescLastLoginIP is the schema descriptor for last_login_ip field.
-	userDescLastLoginIP := userFields[14].Descriptor()
+	userDescLastLoginIP := userFields[13].Descriptor()
 	// user.LastLoginIPValidator is a validator for the "last_login_ip" field. It is called by the builders before save.
 	user.LastLoginIPValidator = userDescLastLoginIP.Validators[0].(func(string) error)
 	// userDescID is the schema descriptor for id field.
@@ -521,6 +690,84 @@ func init() {
 	// user.IDValidator is a validator for the "id" field. It is called by the builders before save.
 	user.IDValidator = func() func(string) error {
 		validators := userDescID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+			validators[2].(func(string) error),
+		}
+		return func(id string) error {
+			for _, fn := range fns {
+				if err := fn(id); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	userroleMixin := schema.UserRole{}.Mixin()
+	userroleMixinHooks0 := userroleMixin[0].Hooks()
+	userrole.Hooks[0] = userroleMixinHooks0[0]
+	userroleMixinInters0 := userroleMixin[0].Interceptors()
+	userrole.Interceptors[0] = userroleMixinInters0[0]
+	userroleMixinFields0 := userroleMixin[0].Fields()
+	_ = userroleMixinFields0
+	userroleFields := schema.UserRole{}.Fields()
+	_ = userroleFields
+	// userroleDescCreatedAt is the schema descriptor for created_at field.
+	userroleDescCreatedAt := userroleMixinFields0[1].Descriptor()
+	// userrole.DefaultCreatedAt holds the default value on creation for the created_at field.
+	userrole.DefaultCreatedAt = userroleDescCreatedAt.Default.(func() time.Time)
+	// userroleDescUpdatedAt is the schema descriptor for updated_at field.
+	userroleDescUpdatedAt := userroleMixinFields0[2].Descriptor()
+	// userrole.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	userrole.DefaultUpdatedAt = userroleDescUpdatedAt.Default.(func() time.Time)
+	// userrole.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	userrole.UpdateDefaultUpdatedAt = userroleDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// userroleDescDeletedAt is the schema descriptor for deleted_at field.
+	userroleDescDeletedAt := userroleMixinFields0[3].Descriptor()
+	// userrole.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	userrole.DefaultDeletedAt = userroleDescDeletedAt.Default.(int64)
+	// userroleDescUserID is the schema descriptor for user_id field.
+	userroleDescUserID := userroleFields[0].Descriptor()
+	// userrole.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	userrole.UserIDValidator = func() func(string) error {
+		validators := userroleDescUserID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(user string) error {
+			for _, fn := range fns {
+				if err := fn(user); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userroleDescRoleID is the schema descriptor for role_id field.
+	userroleDescRoleID := userroleFields[1].Descriptor()
+	// userrole.RoleIDValidator is a validator for the "role_id" field. It is called by the builders before save.
+	userrole.RoleIDValidator = func() func(string) error {
+		validators := userroleDescRoleID.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(role string) error {
+			for _, fn := range fns {
+				if err := fn(role); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// userroleDescID is the schema descriptor for id field.
+	userroleDescID := userroleMixinFields0[0].Descriptor()
+	// userrole.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	userrole.IDValidator = func() func(string) error {
+		validators := userroleDescID.Validators
 		fns := [...]func(string) error{
 			validators[0].(func(string) error),
 			validators[1].(func(string) error),

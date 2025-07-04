@@ -52,6 +52,8 @@ const (
 	EdgeParent = "parent"
 	// EdgeChildren holds the string denoting the children edge name in mutations.
 	EdgeChildren = "children"
+	// EdgeRoleMenus holds the string denoting the role_menus edge name in mutations.
+	EdgeRoleMenus = "role_menus"
 	// Table holds the table name of the menu in the database.
 	Table = "menus"
 	// ParentTable is the table that holds the parent relation/edge.
@@ -62,6 +64,13 @@ const (
 	ChildrenTable = "menus"
 	// ChildrenColumn is the table column denoting the children relation/edge.
 	ChildrenColumn = "parent_id"
+	// RoleMenusTable is the table that holds the role_menus relation/edge.
+	RoleMenusTable = "role_menus"
+	// RoleMenusInverseTable is the table name for the RoleMenu entity.
+	// It exists in this package in order to avoid circular dependency with the "rolemenu" package.
+	RoleMenusInverseTable = "role_menus"
+	// RoleMenusColumn is the table column denoting the role_menus relation/edge.
+	RoleMenusColumn = "menu_id"
 )
 
 // Columns holds all SQL columns for menu fields.
@@ -295,6 +304,20 @@ func ByChildren(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
 		sqlgraph.OrderByNeighborTerms(s, newChildrenStep(), append([]sql.OrderTerm{term}, terms...)...)
 	}
 }
+
+// ByRoleMenusCount orders the results by role_menus count.
+func ByRoleMenusCount(opts ...sql.OrderTermOption) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborsCount(s, newRoleMenusStep(), opts...)
+	}
+}
+
+// ByRoleMenus orders the results by role_menus terms.
+func ByRoleMenus(term sql.OrderTerm, terms ...sql.OrderTerm) OrderOption {
+	return func(s *sql.Selector) {
+		sqlgraph.OrderByNeighborTerms(s, newRoleMenusStep(), append([]sql.OrderTerm{term}, terms...)...)
+	}
+}
 func newParentStep() *sqlgraph.Step {
 	return sqlgraph.NewStep(
 		sqlgraph.From(Table, FieldID),
@@ -307,5 +330,12 @@ func newChildrenStep() *sqlgraph.Step {
 		sqlgraph.From(Table, FieldID),
 		sqlgraph.To(Table, FieldID),
 		sqlgraph.Edge(sqlgraph.O2M, true, ChildrenTable, ChildrenColumn),
+	)
+}
+func newRoleMenusStep() *sqlgraph.Step {
+	return sqlgraph.NewStep(
+		sqlgraph.From(Table, FieldID),
+		sqlgraph.To(RoleMenusInverseTable, FieldID),
+		sqlgraph.Edge(sqlgraph.O2M, false, RoleMenusTable, RoleMenusColumn),
 	)
 }

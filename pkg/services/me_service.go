@@ -28,17 +28,9 @@ func NewMeService(orm *ent.Client) *MeService {
 
 // toUserInfo 将用户实体转换为UserInfo
 func (s *UserService) toUserInfo(u *ent.User) *types.UserInfo {
-	// 解析角色字符串为数组
-	var roles []string
-	if u.Roles != "" {
-		roles = strings.Split(u.Roles, ",")
-		// 清理空白字符
-		for i, role := range roles {
-			roles[i] = strings.TrimSpace(role)
-		}
-	} else {
-		roles = []string{}
-	}
+	// TODO: 从 UserRole 关联表获取角色信息
+	// 注意：这里简化处理，实际使用时需要预加载角色信息或者在上层查询时一起获取
+	var roles []string = []string{}
 
 	// 处理可选字段的指针转换
 	var realName, phone, department, position, lastLoginIP *string
@@ -129,14 +121,6 @@ func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput
 		status = types.UserStatusActive
 	}
 
-	// 处理角色列表
-	var roles string
-	if len(input.Roles) > 0 {
-		roles = strings.Join(input.Roles, ",")
-	} else {
-		roles = "user" // 默认角色
-	}
-
 	// 创建用户
 	createQuery := s.orm.User.Create().
 		SetID(utils.GenerateULID()).
@@ -144,7 +128,6 @@ func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput
 		SetEmail(input.Email).
 		SetPasswordHash(string(passwordHash)).
 		SetStatus(user.Status(status)).
-		SetRoles(roles).
 		SetForceChangePassword(input.ForceChangePassword).
 		SetAllowMultiLogin(input.AllowMultiLogin)
 
@@ -212,10 +195,10 @@ func (s *MeService) ListUsers(ctx context.Context, input *types.ListUsersInput) 
 		query = query.Where(user.PositionEQ(input.Position))
 	}
 
-	// 根据角色筛选
-	if input.Role != "" {
-		query = query.Where(user.RolesContains(input.Role))
-	}
+	// TODO: 根据角色筛选 - 需要使用 UserRole 关联表实现
+	// if input.Role != "" {
+	//     // 需要通过 UserRole 关联表来实现角色筛选
+	// }
 
 	// 根据关键词搜索（用户名、邮箱、真实姓名、手机号）
 	if input.Keyword != "" {
@@ -551,10 +534,10 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 	if input.Position != nil {
 		updateQuery = updateQuery.SetPosition(*input.Position)
 	}
-	if len(input.Roles) > 0 {
-		roles := strings.Join(input.Roles, ",")
-		updateQuery = updateQuery.SetRoles(roles)
-	}
+	// TODO: 角色更新 - 需要使用 UserRole 关联表实现
+	// if len(input.Roles) > 0 {
+	//     // 需要通过 UserRole 关联表来更新角色
+	// }
 	if input.Status != nil {
 		updateQuery = updateQuery.SetStatus(user.Status(*input.Status))
 	}

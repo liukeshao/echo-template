@@ -78,12 +78,6 @@ func (User) Fields() []ent.Field {
 			Optional().
 			Comment("岗位ID"),
 
-		// 角色（支持多角色，用逗号分隔）
-		field.String("roles").
-			MaxLen(500).
-			Default("user").
-			Comment("用户角色，多个角色用逗号分隔"),
-
 		// 用户状态
 		field.Enum("status").
 			Values(types.UserStatuses()...).
@@ -129,6 +123,9 @@ func (User) Edges() []ent.Edge {
 		edge.To("position_rel", Position.Type).
 			Unique().
 			Field("position_id"),
+
+		// 用户角色关联表（一对多）
+		edge.To("user_roles", UserRole.Type),
 	}
 }
 
@@ -156,7 +153,6 @@ func (User) Indexes() []ent.Index {
 		index.Fields("department_id"),
 		index.Fields("position"),
 		index.Fields("position_id"),
-		index.Fields("roles"),
 		index.Fields("force_change_password"),
 		index.Fields("allow_multi_login"),
 
