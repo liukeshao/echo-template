@@ -9,6 +9,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/department"
+	"github.com/liukeshao/echo-template/ent/menu"
 	"github.com/liukeshao/echo-template/ent/position"
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/ent/token"
@@ -98,6 +99,33 @@ func (f TraverseDepartment) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.DepartmentQuery", q)
 }
 
+// The MenuFunc type is an adapter to allow the use of ordinary function as a Querier.
+type MenuFunc func(context.Context, *ent.MenuQuery) (ent.Value, error)
+
+// Query calls f(ctx, q).
+func (f MenuFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.MenuQuery); ok {
+		return f(ctx, q)
+	}
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.MenuQuery", q)
+}
+
+// The TraverseMenu type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseMenu func(context.Context, *ent.MenuQuery) error
+
+// Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
+func (f TraverseMenu) Intercept(next ent.Querier) ent.Querier {
+	return next
+}
+
+// Traverse calls f(ctx, q).
+func (f TraverseMenu) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.MenuQuery); ok {
+		return f(ctx, q)
+	}
+	return fmt.Errorf("unexpected query type %T. expect *ent.MenuQuery", q)
+}
+
 // The PositionFunc type is an adapter to allow the use of ordinary function as a Querier.
 type PositionFunc func(context.Context, *ent.PositionQuery) (ent.Value, error)
 
@@ -184,6 +212,8 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.DepartmentQuery:
 		return &query[*ent.DepartmentQuery, predicate.Department, department.OrderOption]{typ: ent.TypeDepartment, tq: q}, nil
+	case *ent.MenuQuery:
+		return &query[*ent.MenuQuery, predicate.Menu, menu.OrderOption]{typ: ent.TypeMenu, tq: q}, nil
 	case *ent.PositionQuery:
 		return &query[*ent.PositionQuery, predicate.Position, position.OrderOption]{typ: ent.TypePosition, tq: q}, nil
 	case *ent.TokenQuery:

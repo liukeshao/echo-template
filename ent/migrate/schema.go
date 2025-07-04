@@ -112,6 +112,122 @@ var (
 			},
 		},
 	}
+	// MenusColumns holds the columns for the "menus" table.
+	MenusColumns = []*schema.Column{
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "created_at", Type: field.TypeTime},
+		{Name: "updated_at", Type: field.TypeTime},
+		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
+		{Name: "name", Type: field.TypeString, Size: 100},
+		{Name: "type", Type: field.TypeEnum, Enums: []string{"directory", "menu", "button"}},
+		{Name: "path", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "component", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "icon", Type: field.TypeString, Nullable: true, Size: 100},
+		{Name: "sort_order", Type: field.TypeInt, Default: 0},
+		{Name: "permission", Type: field.TypeString, Nullable: true, Size: 255},
+		{Name: "status", Type: field.TypeEnum, Enums: []string{"enabled", "disabled"}, Default: "enabled"},
+		{Name: "visible", Type: field.TypeBool, Default: true},
+		{Name: "keep_alive", Type: field.TypeBool, Default: false},
+		{Name: "external_link", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "remark", Type: field.TypeString, Nullable: true, Size: 500},
+		{Name: "parent_id", Type: field.TypeString, Nullable: true, Size: 26},
+	}
+	// MenusTable holds the schema information for the "menus" table.
+	MenusTable = &schema.Table{
+		Name:       "menus",
+		Columns:    MenusColumns,
+		PrimaryKey: []*schema.Column{MenusColumns[0]},
+		ForeignKeys: []*schema.ForeignKey{
+			{
+				Symbol:     "menus_menus_parent",
+				Columns:    []*schema.Column{MenusColumns[16]},
+				RefColumns: []*schema.Column{MenusColumns[0]},
+				OnDelete:   schema.SetNull,
+			},
+		},
+		Indexes: []*schema.Index{
+			{
+				Name:    "menu_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[3]},
+			},
+			{
+				Name:    "menu_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[1]},
+			},
+			{
+				Name:    "menu_updated_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[2]},
+			},
+			{
+				Name:    "menu_path_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{MenusColumns[6], MenusColumns[3]},
+			},
+			{
+				Name:    "menu_permission_deleted_at",
+				Unique:  true,
+				Columns: []*schema.Column{MenusColumns[10], MenusColumns[3]},
+			},
+			{
+				Name:    "menu_type",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[5]},
+			},
+			{
+				Name:    "menu_parent_id",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[16]},
+			},
+			{
+				Name:    "menu_status",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[11]},
+			},
+			{
+				Name:    "menu_visible",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[12]},
+			},
+			{
+				Name:    "menu_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[9]},
+			},
+			{
+				Name:    "menu_parent_id_sort_order",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[16], MenusColumns[9]},
+			},
+			{
+				Name:    "menu_type_status",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[5], MenusColumns[11]},
+			},
+			{
+				Name:    "menu_parent_id_status",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[16], MenusColumns[11]},
+			},
+			{
+				Name:    "menu_status_visible",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[11], MenusColumns[12]},
+			},
+			{
+				Name:    "menu_status_deleted_at",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[11], MenusColumns[3]},
+			},
+			{
+				Name:    "menu_parent_id_status_visible",
+				Unique:  false,
+				Columns: []*schema.Column{MenusColumns[16], MenusColumns[11], MenusColumns[12]},
+			},
+		},
+	}
 	// PositionsColumns holds the columns for the "positions" table.
 	PositionsColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
@@ -413,6 +529,7 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		DepartmentsTable,
+		MenusTable,
 		PositionsTable,
 		TokensTable,
 		UsersTable,
@@ -421,6 +538,7 @@ var (
 
 func init() {
 	DepartmentsTable.ForeignKeys[0].RefTable = DepartmentsTable
+	MenusTable.ForeignKeys[0].RefTable = MenusTable
 	TokensTable.ForeignKeys[0].RefTable = UsersTable
 	UsersTable.ForeignKeys[0].RefTable = DepartmentsTable
 	UsersTable.ForeignKeys[1].RefTable = PositionsTable
