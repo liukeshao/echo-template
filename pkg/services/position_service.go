@@ -99,7 +99,7 @@ func (s *PositionService) CreatePosition(ctx context.Context, input *types.Creat
 
 	// 获取岗位用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.PositionIDEQ(p.ID), user.DeletedAtEQ(0)).
+		Where(user.PositionIDEQ(p.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取岗位用户数量失败", "error", err)
@@ -116,7 +116,7 @@ func (s *PositionService) CreatePosition(ctx context.Context, input *types.Creat
 // GetPositionByID 根据ID获取岗位
 func (s *PositionService) GetPositionByID(ctx context.Context, positionID string) (*types.PositionOutput, error) {
 	p, err := s.orm.Position.Query().
-		Where(position.IDEQ(positionID), position.DeletedAtEQ(0)).
+		Where(position.IDEQ(positionID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -128,7 +128,7 @@ func (s *PositionService) GetPositionByID(ctx context.Context, positionID string
 
 	// 获取岗位用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.PositionIDEQ(p.ID), user.DeletedAtEQ(0)).
+		Where(user.PositionIDEQ(p.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取岗位用户数量失败", "error", err)
@@ -144,8 +144,7 @@ func (s *PositionService) GetPositionByID(ctx context.Context, positionID string
 
 // ListPositions 获取岗位列表
 func (s *PositionService) ListPositions(ctx context.Context, input *types.ListPositionsInput) (*types.ListPositionsOutput, error) {
-	query := s.orm.Position.Query().
-		Where(position.DeletedAtEQ(0))
+	query := s.orm.Position.Query()
 
 	// 状态筛选
 	if input.Status != "" {
@@ -189,7 +188,7 @@ func (s *PositionService) ListPositions(ctx context.Context, input *types.ListPo
 	for _, p := range positions {
 		// 获取每个岗位的用户数量
 		userCount, err := s.orm.User.Query().
-			Where(user.PositionIDEQ(p.ID), user.DeletedAtEQ(0)).
+			Where(user.PositionIDEQ(p.ID)).
 			Count(ctx)
 		if err != nil {
 			slog.WarnContext(ctx, "获取岗位用户数量失败", "error", err, "position_id", p.ID)
@@ -211,7 +210,7 @@ func (s *PositionService) ListPositions(ctx context.Context, input *types.ListPo
 func (s *PositionService) UpdatePosition(ctx context.Context, positionID string, input *types.UpdatePositionInput) (*types.PositionOutput, error) {
 	// 检查岗位是否存在
 	p, err := s.orm.Position.Query().
-		Where(position.IDEQ(positionID), position.DeletedAtEQ(0)).
+		Where(position.IDEQ(positionID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -284,7 +283,7 @@ func (s *PositionService) UpdatePosition(ctx context.Context, positionID string,
 
 	// 获取岗位用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.PositionIDEQ(updatedPosition.ID), user.DeletedAtEQ(0)).
+		Where(user.PositionIDEQ(updatedPosition.ID)).
 		Count(ctx)
 	if err != nil {
 		slog.WarnContext(ctx, "获取岗位用户数量失败", "error", err)
@@ -307,7 +306,7 @@ func (s *PositionService) SortPositions(ctx context.Context, input *types.SortPo
 	}
 
 	count, err := s.orm.Position.Query().
-		Where(position.IDIn(positionIDs...), position.DeletedAtEQ(0)).
+		Where(position.IDIn(positionIDs...)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "验证岗位存在性失败", "error", err)
@@ -349,7 +348,7 @@ func (s *PositionService) SortPositions(ctx context.Context, input *types.SortPo
 func (s *PositionService) CheckPositionDeletable(ctx context.Context, positionID string) (*types.CheckPositionDeletableOutput, error) {
 	// 检查岗位是否存在
 	exists, err := s.orm.Position.Query().
-		Where(position.IDEQ(positionID), position.DeletedAtEQ(0)).
+		Where(position.IDEQ(positionID)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查岗位是否存在失败", "error", err, "position_id", positionID)
@@ -361,7 +360,7 @@ func (s *PositionService) CheckPositionDeletable(ctx context.Context, positionID
 
 	// 检查关联用户数量
 	userCount, err := s.orm.User.Query().
-		Where(user.PositionIDEQ(positionID), user.DeletedAtEQ(0)).
+		Where(user.PositionIDEQ(positionID)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取岗位关联用户数量失败", "error", err, "position_id", positionID)
@@ -412,7 +411,6 @@ func (s *PositionService) DeletePosition(ctx context.Context, positionID string)
 func (s *PositionService) GetPositionStats(ctx context.Context) (*types.PositionStatsOutput, error) {
 	// 统计各状态岗位数量
 	totalPositions, err := s.orm.Position.Query().
-		Where(position.DeletedAtEQ(0)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计总岗位数失败", "error", err)
@@ -420,7 +418,7 @@ func (s *PositionService) GetPositionStats(ctx context.Context) (*types.Position
 	}
 
 	activePositions, err := s.orm.Position.Query().
-		Where(position.StatusEQ(position.StatusActive), position.DeletedAtEQ(0)).
+		Where(position.StatusEQ(position.StatusActive)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计启用岗位数失败", "error", err)
@@ -428,7 +426,7 @@ func (s *PositionService) GetPositionStats(ctx context.Context) (*types.Position
 	}
 
 	inactivePositions, err := s.orm.Position.Query().
-		Where(position.StatusEQ(position.StatusInactive), position.DeletedAtEQ(0)).
+		Where(position.StatusEQ(position.StatusInactive)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "统计停用岗位数失败", "error", err)

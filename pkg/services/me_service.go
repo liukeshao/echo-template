@@ -465,7 +465,7 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, input *ty
 func (s *UserService) UpdateUser(ctx context.Context, userID string, input *types.UpdateUserInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -583,7 +583,7 @@ func (s *UserService) UpdateUser(ctx context.Context, userID string, input *type
 func (s *UserService) ResetPassword(ctx context.Context, userID string, input *types.ResetPasswordInput) error {
 	// 检查用户是否存在
 	exists, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
@@ -620,7 +620,7 @@ func (s *UserService) ResetPassword(ctx context.Context, userID string, input *t
 func (s *UserService) SetUserStatus(ctx context.Context, userID string, input *types.SetUserStatusInput) error {
 	// 检查用户是否存在
 	exists, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
@@ -648,7 +648,7 @@ func (s *UserService) SetUserStatus(ctx context.Context, userID string, input *t
 func (s *UserService) BatchUpdateStatus(ctx context.Context, input *types.BatchUpdateStatusInput) error {
 	// 检查用户是否都存在
 	count, err := s.orm.User.Query().
-		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Where(user.IDIn(input.UserIDs...)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err)
@@ -660,7 +660,7 @@ func (s *UserService) BatchUpdateStatus(ctx context.Context, input *types.BatchU
 
 	// 批量更新状态
 	_, err = s.orm.User.Update().
-		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Where(user.IDIn(input.UserIDs...)).
 		SetStatus(user.Status(input.Status)).
 		Save(ctx)
 	if err != nil {
@@ -676,7 +676,7 @@ func (s *UserService) BatchUpdateStatus(ctx context.Context, input *types.BatchU
 func (s *UserService) BatchDeleteUsers(ctx context.Context, input *types.BatchOperationInput) error {
 	// 检查用户是否都存在
 	count, err := s.orm.User.Query().
-		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Where(user.IDIn(input.UserIDs...)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err)
@@ -688,7 +688,7 @@ func (s *UserService) BatchDeleteUsers(ctx context.Context, input *types.BatchOp
 
 	// 批量逻辑删除
 	_, err = s.orm.User.Delete().
-		Where(user.IDIn(input.UserIDs...), user.DeletedAtEQ(0)).
+		Where(user.IDIn(input.UserIDs...)).
 		Exec(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "批量删除用户失败", "error", err)
@@ -703,7 +703,6 @@ func (s *UserService) BatchDeleteUsers(ctx context.Context, input *types.BatchOp
 func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput, error) {
 	// 总用户数
 	totalUsers, err := s.orm.User.Query().
-		Where(user.DeletedAtEQ(0)).
 		Count(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "获取用户总数失败", "error", err)
@@ -712,21 +711,21 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 
 	// 各状态用户数
 	activeUsers, err := s.orm.User.Query().
-		Where(user.StatusEQ(user.StatusActive), user.DeletedAtEQ(0)).
+		Where(user.StatusEQ(user.StatusActive)).
 		Count(ctx)
 	if err != nil {
 		return nil, errors.ErrInternal.Wrapf(err, "获取活跃用户数失败")
 	}
 
 	inactiveUsers, err := s.orm.User.Query().
-		Where(user.StatusEQ(user.StatusInactive), user.DeletedAtEQ(0)).
+		Where(user.StatusEQ(user.StatusInactive)).
 		Count(ctx)
 	if err != nil {
 		return nil, errors.ErrInternal.Wrapf(err, "获取非活跃用户数失败")
 	}
 
 	suspendedUsers, err := s.orm.User.Query().
-		Where(user.StatusEQ(user.StatusSuspended), user.DeletedAtEQ(0)).
+		Where(user.StatusEQ(user.StatusSuspended)).
 		Count(ctx)
 	if err != nil {
 		return nil, errors.ErrInternal.Wrapf(err, "获取停用用户数失败")
@@ -735,7 +734,6 @@ func (s *UserService) GetUserStats(ctx context.Context) (*types.UserStatsOutput,
 	// 部门统计
 	var departmentStats []types.DepartmentStat
 	users, err := s.orm.User.Query().
-		Where(user.DeletedAtEQ(0)).
 		All(ctx)
 	if err != nil {
 		return nil, errors.ErrInternal.Wrapf(err, "获取用户列表失败")
