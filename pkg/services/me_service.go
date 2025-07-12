@@ -14,20 +14,20 @@ import (
 	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
-// UserService 用户服务
-type UserService struct {
+// MeService 用户服务
+type MeService struct {
 	orm *ent.Client
 }
 
-// NewUserService 创建用户服务实例
-func NewUserService(orm *ent.Client) *UserService {
-	return &UserService{
+// NewMeService 创建用户服务实例
+func NewMeService(orm *ent.Client) *MeService {
+	return &MeService{
 		orm: orm,
 	}
 }
 
 // CreateUser 创建用户
-func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInput) (*types.UserOutput, error) {
+func (s *MeService) CreateUser(ctx context.Context, input *types.CreateUserInput) (*types.UserOutput, error) {
 	// 检查用户名是否已存在
 	exists, err := s.orm.User.Query().
 		Where(user.UsernameEQ(input.Username)).
@@ -91,7 +91,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 }
 
 // GetUserByID 根据ID获取用户
-func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.UserOutput, error) {
+func (s *MeService) GetUserByID(ctx context.Context, userID string) (*types.UserOutput, error) {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
 		First(ctx)
@@ -117,7 +117,7 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.Us
 }
 
 // ListUsers 获取用户列表
-func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput) (*types.ListUsersOutput, error) {
+func (s *MeService) ListUsers(ctx context.Context, input *types.ListUsersInput) (*types.ListUsersOutput, error) {
 	// 构建查询条件
 	query := s.orm.User.Query()
 
@@ -175,7 +175,7 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 }
 
 // updateUsername 更新用户名
-func (s *UserService) updateUsername(ctx context.Context, userID string, username string) error {
+func (s *MeService) updateUsername(ctx context.Context, userID string, username string) error {
 	// 检查用户名是否已被其他用户使用
 	exists, err := s.orm.User.Query().
 		Where(
@@ -204,7 +204,7 @@ func (s *UserService) updateUsername(ctx context.Context, userID string, usernam
 }
 
 // updateEmail 更新邮箱
-func (s *UserService) updateEmail(ctx context.Context, userID string, email string) error {
+func (s *MeService) updateEmail(ctx context.Context, userID string, email string) error {
 	// 检查邮箱是否已被其他用户使用
 	exists, err := s.orm.User.Query().
 		Where(
@@ -233,7 +233,7 @@ func (s *UserService) updateEmail(ctx context.Context, userID string, email stri
 }
 
 // UpdateUsername 更新用户名
-func (s *UserService) UpdateUsername(ctx context.Context, userID string, input *types.UpdateUsernameInput) (*types.UserOutput, error) {
+func (s *MeService) UpdateUsername(ctx context.Context, userID string, input *types.UpdateUsernameInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
@@ -275,7 +275,7 @@ func (s *UserService) UpdateUsername(ctx context.Context, userID string, input *
 }
 
 // UpdateEmail 更新邮箱
-func (s *UserService) UpdateEmail(ctx context.Context, userID string, input *types.UpdateEmailInput) (*types.UserOutput, error) {
+func (s *MeService) UpdateEmail(ctx context.Context, userID string, input *types.UpdateEmailInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
@@ -317,7 +317,7 @@ func (s *UserService) UpdateEmail(ctx context.Context, userID string, input *typ
 }
 
 // DeleteUser 删除用户（逻辑删除）
-func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
+func (s *MeService) DeleteUser(ctx context.Context, userID string) error {
 	// 检查用户是否存在
 	exists, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
@@ -342,7 +342,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 }
 
 // ChangePassword 修改用户密码
-func (s *UserService) ChangePassword(ctx context.Context, userID string, input *types.ChangePasswordInput) error {
+func (s *MeService) ChangePassword(ctx context.Context, userID string, input *types.ChangePasswordInput) error {
 	// 获取用户
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).

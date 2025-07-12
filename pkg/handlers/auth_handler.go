@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
@@ -14,7 +13,6 @@ import (
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	orm  *ent.Client
 	auth *services.AuthService
 }
 
@@ -25,7 +23,6 @@ func init() {
 
 // Init 依赖注入
 func (h *AuthHandler) Init(c *services.Container) error {
-	h.orm = c.ORM
 	h.auth = c.Auth
 	return nil
 }

@@ -36,22 +36,22 @@ func (i *CreateUserInput) Validate() []string {
 ```go
 // 注册Handler
 func init() {
-    Register(new(UserHandler))
+    Register(new(MeHandler))
 }
 
 // 实现Handler接口
-func (h *UserHandler) Init(c *services.Container) error {
-    h.userService = c.User
+func (h *MeHandler) Init(c *services.Container) error {
+    h.me = c.Me
     return nil
 }
 
-func (h *UserHandler) Routes(g *echo.Group) {
+func (h *MeHandler) Routes(g *echo.Group) {
     api := g.Group("/api/v1/users")
     api.POST("", h.CreateUser)
 }
 
 // Handler实现
-func (h *UserHandler) Create(c echo.Context) error {
+func (h *MeHandler) Create(c echo.Context) error {
     var in types.CreateUserInput
     if err := c.Bind(&in); err != nil {
         return errors.BadRequestError()
@@ -61,7 +61,7 @@ func (h *UserHandler) Create(c echo.Context) error {
         return ValidationError(c, errs)
     }
     
-    out, err := h.userService.Create(ctx, &in)
+    out, err := h.me.Create(ctx, &in)
     if err != nil {
         return err
     }

@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
@@ -12,9 +11,8 @@ import (
 
 // MeHandler 用户处理器
 type MeHandler struct {
-	orm         *ent.Client
-	userService *services.UserService
-	authService *services.AuthService
+	me   *services.MeService
+	auth *services.AuthService
 }
 
 // init 注册handler
@@ -24,9 +22,8 @@ func init() {
 
 // Init 初始化依赖
 func (h *MeHandler) Init(c *services.Container) error {
-	h.orm = c.ORM
-	h.userService = c.User
-	h.authService = c.Auth
+	h.me = c.Me
+	h.auth = c.Auth
 	return nil
 }
 
@@ -34,7 +31,7 @@ func (h *MeHandler) Init(c *services.Container) error {
 func (h *MeHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
 	protected := g.Group("/api/v1/me")
-	protected.Use(middleware.RequireAuth(h.authService)) // 先验证用户身份
+	protected.Use(middleware.RequireAuth(h.auth)) // 先验证用户身份
 
 	// 当前用户相关路由（不需要额外权限，只要登录即可）
 	protected.GET("", h.Get)
@@ -54,7 +51,7 @@ func (h *MeHandler) Get(c echo.Context) error {
 	}
 
 	// 获取用户信息
-	output, err := h.userService.GetUserByID(ctx, user.ID)
+	output, err := h.me.GetUserByID(ctx, user.ID)
 	if err != nil {
 		return err
 	}
@@ -83,7 +80,7 @@ func (h *MeHandler) UpdateUsername(c echo.Context) error {
 	}
 
 	// 更新当前用户用户名
-	out, err := h.userService.UpdateUsername(ctx, user.ID, &in)
+	out, err := h.me.UpdateUsername(ctx, user.ID, &in)
 	if err != nil {
 		return err
 	}
@@ -112,7 +109,7 @@ func (h *MeHandler) UpdateEmail(c echo.Context) error {
 	}
 
 	// 更新当前用户邮箱
-	out, err := h.userService.UpdateEmail(ctx, user.ID, &in)
+	out, err := h.me.UpdateEmail(ctx, user.ID, &in)
 	if err != nil {
 		return err
 	}
@@ -141,7 +138,7 @@ func (h *MeHandler) ChangePassword(c echo.Context) error {
 	}
 
 	// 修改当前用户密码
-	err := h.userService.ChangePassword(ctx, user.ID, &in)
+	err := h.me.ChangePassword(ctx, user.ID, &in)
 	if err != nil {
 		return err
 	}
