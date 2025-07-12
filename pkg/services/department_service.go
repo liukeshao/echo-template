@@ -66,8 +66,8 @@ func (s *DepartmentService) toDepartmentInfo(d *ent.Department) *types.Departmen
 	}
 }
 
-// CreateDepartment 创建部门
-func (s *DepartmentService) CreateDepartment(ctx context.Context, input *types.CreateDepartmentInput) (*types.DepartmentOutput, error) {
+// Create 创建部门
+func (s *DepartmentService) Create(ctx context.Context, input *types.CreateDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门编码是否已存在
 	exists, err := s.orm.Department.Query().
 		Where(department.CodeEQ(input.Code)).
@@ -212,8 +212,8 @@ func (s *DepartmentService) GetDepartmentByID(ctx context.Context, departmentID 
 	}, nil
 }
 
-// ListDepartments 获取部门列表
-func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.ListDepartmentsInput) (*types.ListDepartmentsOutput, error) {
+// List 获取部门列表
+func (s *DepartmentService) List(ctx context.Context, input *types.ListDepartmentsInput) (*types.ListDepartmentsOutput, error) {
 	// 构建查询条件
 	query := s.orm.Department.Query()
 
@@ -294,8 +294,8 @@ func (s *DepartmentService) ListDepartments(ctx context.Context, input *types.Li
 	}, nil
 }
 
-// GetDepartmentTree 获取部门树形结构
-func (s *DepartmentService) GetDepartmentTree(ctx context.Context) (*types.DepartmentTreeOutput, error) {
+// Tree 获取部门树形结构
+func (s *DepartmentService) Tree(ctx context.Context) (*types.DepartmentTreeOutput, error) {
 	// 获取所有启用的部门
 	departments, err := s.orm.Department.Query().
 		Where(department.StatusEQ(department.StatusActive)).
@@ -347,8 +347,8 @@ func (s *DepartmentService) GetDepartmentTree(ctx context.Context) (*types.Depar
 	}, nil
 }
 
-// UpdateDepartment 更新部门
-func (s *DepartmentService) UpdateDepartment(ctx context.Context, departmentID string, input *types.UpdateDepartmentInput) (*types.DepartmentOutput, error) {
+// Update 更新部门
+func (s *DepartmentService) Update(ctx context.Context, departmentID string, input *types.UpdateDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门是否存在
 	d, err := s.orm.Department.Query().
 		Where(department.IDEQ(departmentID)).
@@ -469,8 +469,8 @@ func (s *DepartmentService) UpdateDepartment(ctx context.Context, departmentID s
 	}, nil
 }
 
-// MoveDepartment 移动部门（调整父节点）
-func (s *DepartmentService) MoveDepartment(ctx context.Context, departmentID string, input *types.MoveDepartmentInput) (*types.DepartmentOutput, error) {
+// Move 移动部门（调整父节点）
+func (s *DepartmentService) Move(ctx context.Context, departmentID string, input *types.MoveDepartmentInput) (*types.DepartmentOutput, error) {
 	// 检查部门是否存在
 	d, err := s.orm.Department.Query().
 		Where(department.IDEQ(departmentID)).
@@ -649,8 +649,8 @@ func (s *DepartmentService) updateChildrenPathAndLevel(ctx context.Context, tx *
 	return nil
 }
 
-// SortDepartments 部门排序
-func (s *DepartmentService) SortDepartments(ctx context.Context, input *types.SortDepartmentInput) error {
+// Sort 部门排序
+func (s *DepartmentService) Sort(ctx context.Context, input *types.SortDepartmentInput) error {
 	// 开始事务
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
@@ -732,8 +732,8 @@ func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, depart
 	}, nil
 }
 
-// DeleteDepartment 删除部门
-func (s *DepartmentService) DeleteDepartment(ctx context.Context, departmentID string) error {
+// Delete 删除部门
+func (s *DepartmentService) Delete(ctx context.Context, departmentID string) error {
 	// 检查部门是否可删除
 	check, err := s.CheckDepartmentDeletable(ctx, departmentID)
 	if err != nil {
@@ -757,8 +757,8 @@ func (s *DepartmentService) DeleteDepartment(ctx context.Context, departmentID s
 	return nil
 }
 
-// GetDepartmentStats 获取部门统计信息
-func (s *DepartmentService) GetDepartmentStats(ctx context.Context) (*types.DepartmentStatsOutput, error) {
+// Stats 获取部门统计信息
+func (s *DepartmentService) Stats(ctx context.Context) (*types.DepartmentStatsOutput, error) {
 	// 获取总部门数
 	total, err := s.orm.Department.Query().
 		Count(ctx)

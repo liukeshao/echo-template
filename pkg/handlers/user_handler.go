@@ -31,11 +31,8 @@ func (h *UserHandler) Init(c *services.Container) error {
 
 // Routes 注册路由
 func (h *UserHandler) Routes(g *echo.Group) {
-	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
-
 	admin := g.Group("/api/v1/admin/users")
-	admin.Use(authMw.RequireAuth) // 先验证用户身份
+	admin.Use(middleware.RequireAuth(h.authService)) // 先验证用户身份
 	// TODO: 添加管理员权限检查中间件
 	// admin.Use(authMw.RequireRole("admin"))
 

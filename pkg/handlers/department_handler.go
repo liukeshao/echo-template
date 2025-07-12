@@ -31,32 +31,29 @@ func (h *DepartmentHandler) Init(c *services.Container) error {
 
 // Routes 注册路由
 func (h *DepartmentHandler) Routes(g *echo.Group) {
-	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
-
 	// 部门管理路由
 	admin := g.Group("/api/v1/admin/departments")
-	admin.Use(authMw.RequireAuth) // 先验证用户身份
+	admin.Use(middleware.RequireAuth(h.authService)) // 先验证用户身份
 	// TODO: 添加管理员权限检查中间件
 	// admin.Use(authMw.RequireRole("admin"))
 
 	// 部门CRUD相关路由
-	admin.POST("", h.CreateDepartment)
-	admin.GET("", h.ListDepartments)
-	admin.GET("/tree", h.GetDepartmentTree)
-	admin.GET("/stats", h.GetDepartmentStats)
-	admin.GET("/:id", h.GetDepartment)
-	admin.PUT("/:id", h.UpdateDepartment)
-	admin.DELETE("/:id", h.DeleteDepartment)
+	admin.POST("", h.Create)
+	admin.GET("", h.List)
+	admin.GET("/tree", h.Tree)
+	admin.GET("/stats", h.Stats)
+	admin.GET("/:id", h.Get)
+	admin.PUT("/:id", h.Update)
+	admin.DELETE("/:id", h.Delete)
 
 	// 部门结构维护相关路由
-	admin.PUT("/:id/move", h.MoveDepartment)
-	admin.POST("/sort", h.SortDepartments)
+	admin.PUT("/:id/move", h.Move)
+	admin.POST("/sort", h.Sort)
 	admin.GET("/:id/check-deletable", h.CheckDepartmentDeletable)
 }
 
-// CreateDepartment 创建部门
-func (h *DepartmentHandler) CreateDepartment(c echo.Context) error {
+// Create 创建部门
+func (h *DepartmentHandler) Create(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.CreateDepartmentInput
@@ -70,7 +67,7 @@ func (h *DepartmentHandler) CreateDepartment(c echo.Context) error {
 	}
 
 	// 创建部门
-	out, err := h.departmentService.CreateDepartment(ctx, &in)
+	out, err := h.departmentService.Create(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -78,8 +75,8 @@ func (h *DepartmentHandler) CreateDepartment(c echo.Context) error {
 	return Success(c, out)
 }
 
-// ListDepartments 获取部门列表
-func (h *DepartmentHandler) ListDepartments(c echo.Context) error {
+// List 获取部门列表
+func (h *DepartmentHandler) List(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListDepartmentsInput
@@ -93,7 +90,7 @@ func (h *DepartmentHandler) ListDepartments(c echo.Context) error {
 	}
 
 	// 获取部门列表
-	out, err := h.departmentService.ListDepartments(ctx, &in)
+	out, err := h.departmentService.List(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -101,12 +98,12 @@ func (h *DepartmentHandler) ListDepartments(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetDepartmentTree 获取部门树形结构
-func (h *DepartmentHandler) GetDepartmentTree(c echo.Context) error {
+// Tree 获取部门树形结构
+func (h *DepartmentHandler) Tree(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 获取部门树形结构
-	out, err := h.departmentService.GetDepartmentTree(ctx)
+	out, err := h.departmentService.Tree(ctx)
 	if err != nil {
 		return err
 	}
@@ -114,8 +111,8 @@ func (h *DepartmentHandler) GetDepartmentTree(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetDepartment 获取部门详情
-func (h *DepartmentHandler) GetDepartment(c echo.Context) error {
+// Get 获取部门详情
+func (h *DepartmentHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 	departmentID := c.Param("id")
 
@@ -133,7 +130,7 @@ func (h *DepartmentHandler) GetDepartment(c echo.Context) error {
 }
 
 // UpdateDepartment 更新部门
-func (h *DepartmentHandler) UpdateDepartment(c echo.Context) error {
+func (h *DepartmentHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 	departmentID := c.Param("id")
 
@@ -152,7 +149,7 @@ func (h *DepartmentHandler) UpdateDepartment(c echo.Context) error {
 	}
 
 	// 更新部门
-	out, err := h.departmentService.UpdateDepartment(ctx, departmentID, &in)
+	out, err := h.departmentService.Update(ctx, departmentID, &in)
 	if err != nil {
 		return err
 	}
@@ -161,7 +158,7 @@ func (h *DepartmentHandler) UpdateDepartment(c echo.Context) error {
 }
 
 // DeleteDepartment 删除部门
-func (h *DepartmentHandler) DeleteDepartment(c echo.Context) error {
+func (h *DepartmentHandler) Delete(c echo.Context) error {
 	ctx := c.Request().Context()
 	departmentID := c.Param("id")
 
@@ -170,7 +167,7 @@ func (h *DepartmentHandler) DeleteDepartment(c echo.Context) error {
 	}
 
 	// 删除部门
-	err := h.departmentService.DeleteDepartment(ctx, departmentID)
+	err := h.departmentService.Delete(ctx, departmentID)
 	if err != nil {
 		return err
 	}
@@ -179,7 +176,7 @@ func (h *DepartmentHandler) DeleteDepartment(c echo.Context) error {
 }
 
 // MoveDepartment 移动部门（调整父节点）
-func (h *DepartmentHandler) MoveDepartment(c echo.Context) error {
+func (h *DepartmentHandler) Move(c echo.Context) error {
 	ctx := c.Request().Context()
 	departmentID := c.Param("id")
 
@@ -198,7 +195,7 @@ func (h *DepartmentHandler) MoveDepartment(c echo.Context) error {
 	}
 
 	// 移动部门
-	out, err := h.departmentService.MoveDepartment(ctx, departmentID, &in)
+	out, err := h.departmentService.Move(ctx, departmentID, &in)
 	if err != nil {
 		return err
 	}
@@ -207,7 +204,7 @@ func (h *DepartmentHandler) MoveDepartment(c echo.Context) error {
 }
 
 // SortDepartments 部门排序
-func (h *DepartmentHandler) SortDepartments(c echo.Context) error {
+func (h *DepartmentHandler) Sort(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.SortDepartmentInput
@@ -221,7 +218,7 @@ func (h *DepartmentHandler) SortDepartments(c echo.Context) error {
 	}
 
 	// 执行排序
-	err := h.departmentService.SortDepartments(ctx, &in)
+	err := h.departmentService.Sort(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -247,12 +244,12 @@ func (h *DepartmentHandler) CheckDepartmentDeletable(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetDepartmentStats 获取部门统计信息
-func (h *DepartmentHandler) GetDepartmentStats(c echo.Context) error {
+// Stats 获取部门统计信息
+func (h *DepartmentHandler) Stats(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 获取部门统计信息
-	out, err := h.departmentService.GetDepartmentStats(ctx)
+	out, err := h.departmentService.Stats(ctx)
 	if err != nil {
 		return err
 	}

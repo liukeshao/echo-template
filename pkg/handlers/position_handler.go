@@ -31,12 +31,9 @@ func (h *PositionHandler) Init(c *services.Container) error {
 
 // Routes 注册路由
 func (h *PositionHandler) Routes(g *echo.Group) {
-	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
-
 	// 岗位管理路由
 	admin := g.Group("/api/v1/admin/positions")
-	admin.Use(authMw.RequireAuth) // 先验证用户身份
+	admin.Use(middleware.RequireAuth(h.authService)) // 先验证用户身份
 	// TODO: 添加管理员权限检查中间件
 	// admin.Use(authMw.RequireRole("admin"))
 
