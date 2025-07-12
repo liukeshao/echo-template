@@ -119,7 +119,7 @@ func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.Us
 // ListUsers 获取用户列表
 func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput) (*types.ListUsersOutput, error) {
 	// 构建查询条件
-	query := s.orm.User.Query().Where(user.DeletedAtEQ(0))
+	query := s.orm.User.Query()
 
 	// 根据状态筛选
 	if input.Status != "" {
@@ -174,6 +174,66 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 	}, nil
 }
 
+// updateUsername 更新用户名
+func (s *UserService) updateUsername(ctx context.Context, userID string, username string) error {
+	// 检查用户名是否已被其他用户使用
+	exists, err := s.orm.User.Query().
+		Where(
+			user.UsernameEQ(username),
+			user.IDNEQ(userID),
+		).
+		Exist(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
+		return errors.ErrInternal.With("error", err.Error()).Errorf("检查用户名失败")
+	}
+	if exists {
+		return errors.ErrConflict.With("username", username).Errorf("用户名已存在")
+	}
+
+	// 更新用户名
+	err = s.orm.User.UpdateOneID(userID).
+		SetUsername(username).
+		Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "更新用户名失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "更新用户名失败")
+	}
+
+	slog.InfoContext(ctx, "用户名更新成功", "user_id", userID, "username", username)
+	return nil
+}
+
+// updateEmail 更新邮箱
+func (s *UserService) updateEmail(ctx context.Context, userID string, email string) error {
+	// 检查邮箱是否已被其他用户使用
+	exists, err := s.orm.User.Query().
+		Where(
+			user.EmailEQ(email),
+			user.IDNEQ(userID),
+		).
+		Exist(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
+		return errors.ErrInternal.With("error", err.Error()).Errorf("检查邮箱失败")
+	}
+	if exists {
+		return errors.ErrConflict.With("email", email).Errorf("邮箱已存在")
+	}
+
+	// 更新邮箱
+	err = s.orm.User.UpdateOneID(userID).
+		SetEmail(email).
+		Exec(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "更新邮箱失败", "error", err, "user_id", userID)
+		return errors.ErrInternal.Wrapf(err, "更新邮箱失败")
+	}
+
+	slog.InfoContext(ctx, "邮箱更新成功", "user_id", userID, "email", email)
+	return nil
+}
+
 // UpdateMe 更新用户
 func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.UpdateMeInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
@@ -189,54 +249,29 @@ func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.
 		return nil, errors.ErrInternal.Wrapf(err, "获取用户失败")
 	}
 
-	// 构建更新查询
-	updateQuery := s.orm.User.UpdateOneID(userID)
-
 	// 更新用户名
 	if input.Username != nil {
-		// 检查用户名是否已被其他用户使用
-		exists, err := s.orm.User.Query().
-			Where(
-				user.UsernameEQ(*input.Username),
-				user.DeletedAtEQ(0),
-				user.IDNEQ(userID),
-			).
-			Exist(ctx)
+		err := s.updateUsername(ctx, userID, *input.Username)
 		if err != nil {
-			slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
-			return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查用户名失败")
+			return nil, err
 		}
-		if exists {
-			return nil, errors.ErrConflict.With("username", *input.Username).Errorf("用户名已存在")
-		}
-		updateQuery = updateQuery.SetUsername(*input.Username)
 	}
 
 	// 更新邮箱
 	if input.Email != nil {
-		// 检查邮箱是否已被其他用户使用
-		exists, err := s.orm.User.Query().
-			Where(
-				user.EmailEQ(*input.Email),
-				user.DeletedAtEQ(0),
-				user.IDNEQ(userID),
-			).
-			Exist(ctx)
+		err := s.updateEmail(ctx, userID, *input.Email)
 		if err != nil {
-			slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
-			return nil, errors.ErrInternal.With("error", err.Error()).Errorf("检查邮箱失败")
+			return nil, err
 		}
-		if exists {
-			return nil, errors.ErrConflict.With("email", *input.Email).Errorf("邮箱已存在")
-		}
-		updateQuery = updateQuery.SetEmail(*input.Email)
 	}
 
-	// 执行更新
-	updatedUser, err := updateQuery.Save(ctx)
+	// 获取更新后的用户信息
+	updatedUser, err := s.orm.User.Query().
+		Where(user.IDEQ(userID)).
+		First(ctx)
 	if err != nil {
-		slog.ErrorContext(ctx, "更新用户失败", "error", err, "user_id", userID)
-		return nil, errors.ErrInternal.Wrapf(err, "更新用户失败")
+		slog.ErrorContext(ctx, "获取更新后用户信息失败", "error", err, "user_id", userID)
+		return nil, errors.ErrInternal.Wrapf(err, "获取更新后用户信息失败")
 	}
 
 	slog.InfoContext(ctx, "用户更新成功", "user_id", userID)
