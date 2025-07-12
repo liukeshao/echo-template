@@ -30,7 +30,7 @@ func NewUserService(orm *ent.Client) *UserService {
 func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInput) (*types.UserOutput, error) {
 	// 检查用户名是否已存在
 	exists, err := s.orm.User.Query().
-		Where(user.UsernameEQ(input.Username), user.DeletedAtEQ(0)).
+		Where(user.UsernameEQ(input.Username)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户名是否存在失败", "error", err)
@@ -42,7 +42,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 
 	// 检查邮箱是否已存在
 	exists, err = s.orm.User.Query().
-		Where(user.EmailEQ(input.Email), user.DeletedAtEQ(0)).
+		Where(user.EmailEQ(input.Email)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查邮箱是否存在失败", "error", err)
@@ -93,7 +93,7 @@ func (s *UserService) CreateUser(ctx context.Context, input *types.CreateUserInp
 // GetUserByID 根据ID获取用户
 func (s *UserService) GetUserByID(ctx context.Context, userID string) (*types.UserOutput, error) {
 	u, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -174,11 +174,11 @@ func (s *UserService) ListUsers(ctx context.Context, input *types.ListUsersInput
 	}, nil
 }
 
-// UpdateUser 更新用户
+// UpdateMe 更新用户
 func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.UpdateMeInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
@@ -257,7 +257,7 @@ func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 	// 检查用户是否存在
 	exists, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		Exist(ctx)
 	if err != nil {
 		slog.ErrorContext(ctx, "检查用户是否存在失败", "error", err, "user_id", userID)
@@ -283,7 +283,7 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 func (s *UserService) ChangePassword(ctx context.Context, userID string, input *types.ChangePasswordInput) error {
 	// 获取用户
 	u, err := s.orm.User.Query().
-		Where(user.IDEQ(userID), user.DeletedAtEQ(0)).
+		Where(user.IDEQ(userID)).
 		First(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {

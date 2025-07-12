@@ -15,11 +15,6 @@ const (
 	userKey      contextKey = "user"
 )
 
-// Context keys for external access
-var (
-	UserContextKey = userKey
-)
-
 // WithRequestID 在 context 中设置 request ID
 func WithRequestID(ctx context.Context, requestID string) context.Context {
 	return context.WithValue(ctx, requestIDKey, requestID)
