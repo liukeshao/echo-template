@@ -200,7 +200,6 @@ func (s *UserService) updateUsername(ctx context.Context, userID string, usernam
 		return errors.ErrInternal.Wrapf(err, "更新用户名失败")
 	}
 
-	slog.InfoContext(ctx, "用户名更新成功", "user_id", userID, "username", username)
 	return nil
 }
 
@@ -230,12 +229,11 @@ func (s *UserService) updateEmail(ctx context.Context, userID string, email stri
 		return errors.ErrInternal.Wrapf(err, "更新邮箱失败")
 	}
 
-	slog.InfoContext(ctx, "邮箱更新成功", "user_id", userID, "email", email)
 	return nil
 }
 
-// UpdateMe 更新用户
-func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.UpdateMeInput) (*types.UserOutput, error) {
+// UpdateUsername 更新用户名
+func (s *UserService) UpdateUsername(ctx context.Context, userID string, input *types.UpdateUsernameInput) (*types.UserOutput, error) {
 	// 检查用户是否存在
 	_, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
@@ -250,19 +248,9 @@ func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.
 	}
 
 	// 更新用户名
-	if input.Username != nil {
-		err := s.updateUsername(ctx, userID, *input.Username)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	// 更新邮箱
-	if input.Email != nil {
-		err := s.updateEmail(ctx, userID, *input.Email)
-		if err != nil {
-			return nil, err
-		}
+	err = s.updateUsername(ctx, userID, input.Username)
+	if err != nil {
+		return nil, err
 	}
 
 	// 获取更新后的用户信息
@@ -274,7 +262,47 @@ func (s *UserService) UpdateMe(ctx context.Context, userID string, input *types.
 		return nil, errors.ErrInternal.Wrapf(err, "获取更新后用户信息失败")
 	}
 
-	slog.InfoContext(ctx, "用户更新成功", "user_id", userID)
+	return &types.UserOutput{
+		UserInfo: &types.UserInfo{
+			ID:          updatedUser.ID,
+			Username:    updatedUser.Username,
+			Email:       updatedUser.Email,
+			Status:      string(updatedUser.Status),
+			LastLoginAt: updatedUser.LastLoginAt,
+			CreatedAt:   updatedUser.CreatedAt,
+		},
+	}, nil
+}
+
+// UpdateEmail 更新邮箱
+func (s *UserService) UpdateEmail(ctx context.Context, userID string, input *types.UpdateEmailInput) (*types.UserOutput, error) {
+	// 检查用户是否存在
+	_, err := s.orm.User.Query().
+		Where(user.IDEQ(userID)).
+		First(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
+			return nil, errors.ErrNotFound.With("user_id", userID).Errorf("用户不存在")
+		}
+		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
+		return nil, errors.ErrInternal.Wrapf(err, "获取用户失败")
+	}
+
+	// 更新邮箱
+	err = s.updateEmail(ctx, userID, input.Email)
+	if err != nil {
+		return nil, err
+	}
+
+	// 获取更新后的用户信息
+	updatedUser, err := s.orm.User.Query().
+		Where(user.IDEQ(userID)).
+		First(ctx)
+	if err != nil {
+		slog.ErrorContext(ctx, "获取更新后用户信息失败", "error", err, "user_id", userID)
+		return nil, errors.ErrInternal.Wrapf(err, "获取更新后用户信息失败")
+	}
 
 	return &types.UserOutput{
 		UserInfo: &types.UserInfo{
@@ -310,7 +338,6 @@ func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
 		return errors.ErrInternal.Wrapf(err, "删除用户失败")
 	}
 
-	slog.InfoContext(ctx, "用户删除成功", "user_id", userID)
 	return nil
 }
 

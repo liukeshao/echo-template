@@ -44,3 +44,39 @@ func (i *ChangePasswordInput) Shape() z.Shape {
 		"NewPassword": z.String().Min(8).Required(),
 	}
 }
+
+// UpdateUsernameInput 更新用户名输入
+type UpdateUsernameInput struct {
+	Username string `json:"username"` // 用户名
+}
+
+// Validate 验证更新用户名输入
+func (i *UpdateUsernameInput) Validate() []string {
+	issuesMap := z.Struct(i.Shape()).Validate(i)
+
+	return FormatIssues(issuesMap)
+}
+
+func (i *UpdateUsernameInput) Shape() z.Shape {
+	return z.Shape{
+		"Username": z.String().Min(3).Max(50).Required(),
+	}
+}
+
+// UpdateEmailInput 更新邮箱输入
+type UpdateEmailInput struct {
+	Email string `json:"email"` // 邮箱
+}
+
+// Validate 验证更新邮箱输入
+func (i *UpdateEmailInput) Validate() []string {
+	issuesMap := z.Struct(i.Shape()).Validate(i)
+
+	return FormatIssues(issuesMap)
+}
+
+func (i *UpdateEmailInput) Shape() z.Shape {
+	return z.Shape{
+		"Email": z.String().Email().Required(),
+	}
+}

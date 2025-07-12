@@ -38,7 +38,8 @@ func (h *MeHandler) Routes(g *echo.Group) {
 
 	// 当前用户相关路由（不需要额外权限，只要登录即可）
 	protected.GET("", h.Get)
-	protected.PUT("", h.Update)
+	protected.PUT("/username", h.UpdateUsername)
+	protected.PUT("/email", h.UpdateEmail)
 	protected.POST("/change-password", h.ChangePassword)
 }
 
@@ -61,8 +62,8 @@ func (h *MeHandler) Get(c echo.Context) error {
 	return Success(c, output)
 }
 
-// Update 更新当前用户信息
-func (h *MeHandler) Update(c echo.Context) error {
+// UpdateUsername 更新当前用户用户名
+func (h *MeHandler) UpdateUsername(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
@@ -71,7 +72,7 @@ func (h *MeHandler) Update(c echo.Context) error {
 		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
 
-	var in types.UpdateMeInput
+	var in types.UpdateUsernameInput
 	if err := c.Bind(&in); err != nil {
 		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
 	}
@@ -81,8 +82,37 @@ func (h *MeHandler) Update(c echo.Context) error {
 		return ValidationError(c, errorDetails)
 	}
 
-	// 更新当前用户信息
-	out, err := h.userService.UpdateMe(ctx, user.ID, &in)
+	// 更新当前用户用户名
+	out, err := h.userService.UpdateUsername(ctx, user.ID, &in)
+	if err != nil {
+		return err
+	}
+
+	return Success(c, out)
+}
+
+// UpdateEmail 更新当前用户邮箱
+func (h *MeHandler) UpdateEmail(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	// 从上下文获取当前用户ID
+	user, ok := context.GetUserFromContext(ctx)
+	if !ok {
+		return errors.ErrUnauthorized.Errorf("用户未登录")
+	}
+
+	var in types.UpdateEmailInput
+	if err := c.Bind(&in); err != nil {
+		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
+	}
+
+	// 验证输入
+	if errorDetails := in.Validate(); len(errorDetails) > 0 {
+		return ValidationError(c, errorDetails)
+	}
+
+	// 更新当前用户邮箱
+	out, err := h.userService.UpdateEmail(ctx, user.ID, &in)
 	if err != nil {
 		return err
 	}
