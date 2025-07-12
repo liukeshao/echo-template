@@ -23,15 +23,6 @@ GET {{baseUrl}}/api/v1/me
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
 
-### 更新当前用户信息
-PUT {{baseUrl}}/api/v1/me
-Content-Type: application/json
-Authorization: Bearer {{accessToken}}
-
-{
-  "username": "updated_user",
-  "email": "updated@example.com"
-}
 
 ### 修改当前用户密码
 POST {{baseUrl}}/api/v1/me/change-password
