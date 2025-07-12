@@ -4,8 +4,9 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/labstack/echo/v4"
 	echomw "github.com/labstack/echo/v4/middleware"
-	"github.com/liukeshao/echo-template/pkg/middleware"
+	appContext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
@@ -26,7 +27,11 @@ func BuildRouter(c *services.Container) error {
 		}),
 		echomw.Recover(),
 		echomw.RequestIDWithConfig(echomw.RequestIDConfig{
-			RequestIDHandler: middleware.RequestIDHandler,
+			RequestIDHandler: func(c echo.Context, s string) {
+				ctx := c.Request().Context()
+				ctx = appContext.WithRequestID(ctx, s)
+				c.SetRequest(c.Request().WithContext(ctx))
+			},
 		}),
 		echomw.Gzip(),
 		echomw.TimeoutWithConfig(echomw.TimeoutConfig{

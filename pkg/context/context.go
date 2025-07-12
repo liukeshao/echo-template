@@ -3,7 +3,6 @@ package context
 import (
 	"context"
 
-	"github.com/labstack/echo/v4"
 	"github.com/liukeshao/echo-template/ent"
 )
 
@@ -49,13 +48,8 @@ func GetUserFromContext(ctx context.Context) (*ent.User, bool) {
 	return user, ok
 }
 
-// GetUserFromEcho 从 Echo context 中获取当前用户
-func GetUserFromEcho(c echo.Context) (*ent.User, bool) {
-	return GetUserFromContext(c.Request().Context())
-}
-
-// MustGetUser 从 context 中获取用户，如果不存在则panic（用于必须有用户的地方）
-func MustGetUser(ctx context.Context) *ent.User {
+// MustGetUserFromContext 从 context 中获取用户，如果不存在则panic（用于必须有用户的地方）
+func MustGetUserFromContext(ctx context.Context) *ent.User {
 	user, ok := GetUserFromContext(ctx)
 	if !ok {
 		panic("user not found in context")

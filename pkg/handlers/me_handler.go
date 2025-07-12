@@ -33,10 +33,8 @@ func (h *MeHandler) Init(c *services.Container) error {
 // Routes 注册路由
 func (h *MeHandler) Routes(g *echo.Group) {
 	// 需要认证的路由组
-	authMw := middleware.NewAuthMiddleware(h.orm, h.authService)
-
 	protected := g.Group("/api/v1/me")
-	protected.Use(authMw.RequireAuth) // 先验证用户身份
+	protected.Use(middleware.RequireAuth(h.authService)) // 先验证用户身份
 
 	// 当前用户相关路由（不需要额外权限，只要登录即可）
 	protected.GET("", h.Get)
@@ -49,7 +47,7 @@ func (h *MeHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromEcho(c)
+	user, ok := context.GetUserFromContext(ctx)
 	if !ok {
 		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
@@ -68,7 +66,7 @@ func (h *MeHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromEcho(c)
+	user, ok := context.GetUserFromContext(ctx)
 	if !ok {
 		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
@@ -97,7 +95,7 @@ func (h *MeHandler) ChangePassword(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromEcho(c)
+	user, ok := context.GetUserFromContext(ctx)
 	if !ok {
 		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}

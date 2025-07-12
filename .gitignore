@@ -1,3 +1,7 @@
 .idea
 dbs
 output
+
+# HTTP Client private environment files (contains sensitive data like tokens)
+http-client.private.env.json
+.apitest/http-client.private.env.json

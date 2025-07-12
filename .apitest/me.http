@@ -1,0 +1,44 @@
+### 用户登录
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{testUser.email}}",
+  "password": "{{testUser.password}}"
+}
+
+> {%
+    client.test("Login successful", function() {
+        client.assert(response.status === 200, "Expected status 200");
+        client.assert(response.body.data.access_token, "Access token should be present");
+        client.assert(response.body.data.refresh_token, "Refresh token should be present");
+    });
+
+    client.global.set("accessToken", response.body.data.access_token);
+    client.global.set("refreshToken", response.body.data.refresh_token);
+%}
+
+### 获取当前用户信息
+GET {{baseUrl}}/api/v1/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### 更新当前用户信息
+PUT {{baseUrl}}/api/v1/me
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "username": "updated_user",
+  "email": "updated@example.com"
+}
+
+### 修改当前用户密码
+POST {{baseUrl}}/api/v1/me/change-password
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "old_password": "{{testUser.password}}",
+  "new_password": "{{newPassword}}"
+}

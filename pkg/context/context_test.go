@@ -42,12 +42,12 @@ func TestMustGetUser(t *testing.T) {
 
 	// 测试MustGetUser正常情况
 	ctx := WithUser(context.Background(), user)
-	retrievedUser := MustGetUser(ctx)
+	retrievedUser := MustGetUserFromContext(ctx)
 	assert.Equal(t, user.ID, retrievedUser.ID, "MustGetUser应该返回正确的用户")
 
 	// 测试MustGetUser panic情况
 	assert.Panics(t, func() {
-		MustGetUser(context.Background())
+		MustGetUserFromContext(context.Background())
 	}, "MustGetUser在没有用户时应该panic")
 }
 

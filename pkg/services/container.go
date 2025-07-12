@@ -45,6 +45,7 @@ func NewContainer() *Container {
 	c.initDatabase()
 	c.initORM()
 	c.initAuth()
+	c.initUser()
 	return c
 }
 
@@ -111,6 +112,10 @@ func (c *Container) initORM() {
 func (c *Container) initAuth() {
 	jwtConfig := NewJWTConfigFromConfig(c.Config.JWT)
 	c.Auth = NewAuthService(c.ORM, jwtConfig)
+}
+
+func (c *Container) initUser() {
+	c.User = NewUserService(c.ORM)
 }
 
 // openDB opens a database connection.

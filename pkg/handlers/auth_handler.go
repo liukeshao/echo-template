@@ -40,9 +40,8 @@ func (h *AuthHandler) Routes(g *echo.Group) {
 	auth.POST("/refresh", h.RefreshToken)
 
 	// 需要认证的路由
-	authMiddleware := middleware.NewAuthMiddleware(h.orm, h.auth)
 	protected := g.Group("/api/v1/auth")
-	protected.Use(authMiddleware.RequireAuth)
+	protected.Use(middleware.RequireAuth(h.auth))
 	protected.POST("/logout", h.Logout)
 }
 
@@ -118,7 +117,7 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从认证中间件获取当前用户
-	_, ok := context.GetUserFromEcho(c)
+	_, ok := context.GetUserFromContext(ctx)
 	if !ok {
 		return errors.ErrUnauthorized.Errorf("用户未登录")
 	}
