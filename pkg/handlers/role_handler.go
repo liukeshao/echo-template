@@ -38,26 +38,26 @@ func (h *RoleHandler) Routes(g *echo.Group) {
 	// admin.Use(authMw.RequireRole("admin"))
 
 	// 角色CRUD相关路由
-	admin.POST("", h.CreateRole)
-	admin.GET("", h.ListRoles)
-	admin.GET("/stats", h.GetRoleStats)
-	admin.GET("/:id", h.GetRole)
-	admin.PUT("/:id", h.UpdateRole)
-	admin.DELETE("/:id", h.DeleteRole)
+	admin.POST("", h.Create)
+	admin.GET("", h.List)
+	admin.GET("/stats", h.Stats)
+	admin.GET("/:id", h.Get)
+	admin.PUT("/:id", h.Update)
+	admin.DELETE("/:id", h.Delete)
 
 	// 角色维护相关路由
-	admin.GET("/:id/check-deletable", h.CheckRoleDeletable)
-	admin.POST("/batch/delete", h.BatchDeleteRoles)
+	admin.GET("/:id/check-deletable", h.CheckDeletable)
+	admin.POST("/batch/delete", h.BatchDelete)
 
 	// 角色权限分配相关路由
-	admin.PUT("/:id/menus", h.AssignRoleMenus)
-	admin.GET("/:id/menus", h.GetRoleMenus)
-	admin.PUT("/:id/users", h.AssignRoleUsers)
-	admin.GET("/:id/users", h.GetRoleUsers)
+	admin.PUT("/:id/menus", h.AssignMenus)
+	admin.GET("/:id/menus", h.GetMenus)
+	admin.PUT("/:id/users", h.AssignUsers)
+	admin.GET("/:id/users", h.GetUsers)
 }
 
-// CreateRole 创建角色
-func (h *RoleHandler) CreateRole(c echo.Context) error {
+// Create 创建角色
+func (h *RoleHandler) Create(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.CreateRoleInput
@@ -79,8 +79,8 @@ func (h *RoleHandler) CreateRole(c echo.Context) error {
 	return Success(c, out)
 }
 
-// ListRoles 获取角色列表
-func (h *RoleHandler) ListRoles(c echo.Context) error {
+// List 获取角色列表
+func (h *RoleHandler) List(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListRolesInput
@@ -102,8 +102,8 @@ func (h *RoleHandler) ListRoles(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetRole 获取角色详情
-func (h *RoleHandler) GetRole(c echo.Context) error {
+// Get 获取角色详情
+func (h *RoleHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -120,8 +120,8 @@ func (h *RoleHandler) GetRole(c echo.Context) error {
 	return Success(c, output)
 }
 
-// UpdateRole 更新角色
-func (h *RoleHandler) UpdateRole(c echo.Context) error {
+// Update 更新角色
+func (h *RoleHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -148,8 +148,8 @@ func (h *RoleHandler) UpdateRole(c echo.Context) error {
 	return Success(c, out)
 }
 
-// DeleteRole 删除角色
-func (h *RoleHandler) DeleteRole(c echo.Context) error {
+// Delete 删除角色
+func (h *RoleHandler) Delete(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -166,8 +166,8 @@ func (h *RoleHandler) DeleteRole(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// CheckRoleDeletable 检查角色是否可删除
-func (h *RoleHandler) CheckRoleDeletable(c echo.Context) error {
+// CheckDeletable 检查角色是否可删除
+func (h *RoleHandler) CheckDeletable(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -184,8 +184,8 @@ func (h *RoleHandler) CheckRoleDeletable(c echo.Context) error {
 	return Success(c, output)
 }
 
-// BatchDeleteRoles 批量删除角色
-func (h *RoleHandler) BatchDeleteRoles(c echo.Context) error {
+// BatchDelete 批量删除角色
+func (h *RoleHandler) BatchDelete(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.BatchDeleteRolesInput
@@ -208,8 +208,8 @@ func (h *RoleHandler) BatchDeleteRoles(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// GetRoleStats 获取角色统计
-func (h *RoleHandler) GetRoleStats(c echo.Context) error {
+// Stats 获取角色统计
+func (h *RoleHandler) Stats(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 获取角色统计
@@ -221,8 +221,8 @@ func (h *RoleHandler) GetRoleStats(c echo.Context) error {
 	return Success(c, stats)
 }
 
-// AssignRoleMenus 分配角色菜单权限
-func (h *RoleHandler) AssignRoleMenus(c echo.Context) error {
+// AssignMenus 分配角色菜单权限
+func (h *RoleHandler) AssignMenus(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -249,8 +249,8 @@ func (h *RoleHandler) AssignRoleMenus(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// GetRoleMenus 获取角色菜单权限
-func (h *RoleHandler) GetRoleMenus(c echo.Context) error {
+// GetMenus 获取角色菜单权限
+func (h *RoleHandler) GetMenus(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -267,8 +267,8 @@ func (h *RoleHandler) GetRoleMenus(c echo.Context) error {
 	return Success(c, output)
 }
 
-// AssignRoleUsers 分配角色用户
-func (h *RoleHandler) AssignRoleUsers(c echo.Context) error {
+// AssignUsers 分配角色用户
+func (h *RoleHandler) AssignUsers(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 
@@ -295,8 +295,8 @@ func (h *RoleHandler) AssignRoleUsers(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// GetRoleUsers 获取角色用户列表
-func (h *RoleHandler) GetRoleUsers(c echo.Context) error {
+// GetUsers 获取角色用户列表
+func (h *RoleHandler) GetUsers(c echo.Context) error {
 	ctx := c.Request().Context()
 	roleID := c.Param("id")
 

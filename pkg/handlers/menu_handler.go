@@ -37,19 +37,19 @@ func (h *MenuHandler) Routes(g *echo.Group) {
 	// admin.Use(authMw.RequireRole("admin"))
 
 	// 菜单管理相关路由
-	admin.POST("", h.CreateMenu)
-	admin.GET("", h.ListMenus)
-	admin.GET("/tree", h.GetMenuTree)
-	admin.GET("/:id", h.GetMenu)
-	admin.PUT("/:id", h.UpdateMenu)
-	admin.DELETE("/:id", h.DeleteMenu)
-	admin.GET("/:id/check-deletable", h.CheckMenuDeletable)
-	admin.POST("/sort", h.SortMenus)
-	admin.POST("/:id/move", h.MoveMenu)
+	admin.POST("", h.Create)
+	admin.GET("", h.List)
+	admin.GET("/tree", h.Tree)
+	admin.GET("/:id", h.Get)
+	admin.PUT("/:id", h.Update)
+	admin.DELETE("/:id", h.Delete)
+	admin.GET("/:id/check-deletable", h.CheckDeletable)
+	admin.POST("/sort", h.Sort)
+	admin.POST("/:id/move", h.Move)
 }
 
-// CreateMenu 创建菜单
-func (h *MenuHandler) CreateMenu(c echo.Context) error {
+// Create 创建菜单
+func (h *MenuHandler) Create(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.CreateMenuInput
@@ -63,7 +63,7 @@ func (h *MenuHandler) CreateMenu(c echo.Context) error {
 	}
 
 	// 创建菜单
-	out, err := h.menuService.CreateMenu(ctx, &in)
+	out, err := h.menuService.Create(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -71,8 +71,8 @@ func (h *MenuHandler) CreateMenu(c echo.Context) error {
 	return Success(c, out)
 }
 
-// ListMenus 获取菜单列表
-func (h *MenuHandler) ListMenus(c echo.Context) error {
+// List 获取菜单列表
+func (h *MenuHandler) List(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListMenusInput
@@ -86,7 +86,7 @@ func (h *MenuHandler) ListMenus(c echo.Context) error {
 	}
 
 	// 获取菜单列表
-	out, err := h.menuService.ListMenus(ctx, &in)
+	out, err := h.menuService.List(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -94,8 +94,8 @@ func (h *MenuHandler) ListMenus(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetMenuTree 获取菜单树
-func (h *MenuHandler) GetMenuTree(c echo.Context) error {
+// Tree 获取菜单树
+func (h *MenuHandler) Tree(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListMenusInput
@@ -109,7 +109,7 @@ func (h *MenuHandler) GetMenuTree(c echo.Context) error {
 	}
 
 	// 获取菜单树
-	out, err := h.menuService.GetMenuTree(ctx, &in)
+	out, err := h.menuService.Tree(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -117,8 +117,8 @@ func (h *MenuHandler) GetMenuTree(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetMenu 获取菜单详情
-func (h *MenuHandler) GetMenu(c echo.Context) error {
+// Get 获取菜单详情
+func (h *MenuHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 	menuID := c.Param("id")
 
@@ -127,7 +127,7 @@ func (h *MenuHandler) GetMenu(c echo.Context) error {
 	}
 
 	// 获取菜单信息
-	output, err := h.menuService.GetMenuByID(ctx, menuID)
+	output, err := h.menuService.GetByID(ctx, menuID)
 	if err != nil {
 		return err
 	}
@@ -135,8 +135,8 @@ func (h *MenuHandler) GetMenu(c echo.Context) error {
 	return Success(c, output)
 }
 
-// UpdateMenu 更新菜单
-func (h *MenuHandler) UpdateMenu(c echo.Context) error {
+// Update 更新菜单
+func (h *MenuHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 	menuID := c.Param("id")
 
@@ -155,7 +155,7 @@ func (h *MenuHandler) UpdateMenu(c echo.Context) error {
 	}
 
 	// 更新菜单
-	out, err := h.menuService.UpdateMenu(ctx, menuID, &in)
+	out, err := h.menuService.Update(ctx, menuID, &in)
 	if err != nil {
 		return err
 	}
@@ -163,8 +163,8 @@ func (h *MenuHandler) UpdateMenu(c echo.Context) error {
 	return Success(c, out)
 }
 
-// DeleteMenu 删除菜单
-func (h *MenuHandler) DeleteMenu(c echo.Context) error {
+// Delete 删除菜单
+func (h *MenuHandler) Delete(c echo.Context) error {
 	ctx := c.Request().Context()
 	menuID := c.Param("id")
 
@@ -173,7 +173,7 @@ func (h *MenuHandler) DeleteMenu(c echo.Context) error {
 	}
 
 	// 删除菜单
-	err := h.menuService.DeleteMenu(ctx, menuID)
+	err := h.menuService.Delete(ctx, menuID)
 	if err != nil {
 		return err
 	}
@@ -181,8 +181,8 @@ func (h *MenuHandler) DeleteMenu(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// CheckMenuDeletable 检查菜单是否可删除
-func (h *MenuHandler) CheckMenuDeletable(c echo.Context) error {
+// CheckDeletable 检查菜单是否可删除
+func (h *MenuHandler) CheckDeletable(c echo.Context) error {
 	ctx := c.Request().Context()
 	menuID := c.Param("id")
 
@@ -191,7 +191,7 @@ func (h *MenuHandler) CheckMenuDeletable(c echo.Context) error {
 	}
 
 	// 检查菜单是否可删除
-	output, err := h.menuService.CheckMenuDeletable(ctx, menuID)
+	output, err := h.menuService.CheckDeletable(ctx, menuID)
 	if err != nil {
 		return err
 	}
@@ -199,8 +199,8 @@ func (h *MenuHandler) CheckMenuDeletable(c echo.Context) error {
 	return Success(c, output)
 }
 
-// SortMenus 菜单排序
-func (h *MenuHandler) SortMenus(c echo.Context) error {
+// Sort 菜单排序
+func (h *MenuHandler) Sort(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.SortMenuInput
@@ -214,7 +214,7 @@ func (h *MenuHandler) SortMenus(c echo.Context) error {
 	}
 
 	// 执行排序
-	err := h.menuService.SortMenus(ctx, &in)
+	err := h.menuService.Sort(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -222,8 +222,8 @@ func (h *MenuHandler) SortMenus(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// MoveMenu 移动菜单
-func (h *MenuHandler) MoveMenu(c echo.Context) error {
+// Move 移动菜单
+func (h *MenuHandler) Move(c echo.Context) error {
 	ctx := c.Request().Context()
 	menuID := c.Param("id")
 
@@ -242,7 +242,7 @@ func (h *MenuHandler) MoveMenu(c echo.Context) error {
 	}
 
 	// 移动菜单
-	err := h.menuService.MoveMenu(ctx, menuID, &in)
+	err := h.menuService.Move(ctx, menuID, &in)
 	if err != nil {
 		return err
 	}

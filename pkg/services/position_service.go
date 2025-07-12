@@ -46,8 +46,8 @@ func (s *PositionService) toPositionInfo(p *ent.Position) *types.PositionInfo {
 	}
 }
 
-// CreatePosition 创建岗位
-func (s *PositionService) CreatePosition(ctx context.Context, input *types.CreatePositionInput) (*types.PositionOutput, error) {
+// Create 创建岗位
+func (s *PositionService) Create(ctx context.Context, input *types.CreatePositionInput) (*types.PositionOutput, error) {
 	// 检查岗位名称是否已存在
 	exists, err := s.orm.Position.Query().
 		Where(position.NameEQ(input.Name), position.DeletedAtEQ(0)).
@@ -113,8 +113,8 @@ func (s *PositionService) CreatePosition(ctx context.Context, input *types.Creat
 	}, nil
 }
 
-// GetPositionByID 根据ID获取岗位
-func (s *PositionService) GetPositionByID(ctx context.Context, positionID string) (*types.PositionOutput, error) {
+// GetByID 根据ID获取岗位
+func (s *PositionService) GetByID(ctx context.Context, positionID string) (*types.PositionOutput, error) {
 	p, err := s.orm.Position.Query().
 		Where(position.IDEQ(positionID)).
 		First(ctx)
@@ -142,8 +142,8 @@ func (s *PositionService) GetPositionByID(ctx context.Context, positionID string
 	}, nil
 }
 
-// ListPositions 获取岗位列表
-func (s *PositionService) ListPositions(ctx context.Context, input *types.ListPositionsInput) (*types.ListPositionsOutput, error) {
+// List 获取岗位列表
+func (s *PositionService) List(ctx context.Context, input *types.ListPositionsInput) (*types.ListPositionsOutput, error) {
 	query := s.orm.Position.Query()
 
 	// 状态筛选
@@ -206,8 +206,8 @@ func (s *PositionService) ListPositions(ctx context.Context, input *types.ListPo
 	}, nil
 }
 
-// UpdatePosition 更新岗位
-func (s *PositionService) UpdatePosition(ctx context.Context, positionID string, input *types.UpdatePositionInput) (*types.PositionOutput, error) {
+// Update 更新岗位
+func (s *PositionService) Update(ctx context.Context, positionID string, input *types.UpdatePositionInput) (*types.PositionOutput, error) {
 	// 检查岗位是否存在
 	p, err := s.orm.Position.Query().
 		Where(position.IDEQ(positionID)).
@@ -297,8 +297,8 @@ func (s *PositionService) UpdatePosition(ctx context.Context, positionID string,
 	}, nil
 }
 
-// SortPositions 批量更新岗位排序
-func (s *PositionService) SortPositions(ctx context.Context, input *types.SortPositionInput) error {
+// Sort 批量更新岗位排序
+func (s *PositionService) Sort(ctx context.Context, input *types.SortPositionInput) error {
 	// 验证所有岗位是否存在
 	positionIDs := make([]string, 0, len(input.PositionSorts))
 	for _, item := range input.PositionSorts {
@@ -344,8 +344,8 @@ func (s *PositionService) SortPositions(ctx context.Context, input *types.SortPo
 	return nil
 }
 
-// CheckPositionDeletable 检查岗位是否可以删除
-func (s *PositionService) CheckPositionDeletable(ctx context.Context, positionID string) (*types.CheckPositionDeletableOutput, error) {
+// CheckDeletable 检查岗位是否可以删除
+func (s *PositionService) CheckDeletable(ctx context.Context, positionID string) (*types.CheckPositionDeletableOutput, error) {
 	// 检查岗位是否存在
 	exists, err := s.orm.Position.Query().
 		Where(position.IDEQ(positionID)).
@@ -382,10 +382,10 @@ func (s *PositionService) CheckPositionDeletable(ctx context.Context, positionID
 	return output, nil
 }
 
-// DeletePosition 删除岗位（逻辑删除）
-func (s *PositionService) DeletePosition(ctx context.Context, positionID string) error {
+// Delete 删除岗位（逻辑删除）
+func (s *PositionService) Delete(ctx context.Context, positionID string) error {
 	// 先检查是否可以删除
-	checkResult, err := s.CheckPositionDeletable(ctx, positionID)
+	checkResult, err := s.CheckDeletable(ctx, positionID)
 	if err != nil {
 		return err
 	}
@@ -407,8 +407,8 @@ func (s *PositionService) DeletePosition(ctx context.Context, positionID string)
 	return nil
 }
 
-// GetPositionStats 获取岗位统计信息
-func (s *PositionService) GetPositionStats(ctx context.Context) (*types.PositionStatsOutput, error) {
+// Stats 获取岗位统计信息
+func (s *PositionService) Stats(ctx context.Context) (*types.PositionStatsOutput, error) {
 	// 统计各状态岗位数量
 	totalPositions, err := s.orm.Position.Query().
 		Count(ctx)

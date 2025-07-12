@@ -177,8 +177,8 @@ func (s *DepartmentService) Create(ctx context.Context, input *types.CreateDepar
 	}, nil
 }
 
-// GetDepartmentByID 根据ID获取部门
-func (s *DepartmentService) GetDepartmentByID(ctx context.Context, departmentID string) (*types.DepartmentOutput, error) {
+// GetByID 根据ID获取部门
+func (s *DepartmentService) GetByID(ctx context.Context, departmentID string) (*types.DepartmentOutput, error) {
 	d, err := s.orm.Department.Query().
 		Where(department.IDEQ(departmentID)).
 		WithParent().
@@ -679,8 +679,8 @@ func (s *DepartmentService) Sort(ctx context.Context, input *types.SortDepartmen
 	return nil
 }
 
-// CheckDepartmentDeletable 检查部门是否可删除
-func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, departmentID string) (*types.CheckDepartmentDeletableOutput, error) {
+// CheckDeletable 检查部门是否可删除
+func (s *DepartmentService) CheckDeletable(ctx context.Context, departmentID string) (*types.CheckDepartmentDeletableOutput, error) {
 	// 检查部门是否存在
 	exists, err := s.orm.Department.Query().
 		Where(department.IDEQ(departmentID)).
@@ -735,7 +735,7 @@ func (s *DepartmentService) CheckDepartmentDeletable(ctx context.Context, depart
 // Delete 删除部门
 func (s *DepartmentService) Delete(ctx context.Context, departmentID string) error {
 	// 检查部门是否可删除
-	check, err := s.CheckDepartmentDeletable(ctx, departmentID)
+	check, err := s.CheckDeletable(ctx, departmentID)
 	if err != nil {
 		return err
 	}

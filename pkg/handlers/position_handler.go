@@ -38,20 +38,20 @@ func (h *PositionHandler) Routes(g *echo.Group) {
 	// admin.Use(authMw.RequireRole("admin"))
 
 	// 岗位CRUD相关路由
-	admin.POST("", h.CreatePosition)
-	admin.GET("", h.ListPositions)
-	admin.GET("/stats", h.GetPositionStats)
-	admin.GET("/:id", h.GetPosition)
-	admin.PUT("/:id", h.UpdatePosition)
-	admin.DELETE("/:id", h.DeletePosition)
+	admin.POST("", h.Create)
+	admin.GET("", h.List)
+	admin.GET("/stats", h.Stats)
+	admin.GET("/:id", h.Get)
+	admin.PUT("/:id", h.Update)
+	admin.DELETE("/:id", h.Delete)
 
 	// 岗位维护相关路由
-	admin.POST("/sort", h.SortPositions)
-	admin.GET("/:id/check-deletable", h.CheckPositionDeletable)
+	admin.POST("/sort", h.Sort)
+	admin.GET("/:id/check-deletable", h.CheckDeletable)
 }
 
-// CreatePosition 创建岗位
-func (h *PositionHandler) CreatePosition(c echo.Context) error {
+// Create 创建岗位
+func (h *PositionHandler) Create(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.CreatePositionInput
@@ -65,7 +65,7 @@ func (h *PositionHandler) CreatePosition(c echo.Context) error {
 	}
 
 	// 创建岗位
-	out, err := h.positionService.CreatePosition(ctx, &in)
+	out, err := h.positionService.Create(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -73,8 +73,8 @@ func (h *PositionHandler) CreatePosition(c echo.Context) error {
 	return Success(c, out)
 }
 
-// ListPositions 获取岗位列表
-func (h *PositionHandler) ListPositions(c echo.Context) error {
+// List 获取岗位列表
+func (h *PositionHandler) List(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListPositionsInput
@@ -88,7 +88,7 @@ func (h *PositionHandler) ListPositions(c echo.Context) error {
 	}
 
 	// 获取岗位列表
-	out, err := h.positionService.ListPositions(ctx, &in)
+	out, err := h.positionService.List(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -96,8 +96,8 @@ func (h *PositionHandler) ListPositions(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetPosition 获取岗位详情
-func (h *PositionHandler) GetPosition(c echo.Context) error {
+// Get 获取岗位详情
+func (h *PositionHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 	positionID := c.Param("id")
 
@@ -106,7 +106,7 @@ func (h *PositionHandler) GetPosition(c echo.Context) error {
 	}
 
 	// 获取岗位信息
-	output, err := h.positionService.GetPositionByID(ctx, positionID)
+	output, err := h.positionService.GetByID(ctx, positionID)
 	if err != nil {
 		return err
 	}
@@ -114,8 +114,8 @@ func (h *PositionHandler) GetPosition(c echo.Context) error {
 	return Success(c, output)
 }
 
-// UpdatePosition 更新岗位
-func (h *PositionHandler) UpdatePosition(c echo.Context) error {
+// Update 更新岗位
+func (h *PositionHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 	positionID := c.Param("id")
 
@@ -134,7 +134,7 @@ func (h *PositionHandler) UpdatePosition(c echo.Context) error {
 	}
 
 	// 更新岗位
-	out, err := h.positionService.UpdatePosition(ctx, positionID, &in)
+	out, err := h.positionService.Update(ctx, positionID, &in)
 	if err != nil {
 		return err
 	}
@@ -142,8 +142,8 @@ func (h *PositionHandler) UpdatePosition(c echo.Context) error {
 	return Success(c, out)
 }
 
-// DeletePosition 删除岗位
-func (h *PositionHandler) DeletePosition(c echo.Context) error {
+// Delete 删除岗位
+func (h *PositionHandler) Delete(c echo.Context) error {
 	ctx := c.Request().Context()
 	positionID := c.Param("id")
 
@@ -152,7 +152,7 @@ func (h *PositionHandler) DeletePosition(c echo.Context) error {
 	}
 
 	// 删除岗位
-	err := h.positionService.DeletePosition(ctx, positionID)
+	err := h.positionService.Delete(ctx, positionID)
 	if err != nil {
 		return err
 	}
@@ -160,8 +160,8 @@ func (h *PositionHandler) DeletePosition(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// SortPositions 批量更新岗位排序
-func (h *PositionHandler) SortPositions(c echo.Context) error {
+// Sort 批量更新岗位排序
+func (h *PositionHandler) Sort(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.SortPositionInput
@@ -175,7 +175,7 @@ func (h *PositionHandler) SortPositions(c echo.Context) error {
 	}
 
 	// 更新排序
-	err := h.positionService.SortPositions(ctx, &in)
+	err := h.positionService.Sort(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -183,8 +183,8 @@ func (h *PositionHandler) SortPositions(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// CheckPositionDeletable 检查岗位是否可删除
-func (h *PositionHandler) CheckPositionDeletable(c echo.Context) error {
+// CheckDeletable 检查岗位是否可删除
+func (h *PositionHandler) CheckDeletable(c echo.Context) error {
 	ctx := c.Request().Context()
 	positionID := c.Param("id")
 
@@ -193,7 +193,7 @@ func (h *PositionHandler) CheckPositionDeletable(c echo.Context) error {
 	}
 
 	// 检查是否可删除
-	output, err := h.positionService.CheckPositionDeletable(ctx, positionID)
+	output, err := h.positionService.CheckDeletable(ctx, positionID)
 	if err != nil {
 		return err
 	}
@@ -201,12 +201,12 @@ func (h *PositionHandler) CheckPositionDeletable(c echo.Context) error {
 	return Success(c, output)
 }
 
-// GetPositionStats 获取岗位统计信息
-func (h *PositionHandler) GetPositionStats(c echo.Context) error {
+// Stats 获取岗位统计信息
+func (h *PositionHandler) Stats(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 获取统计信息
-	output, err := h.positionService.GetPositionStats(ctx)
+	output, err := h.positionService.Stats(ctx)
 	if err != nil {
 		return err
 	}

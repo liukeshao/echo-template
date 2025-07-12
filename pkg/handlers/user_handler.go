@@ -37,20 +37,20 @@ func (h *UserHandler) Routes(g *echo.Group) {
 	// admin.Use(authMw.RequireRole("admin"))
 
 	// 用户管理相关路由
-	admin.POST("", h.CreateUser)
-	admin.GET("", h.ListUsers)
-	admin.GET("/stats", h.GetUserStats)
-	admin.GET("/:id", h.GetUser)
-	admin.PUT("/:id", h.UpdateUser)
-	admin.DELETE("/:id", h.DeleteUser)
+	admin.POST("", h.Create)
+	admin.GET("", h.List)
+	admin.GET("/stats", h.Stats)
+	admin.GET("/:id", h.Get)
+	admin.PUT("/:id", h.Update)
+	admin.DELETE("/:id", h.Delete)
 	admin.POST("/:id/reset-password", h.ResetPassword)
-	admin.PUT("/:id/status", h.SetUserStatus)
+	admin.PUT("/:id/status", h.SetStatus)
 	admin.POST("/batch/status", h.BatchUpdateStatus)
-	admin.POST("/batch/delete", h.BatchDeleteUsers)
+	admin.POST("/batch/delete", h.BatchDelete)
 }
 
-// CreateUser 创建用户
-func (h *UserHandler) CreateUser(c echo.Context) error {
+// Create 创建用户
+func (h *UserHandler) Create(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.CreateUserInput
@@ -64,7 +64,7 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	}
 
 	// 创建用户
-	out, err := h.userService.CreateUser(ctx, &in)
+	out, err := h.userService.Create(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -72,8 +72,8 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 	return Success(c, out)
 }
 
-// ListUsers 获取用户列表
-func (h *UserHandler) ListUsers(c echo.Context) error {
+// List 获取用户列表
+func (h *UserHandler) List(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.ListUsersInput
@@ -87,7 +87,7 @@ func (h *UserHandler) ListUsers(c echo.Context) error {
 	}
 
 	// 获取用户列表
-	out, err := h.userService.ListUsers(ctx, &in)
+	out, err := h.userService.List(ctx, &in)
 	if err != nil {
 		return err
 	}
@@ -95,8 +95,8 @@ func (h *UserHandler) ListUsers(c echo.Context) error {
 	return Success(c, out)
 }
 
-// GetUser 获取用户详情
-func (h *UserHandler) GetUser(c echo.Context) error {
+// Get 获取用户详情
+func (h *UserHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 	userID := c.Param("id")
 
@@ -113,8 +113,8 @@ func (h *UserHandler) GetUser(c echo.Context) error {
 	return Success(c, output)
 }
 
-// UpdateUser 更新用户
-func (h *UserHandler) UpdateUser(c echo.Context) error {
+// Update 更新用户
+func (h *UserHandler) Update(c echo.Context) error {
 	ctx := c.Request().Context()
 	userID := c.Param("id")
 
@@ -133,7 +133,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	}
 
 	// 更新用户
-	out, err := h.userService.UpdateUser(ctx, userID, &in)
+	out, err := h.userService.Update(ctx, userID, &in)
 	if err != nil {
 		return err
 	}
@@ -141,8 +141,8 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	return Success(c, out)
 }
 
-// DeleteUser 删除用户
-func (h *UserHandler) DeleteUser(c echo.Context) error {
+// Delete 删除用户
+func (h *UserHandler) Delete(c echo.Context) error {
 	ctx := c.Request().Context()
 	userID := c.Param("id")
 
@@ -151,7 +151,7 @@ func (h *UserHandler) DeleteUser(c echo.Context) error {
 	}
 
 	// 删除用户
-	err := h.userService.DeleteUser(ctx, userID)
+	err := h.userService.Delete(ctx, userID)
 	if err != nil {
 		return err
 	}
@@ -187,8 +187,8 @@ func (h *UserHandler) ResetPassword(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// SetUserStatus 设置用户状态
-func (h *UserHandler) SetUserStatus(c echo.Context) error {
+// SetStatus 设置用户状态
+func (h *UserHandler) SetStatus(c echo.Context) error {
 	ctx := c.Request().Context()
 	userID := c.Param("id")
 
@@ -238,8 +238,8 @@ func (h *UserHandler) BatchUpdateStatus(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// BatchDeleteUsers 批量删除用户
-func (h *UserHandler) BatchDeleteUsers(c echo.Context) error {
+// BatchDelete 批量删除用户
+func (h *UserHandler) BatchDelete(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	var in types.BatchOperationInput
@@ -261,12 +261,12 @@ func (h *UserHandler) BatchDeleteUsers(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// GetUserStats 获取用户统计信息
-func (h *UserHandler) GetUserStats(c echo.Context) error {
+// Stats 获取用户统计信息
+func (h *UserHandler) Stats(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 获取用户统计
-	stats, err := h.userService.GetUserStats(ctx)
+	stats, err := h.userService.Stats(ctx)
 	if err != nil {
 		return err
 	}

@@ -49,7 +49,7 @@ func (h *DepartmentHandler) Routes(g *echo.Group) {
 	// 部门结构维护相关路由
 	admin.PUT("/:id/move", h.Move)
 	admin.POST("/sort", h.Sort)
-	admin.GET("/:id/check-deletable", h.CheckDepartmentDeletable)
+	admin.GET("/:id/check-deletable", h.CheckDeletable)
 }
 
 // Create 创建部门
@@ -121,7 +121,7 @@ func (h *DepartmentHandler) Get(c echo.Context) error {
 	}
 
 	// 获取部门信息
-	output, err := h.departmentService.GetDepartmentByID(ctx, departmentID)
+	output, err := h.departmentService.GetByID(ctx, departmentID)
 	if err != nil {
 		return err
 	}
@@ -226,8 +226,8 @@ func (h *DepartmentHandler) Sort(c echo.Context) error {
 	return Success(c, nil)
 }
 
-// CheckDepartmentDeletable 检查部门是否可删除
-func (h *DepartmentHandler) CheckDepartmentDeletable(c echo.Context) error {
+// CheckDeletable 检查部门是否可删除
+func (h *DepartmentHandler) CheckDeletable(c echo.Context) error {
 	ctx := c.Request().Context()
 	departmentID := c.Param("id")
 
@@ -236,7 +236,7 @@ func (h *DepartmentHandler) CheckDepartmentDeletable(c echo.Context) error {
 	}
 
 	// 检查部门是否可删除
-	out, err := h.departmentService.CheckDepartmentDeletable(ctx, departmentID)
+	out, err := h.departmentService.CheckDeletable(ctx, departmentID)
 	if err != nil {
 		return err
 	}

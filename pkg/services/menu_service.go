@@ -70,8 +70,8 @@ func (s *MenuService) toMenuInfo(m *ent.Menu) *types.MenuInfo {
 	}
 }
 
-// CreateMenu 创建菜单
-func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInput) (*types.MenuOutput, error) {
+// Create 创建菜单
+func (s *MenuService) Create(ctx context.Context, input *types.CreateMenuInput) (*types.MenuOutput, error) {
 	// 验证上级菜单是否存在
 	if input.ParentID != nil && *input.ParentID != "" {
 		exists, err := s.orm.Menu.Query().
@@ -164,8 +164,8 @@ func (s *MenuService) CreateMenu(ctx context.Context, input *types.CreateMenuInp
 	}, nil
 }
 
-// GetMenuByID 根据ID获取菜单
-func (s *MenuService) GetMenuByID(ctx context.Context, menuID string) (*types.MenuOutput, error) {
+// GetByID 根据ID获取菜单
+func (s *MenuService) GetByID(ctx context.Context, menuID string) (*types.MenuOutput, error) {
 	m, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(menuID)).
 		First(ctx)
@@ -183,8 +183,8 @@ func (s *MenuService) GetMenuByID(ctx context.Context, menuID string) (*types.Me
 	}, nil
 }
 
-// ListMenus 获取菜单列表
-func (s *MenuService) ListMenus(ctx context.Context, input *types.ListMenusInput) (*types.ListMenusOutput, error) {
+// List 获取菜单列表
+func (s *MenuService) List(ctx context.Context, input *types.ListMenusInput) (*types.ListMenusOutput, error) {
 	query := s.orm.Menu.Query()
 
 	// 根据类型筛选
@@ -238,9 +238,9 @@ func (s *MenuService) ListMenus(ctx context.Context, input *types.ListMenusInput
 }
 
 // GetMenuTree 获取菜单树
-func (s *MenuService) GetMenuTree(ctx context.Context, input *types.ListMenusInput) (*types.MenuTreeOutput, error) {
+func (s *MenuService) Tree(ctx context.Context, input *types.ListMenusInput) (*types.MenuTreeOutput, error) {
 	// 获取所有菜单
-	allMenus, err := s.ListMenus(ctx, input)
+	allMenus, err := s.List(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -272,7 +272,7 @@ func (s *MenuService) buildMenuTree(menus []*types.MenuInfo, parentID *string) [
 }
 
 // UpdateMenu 更新菜单
-func (s *MenuService) UpdateMenu(ctx context.Context, menuID string, input *types.UpdateMenuInput) (*types.MenuOutput, error) {
+func (s *MenuService) Update(ctx context.Context, menuID string, input *types.UpdateMenuInput) (*types.MenuOutput, error) {
 	// 检查菜单是否存在
 	m, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(menuID)).
@@ -390,8 +390,8 @@ func (s *MenuService) UpdateMenu(ctx context.Context, menuID string, input *type
 	}, nil
 }
 
-// DeleteMenu 删除菜单
-func (s *MenuService) DeleteMenu(ctx context.Context, menuID string) error {
+// Delete 删除菜单
+func (s *MenuService) Delete(ctx context.Context, menuID string) error {
 	// 检查菜单是否存在
 	exists, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(menuID)).
@@ -424,8 +424,8 @@ func (s *MenuService) DeleteMenu(ctx context.Context, menuID string) error {
 	return nil
 }
 
-// CheckMenuDeletable 检查菜单是否可删除
-func (s *MenuService) CheckMenuDeletable(ctx context.Context, menuID string) (*types.CheckMenuDeletableOutput, error) {
+// CheckDeletable 检查菜单是否可删除
+func (s *MenuService) CheckDeletable(ctx context.Context, menuID string) (*types.CheckMenuDeletableOutput, error) {
 	// 检查菜单是否存在
 	exists, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(menuID)).
@@ -457,7 +457,7 @@ func (s *MenuService) CheckMenuDeletable(ctx context.Context, menuID string) (*t
 }
 
 // SortMenus 菜单排序
-func (s *MenuService) SortMenus(ctx context.Context, input *types.SortMenuInput) error {
+func (s *MenuService) Sort(ctx context.Context, input *types.SortMenuInput) error {
 	// 开始事务
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
@@ -496,8 +496,8 @@ func (s *MenuService) SortMenus(ctx context.Context, input *types.SortMenuInput)
 	return nil
 }
 
-// MoveMenu 移动菜单
-func (s *MenuService) MoveMenu(ctx context.Context, menuID string, input *types.MoveMenuInput) error {
+// Move 移动菜单
+func (s *MenuService) Move(ctx context.Context, menuID string, input *types.MoveMenuInput) error {
 	// 检查菜单是否存在
 	exists, err := s.orm.Menu.Query().
 		Where(menu.IDEQ(menuID)).
