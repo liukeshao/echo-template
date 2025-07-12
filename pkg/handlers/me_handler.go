@@ -51,7 +51,7 @@ func (h *MeHandler) Get(c echo.Context) error {
 	}
 
 	// 获取用户信息
-	output, err := h.me.GetUserByID(ctx, user.ID)
+	output, err := h.me.GetByID(ctx, user.ID)
 	if err != nil {
 		return err
 	}

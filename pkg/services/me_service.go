@@ -24,50 +24,8 @@ func NewMeService(orm *ent.Client) *MeService {
 	}
 }
 
-// toUserInfo 将用户实体转换为UserInfo
-func (s *MeService) toUserInfo(u *ent.User) *types.UserInfo {
-	// TODO: 从 UserRole 关联表获取角色信息
-	// 注意：这里简化处理，实际使用时需要预加载角色信息或者在上层查询时一起获取
-	var roles []string = []string{}
-
-	// 处理可选字段的指针转换
-	var realName, phone, department, position, lastLoginIP *string
-	if u.RealName != "" {
-		realName = &u.RealName
-	}
-	if u.Phone != "" {
-		phone = &u.Phone
-	}
-	if u.Department != "" {
-		department = &u.Department
-	}
-	if u.Position != "" {
-		position = &u.Position
-	}
-	if u.LastLoginIP != "" {
-		lastLoginIP = &u.LastLoginIP
-	}
-
-	return &types.UserInfo{
-		ID:                  u.ID,
-		Username:            u.Username,
-		Email:               u.Email,
-		RealName:            realName,
-		Phone:               phone,
-		Department:          department,
-		Position:            position,
-		Roles:               roles,
-		Status:              string(u.Status),
-		ForceChangePassword: u.ForceChangePassword,
-		AllowMultiLogin:     u.AllowMultiLogin,
-		LastLoginAt:         u.LastLoginAt,
-		LastLoginIP:         lastLoginIP,
-		CreatedAt:           u.CreatedAt,
-	}
-}
-
-// GetUserByID 根据ID获取用户
-func (s *MeService) GetUserByID(ctx context.Context, userID string) (*types.UserOutput, error) {
+// GetByID 根据ID获取用户
+func (s *MeService) GetByID(ctx context.Context, userID string) (*types.UserOutput, error) {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
 		First(ctx)
@@ -81,7 +39,14 @@ func (s *MeService) GetUserByID(ctx context.Context, userID string) (*types.User
 	}
 
 	return &types.UserOutput{
-		UserInfo: s.toUserInfo(u),
+		UserInfo: &types.UserInfo{
+			ID:          u.ID,
+			Username:    u.Username,
+			Email:       u.Email,
+			Status:      string(u.Status),
+			LastLoginAt: u.LastLoginAt,
+			CreatedAt:   u.CreatedAt,
+		},
 	}, nil
 }
 
@@ -216,7 +181,14 @@ func (s *MeService) UpdateEmail(ctx context.Context, userID string, input *types
 	}
 
 	return &types.UserOutput{
-		UserInfo: s.toUserInfo(updatedUser),
+		UserInfo: &types.UserInfo{
+			ID:          updatedUser.ID,
+			Username:    updatedUser.Username,
+			Email:       updatedUser.Email,
+			Status:      string(updatedUser.Status),
+			LastLoginAt: updatedUser.LastLoginAt,
+			CreatedAt:   updatedUser.CreatedAt,
+		},
 	}, nil
 }
 
