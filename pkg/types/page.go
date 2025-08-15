@@ -4,6 +4,7 @@ import (
 	"math"
 
 	z "github.com/Oudwins/zog"
+	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 // 分页常量
@@ -19,9 +20,15 @@ type PageInput struct {
 }
 
 // Validate 验证分页输入
-func (i *PageInput) Validate() []string {
+func (i *PageInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i PageInput) Shape() z.Shape {
@@ -74,8 +81,8 @@ func (p PageOutput) IsValidPage() bool {
 	return p.Page > 0 && p.Page <= p.TotalPage
 }
 
-// ValidatePageRequest 验证分页请求并返回错误列表
-func ValidatePageRequest(page PageInput) []string {
+// ValidatePageRequest 验证分页请求并返回错误响应
+func ValidatePageRequest(page PageInput) *errors.Response {
 	return page.Validate()
 }
 

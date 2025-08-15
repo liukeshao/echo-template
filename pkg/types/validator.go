@@ -1,30 +1,32 @@
 package types
 
 import (
-	"fmt"
-
 	z "github.com/Oudwins/zog"
 	"github.com/Oudwins/zog/zconst"
+	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 type Validator interface {
-	Validate() []string
+	Validate() *errors.Response
 	Shape() z.Shape
 }
 
-// FormatIssues 格式化错误信息
-func FormatIssues(issueMap z.ZogIssueMap) []string {
+// FormatIssuesAsErrorDetails 格式化错误信息为ErrorDetail切片
+func FormatIssuesAsErrorDetails(issueMap z.ZogIssueMap) []*errors.ErrorDetail {
 	if issueMap == nil {
 		return nil
 	}
 
-	var errorDetails []string
+	var errorDetails []*errors.ErrorDetail
 	for _, issues := range issueMap {
 		for _, issue := range issues {
 			if issue.Path == zconst.ISSUE_KEY_FIRST || issue.Path == zconst.ISSUE_KEY_ROOT {
 				continue
 			}
-			errorDetails = append(errorDetails, fmt.Sprintf("filed: %s, message: %s", issue.Path, issue.Message))
+			errorDetails = append(errorDetails, &errors.ErrorDetail{
+				Location: issue.Path,
+				Message:  issue.Message,
+			})
 		}
 	}
 

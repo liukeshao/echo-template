@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"net/http"
+
 	"github.com/labstack/echo/v4"
+	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
@@ -13,7 +16,7 @@ type Handler interface {
 	Routes(g *echo.Group)
 
 	// Init provides the service container to initialize
-	Init(*services.Container) error
+	Init(c *services.Container) error
 }
 
 // Register registers a handler
@@ -24,4 +27,10 @@ func Register(h Handler) {
 // GetHandlers returns all handlers
 func GetHandlers() []Handler {
 	return handlers
+}
+
+// Success 成功响应
+func Success(c echo.Context, data any) error {
+	response := errors.NewSuccessResponse(c, data)
+	return c.JSON(http.StatusOK, response)
 }

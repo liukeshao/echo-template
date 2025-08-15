@@ -2,6 +2,7 @@ package types
 
 import (
 	z "github.com/Oudwins/zog"
+	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 // 用户状态常量
@@ -25,10 +26,15 @@ type CreateUserInput struct {
 }
 
 // Validate 验证创建用户输入
-func (i *CreateUserInput) Validate() []string {
+func (i *CreateUserInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *CreateUserInput) Shape() z.Shape {
@@ -48,10 +54,15 @@ type UpdateUserInput struct {
 }
 
 // Validate 验证更新用户输入
-func (i *UpdateUserInput) Validate() []string {
+func (i *UpdateUserInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *UpdateUserInput) Shape() z.Shape {
@@ -70,10 +81,15 @@ type ListUsersInput struct {
 }
 
 // Validate 验证获取用户列表输入
-func (i *ListUsersInput) Validate() []string {
+func (i *ListUsersInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *ListUsersInput) Shape() z.Shape {

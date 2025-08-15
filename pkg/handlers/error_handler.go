@@ -3,139 +3,111 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
-	"time"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/samber/oops"
 )
 
 // EchoErrorHandler Echo框架的自定义错误处理器
-// 统一处理所有的错误响应，HTTP状态码统一返回200
 func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 	return func(err error, c echo.Context) {
-		// 如果响应已经被提交，则不能再修改响应
 		if c.Response().Committed {
 			return
 		}
 
-		// 获取请求ID用于日志记录和响应
-		requestID := ""
-		if id, ok := context.GetRequestIDFromContext(c.Request().Context()); ok {
-			requestID = id
-		}
+		var response *errors.Response
 
-		var response *Response
-
-		// 根据错误类型处理
 		switch e := err.(type) {
-		case *errors.AppError:
-			// 自定义业务错误
-			response = handleAppError(e, requestID)
-			logAppError(logger, e, c)
+		case oops.OopsError:
+			response = handleOopsError(e, c)
+			logOopsError(logger, e, c)
 
 		case *echo.HTTPError:
-			// Echo框架HTTP错误，使用Echo原生策略处理
 			handleEchoHTTPError(e, c, logger)
 			return
 
 		default:
-			// 未知错误，作为内部服务器错误处理
-			response = handleUnknownError(err, requestID)
+			response = handleUnknownError(err, c)
 			logUnknownError(logger, err, c)
 		}
 
-		// 发送JSON响应，HTTP状态码统一为200
-		if err := c.JSON(http.StatusOK, response); err != nil {
-			// 如果发送响应失败，记录日志
-			logger.Error("Failed to send error response",
-				"error", err,
-				"request_id", requestID,
-				"path", c.Request().URL.Path,
-				"method", c.Request().Method,
-			)
+		sendErrorResponse(c, response, logger)
+	}
+}
+
+// handleOopsError 处理 oops 错误
+func handleOopsError(err oops.OopsError, c echo.Context) *errors.Response {
+	code := errors.InternalServerError
+	if errCode := err.Code(); errCode != "" {
+		if parsedCode, parseErr := strconv.Atoi(errCode); parseErr == nil {
+			code = parsedCode
 		}
 	}
+
+	message := oops.GetPublic(err, "服务暂时不可用")
+	return errors.NewErrorResponse(c, code, message)
 }
 
-// handleAppError 处理自定义业务错误
-func handleAppError(err *errors.AppError, requestID string) *Response {
-	response := &Response{
-		Code:      err.Code(),
-		Message:   err.Message(),
-		Data:      nil,
-		Errors:    []string{err.Error()},
-		Timestamp: time.Now().Unix(),
-		RequestID: requestID,
-	}
-	return response
-}
-
-// handleEchoHTTPError 使用Echo原生策略处理HTTP错误
+// handleEchoHTTPError 处理Echo HTTP错误
 func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logger) {
-	// 记录HTTP错误日志
 	logEchoHTTPError(logger, err, c)
 
-	// 使用Echo原生的HTTP错误响应格式
-	// 如果有内部错误信息，只返回状态码对应的标准消息
 	message := err.Message
 	if message == nil {
 		message = http.StatusText(err.Code)
 	}
 
-	// 直接返回HTTP状态码和消息，不使用我们的自定义响应格式
-	c.JSON(err.Code, echo.Map{
-		"message": message,
-	})
+	c.JSON(err.Code, echo.Map{"message": message})
 }
 
 // handleUnknownError 处理未知错误
-func handleUnknownError(err error, requestID string) *Response {
-	return &Response{
-		Code:      errors.InternalServerError,
-		Message:   "Internal Server Error",
-		Data:      nil,
-		Errors:    []string{err.Error()},
-		Timestamp: time.Now().Unix(),
-		RequestID: requestID,
+func handleUnknownError(err error, c echo.Context) *errors.Response {
+	return errors.NewErrorResponse(c, errors.InternalServerError, "内部服务器错误")
+}
+
+// sendErrorResponse 发送错误响应
+func sendErrorResponse(c echo.Context, response *errors.Response, logger *slog.Logger) {
+	if err := c.JSON(http.StatusOK, response); err != nil {
+		logErrorResponseFailure(logger, err, c, response.RequestID)
 	}
 }
 
-// 日志记录函数
-
-// logAppError 记录业务错误日志
-func logAppError(logger *slog.Logger, err *errors.AppError, c echo.Context) {
-	logger.ErrorContext(c.Request().Context(),
-		"Business error occurred",
+// logErrorResponseFailure 记录响应发送失败的日志
+func logErrorResponseFailure(logger *slog.Logger, err error, c echo.Context, requestID string) {
+	logger.Error("Failed to send error response",
 		"error", err,
+		"request_id", requestID,
+		"path", c.Request().URL.Path,
+		"method", c.Request().Method,
+	)
+}
+
+// getRequestLogAttrs 获取请求的通用日志属性
+func getRequestLogAttrs(c echo.Context) []any {
+	return []any{
 		"path", c.Request().URL.Path,
 		"method", c.Request().Method,
 		"user_agent", c.Request().UserAgent(),
 		"remote_addr", c.RealIP(),
-	)
+	}
+}
+
+// logOopsError 记录 oops 错误日志
+func logOopsError(logger *slog.Logger, err oops.OopsError, c echo.Context) {
+	attrs := append([]any{"error", err}, getRequestLogAttrs(c)...)
+	logger.ErrorContext(c.Request().Context(), "Business error occurred", attrs...)
 }
 
 // logEchoHTTPError 记录Echo HTTP错误日志
 func logEchoHTTPError(logger *slog.Logger, err *echo.HTTPError, c echo.Context) {
-	logger.WarnContext(c.Request().Context(),
-		"Echo HTTP error occurred",
-		"http_status", err.Code,
-		"message", err.Message,
-		"path", c.Request().URL.Path,
-		"method", c.Request().Method,
-		"user_agent", c.Request().UserAgent(),
-		"remote_addr", c.RealIP(),
-	)
+	attrs := append([]any{"http_status", err.Code, "message", err.Message}, getRequestLogAttrs(c)...)
+	logger.WarnContext(c.Request().Context(), "Echo HTTP error occurred", attrs...)
 }
 
 // logUnknownError 记录未知错误日志
 func logUnknownError(logger *slog.Logger, err error, c echo.Context) {
-	logger.ErrorContext(c.Request().Context(),
-		"Unknown error occurred",
-		"error", err.Error(),
-		"path", c.Request().URL.Path,
-		"method", c.Request().Method,
-		"user_agent", c.Request().UserAgent(),
-		"remote_addr", c.RealIP(),
-	)
+	attrs := append([]any{"error", err.Error()}, getRequestLogAttrs(c)...)
+	logger.ErrorContext(c.Request().Context(), "Unknown error occurred", attrs...)
 }

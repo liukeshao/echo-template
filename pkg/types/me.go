@@ -2,6 +2,7 @@ package types
 
 import (
 	z "github.com/Oudwins/zog"
+	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 // UpdateMeInput 更新用户输入
@@ -11,10 +12,15 @@ type UpdateMeInput struct {
 }
 
 // Validate 验证更新用户输入
-func (i *UpdateMeInput) Validate() []string {
+func (i *UpdateMeInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *UpdateMeInput) Shape() z.Shape {
@@ -31,10 +37,15 @@ type ChangePasswordInput struct {
 }
 
 // Validate 验证修改密码输入
-func (i *ChangePasswordInput) Validate() []string {
+func (i *ChangePasswordInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *ChangePasswordInput) Shape() z.Shape {
@@ -51,10 +62,15 @@ type UpdateUsernameInput struct {
 }
 
 // Validate 验证更新用户名输入
-func (i *UpdateUsernameInput) Validate() []string {
+func (i *UpdateUsernameInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *UpdateUsernameInput) Shape() z.Shape {
@@ -69,10 +85,15 @@ type UpdateEmailInput struct {
 }
 
 // Validate 验证更新邮箱输入
-func (i *UpdateEmailInput) Validate() []string {
+func (i *UpdateEmailInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *UpdateEmailInput) Shape() z.Shape {

@@ -5,6 +5,7 @@ import (
 
 	z "github.com/Oudwins/zog"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/liukeshao/echo-template/pkg/errors"
 )
 
 // Token 类型常量
@@ -26,9 +27,15 @@ type RegisterInput struct {
 }
 
 // Validate 验证注册输入
-func (i *RegisterInput) Validate() []string {
+func (i *RegisterInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *RegisterInput) Shape() z.Shape {
@@ -46,10 +53,15 @@ type LoginInput struct {
 }
 
 // Validate 验证登录输入
-func (i *LoginInput) Validate() []string {
+func (i *LoginInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *LoginInput) Shape() z.Shape {
@@ -65,10 +77,15 @@ type RefreshTokenInput struct {
 }
 
 // Validate 验证刷新令牌输入
-func (i *RefreshTokenInput) Validate() []string {
+func (i *RefreshTokenInput) Validate() *errors.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
-
-	return FormatIssues(issuesMap)
+	if issuesMap != nil {
+		return &errors.Response{
+			Code:   400,
+			Errors: FormatIssuesAsErrorDetails(issuesMap),
+		}
+	}
+	return nil
 }
 
 func (i *RefreshTokenInput) Shape() z.Shape {

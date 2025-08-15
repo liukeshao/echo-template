@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"context"
+
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/pkg/context"
+	appcontext "github.com/liukeshao/echo-template/pkg/context"
 	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
+	"github.com/samber/oops"
 )
 
 // MeHandler 用户处理器
@@ -45,13 +48,23 @@ func (h *MeHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromContext(ctx)
+	user, ok := appcontext.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("endpoint", "GET /api/v1/me")
+		return errors.ErrUnauthorized.
+			Wrapf(errorBuilder.Errorf("用户未登录"), "用户身份验证失败")
 	}
 
+	// 将用户信息添加到上下文，传递给下游服务
+	ctxWithBuilder := oops.WithBuilder(ctx,
+		h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("endpoint", "GET /api/v1/me"))
+
 	// 获取用户信息
-	output, err := h.me.GetByID(ctx, user.ID)
+	output, err := h.me.GetByID(ctxWithBuilder, user.ID)
 	if err != nil {
 		return err
 	}
@@ -64,23 +77,39 @@ func (h *MeHandler) UpdateUsername(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromContext(ctx)
+	user, ok := appcontext.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("endpoint", "PUT /api/v1/me/username")
+		return errors.ErrUnauthorized.
+			Wrapf(errorBuilder.Errorf("用户未登录"), "用户身份验证失败")
 	}
 
 	var in types.UpdateUsernameInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("endpoint", "PUT /api/v1/me/username")
+		return errors.ErrBadRequest.
+			Wrapf(errorBuilder.Wrapf(err, "JSON解析失败"), "请求参数格式错误")
 	}
 
 	// 验证输入
-	if errorDetails := in.Validate(); len(errorDetails) > 0 {
-		return ValidationError(c, errorDetails)
+	if err := in.Validate(); err != nil {
+		return err
 	}
 
+	// 将用户信息和请求信息添加到上下文，传递给下游服务
+	ctxWithBuilder := oops.WithBuilder(ctx,
+		h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("new_username", in.Username).
+			With("endpoint", "PUT /api/v1/me/username"))
+
 	// 更新当前用户用户名
-	out, err := h.me.UpdateUsername(ctx, user.ID, &in)
+	out, err := h.me.UpdateUsername(ctxWithBuilder, user.ID, &in)
 	if err != nil {
 		return err
 	}
@@ -93,23 +122,39 @@ func (h *MeHandler) UpdateEmail(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromContext(ctx)
+	user, ok := appcontext.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("endpoint", "PUT /api/v1/me/email")
+		return errors.ErrUnauthorized.
+			Wrapf(errorBuilder.Errorf("用户未登录"), "用户身份验证失败")
 	}
 
 	var in types.UpdateEmailInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("endpoint", "PUT /api/v1/me/email")
+		return errors.ErrBadRequest.
+			Wrapf(errorBuilder.Wrapf(err, "JSON解析失败"), "请求参数格式错误")
 	}
 
 	// 验证输入
-	if errorDetails := in.Validate(); len(errorDetails) > 0 {
-		return ValidationError(c, errorDetails)
+	if err := in.Validate(); err != nil {
+		return err
 	}
 
+	// 将用户信息和请求信息添加到上下文，传递给下游服务
+	ctxWithBuilder := oops.WithBuilder(ctx,
+		h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("new_email", in.Email).
+			With("endpoint", "PUT /api/v1/me/email"))
+
 	// 更新当前用户邮箱
-	out, err := h.me.UpdateEmail(ctx, user.ID, &in)
+	out, err := h.me.UpdateEmail(ctxWithBuilder, user.ID, &in)
 	if err != nil {
 		return err
 	}
@@ -122,26 +167,58 @@ func (h *MeHandler) ChangePassword(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := context.GetUserFromContext(ctx)
+	user, ok := appcontext.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("endpoint", "POST /api/v1/me/change-password")
+		return errors.ErrUnauthorized.
+			Wrapf(errorBuilder.Errorf("用户未登录"), "用户身份验证失败")
 	}
 
 	var in types.ChangePasswordInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrapf(err, "请求参数格式错误")
+		// 创建带有请求上下文的错误构建器
+		errorBuilder := h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("endpoint", "POST /api/v1/me/change-password")
+		return errors.ErrBadRequest.
+			Wrapf(errorBuilder.Wrapf(err, "JSON解析失败"), "请求参数格式错误")
 	}
 
 	// 验证输入
-	if errorDetails := in.Validate(); len(errorDetails) > 0 {
-		return ValidationError(c, errorDetails)
+	if err := in.Validate(); err != nil {
+		return err
 	}
 
+	// 将用户信息和请求信息添加到上下文，传递给下游服务
+	ctxWithBuilder := oops.WithBuilder(ctx,
+		h.createErrorBuilder(ctx, c).
+			With("user_id", user.ID).
+			With("endpoint", "POST /api/v1/me/change-password"))
+
 	// 修改当前用户密码
-	err := h.me.ChangePassword(ctx, user.ID, &in)
+	err := h.me.ChangePassword(ctxWithBuilder, user.ID, &in)
 	if err != nil {
 		return err
 	}
 
 	return Success(c, nil)
+}
+
+// createErrorBuilder 创建带有请求上下文信息的错误构建器 - 遵循 oops 最佳实践
+func (h *MeHandler) createErrorBuilder(ctx context.Context, c echo.Context) oops.OopsErrorBuilder {
+	errorBuilder := oops.FromContext(ctx).
+		In("handler").
+		With("path", c.Request().URL.Path).
+		With("method", c.Request().Method).
+		With("user_agent", c.Request().UserAgent()).
+		With("remote_addr", c.RealIP())
+
+	// 添加请求ID（如果存在）
+	if requestID, ok := appcontext.GetRequestIDFromContext(ctx); ok {
+		errorBuilder = errorBuilder.Trace(requestID)
+	}
+
+	return errorBuilder
 }
