@@ -7,6 +7,7 @@ alwaysApply: false
 
 ## 技术栈
 - **框架**: Echo v4 + Ent ORM + SQLite + Viper + Zog 验证
+- **错误处理**: oops (结构化错误) + 自定义错误响应体系
 - **文档**: OpenAPI 3.1.0 + Redocly
 
 ## 核心规范
@@ -54,16 +55,17 @@ func (h *MeHandler) Routes(g *echo.Group) {
 func (h *MeHandler) Create(c echo.Context) error {
     var in types.CreateUserInput
     if err := c.Bind(&in); err != nil {
-        return errors.BadRequestError()
+        return errors.ErrBadRequest.Wrap(err)
     }
     
-    if errs := in.Validate(); len(errs) > 0 {
-        return ValidationError(c, errs)
-    }
-    
-    out, err := h.me.Create(ctx, &in)
-    if err != nil {
+    // 验证输入 - 返回结构化错误响应
+    if err := in.Validate(); err != nil {
         return err
+    }
+    
+    out, err := h.me.Create(c.Request().Context(), &in)
+    if err != nil {
+        return err  // 业务错误通过 oops 构建器返回
     }
     
     return Success(c, out)
@@ -73,17 +75,72 @@ func (h *MeHandler) Create(c echo.Context) error {
 ### 4. 响应格式
 ```go
 type Response struct {
-    Code      int         `json:"code"`                 // 0=成功, 非0=失败
-    Message   string      `json:"message"`              // 响应消息
-    Data      any         `json:"data"`                 // 响应数据
-    Errors    []string    `json:"errors,omitempty"`     // 错误详情
-    Timestamp int64       `json:"timestamp"`            // 时间戳
-    RequestID string      `json:"request_id,omitempty"` // 请求ID
+    Code      int            `json:"code"`                 // 0=成功, 非0=失败
+    Message   string         `json:"message"`              // 响应消息
+    Data      any            `json:"data"`                 // 响应数据
+    Errors    []*ErrorDetail `json:"errors,omitempty"`     // 错误详情列表
+    Timestamp int64          `json:"timestamp"`            // 时间戳
+    RequestID string         `json:"request_id,omitempty"` // 请求ID
 }
 
+// 使用方式 - 统一使用 HTTP 200 状态码
+return Success(c, data)  // 成功响应
+```
+
+### 5. 错误处理机制
+
+#### 错误码体系
+- **成功**: `0`
+- **客户端错误**: `1xxxx` (BadRequest=10001, Unauthorized=10002, 等)
+- **服务器错误**: `2xxxx` (InternalServerError=20001, 等)
+- **业务错误**: `3xxxx` (DatabaseError=30001, ValidationError=30004, 等)
+
+#### 错误详情结构
+```go
+type ErrorDetail struct {
+    Message  string `json:"message,omitempty"`  // 错误消息
+    Location string `json:"location,omitempty"` // 错误位置，如 "body.username"
+    Value    any    `json:"value,omitempty"`    // 错误值
+}
+```
+
+#### 错误构建器 (基于 oops)
+```go
+// 预定义的错误构建器
+ErrDatabase      // 数据库错误
+ErrBadRequest    // 请求参数错误
+ErrUnauthorized  // 未授权
+ErrValidation    // 数据验证错误
+ErrBusinessLogic // 业务逻辑错误
+
 // 使用方式
-return Success(c, data)
-return ValidationError(c, errs)
+return errors.ErrValidation.
+    With("username", "用户名格式错误").
+    Wrapf(err, "验证用户输入失败")
+```
+
+#### 验证错误处理
+```go
+// Input 类型必须实现 Validator 接口
+type Validator interface {
+    Validate() *errors.Response  // 返回验证错误响应
+    Shape() z.Shape             // Zog 验证规则
+}
+
+// Handler 中的验证模式
+func (h *Handler) Create(c echo.Context) error {
+    var in types.CreateInput
+    if err := c.Bind(&in); err != nil {
+        return errors.ErrBadRequest.Wrap(err)
+    }
+    
+    // 验证输入 - 直接返回错误响应
+    if err := in.Validate(); err != nil {
+        return err
+    }
+    
+    // 业务逻辑...
+}
 ```
 
 ## API 开发流程
@@ -110,10 +167,16 @@ echo-template/
 │   └── package.json    # Redocly依赖管理
 ├── pkg/
 │   ├── handlers/       # HTTP处理器
+│   │   ├── error_handler.go  # 统一错误处理器
+│   │   └── handlers.go       # 响应辅助函数
 │   ├── services/       # 业务服务
-│   ├── types/          # 类型定义
+│   ├── types/          # 类型定义和验证
+│   │   └── validator.go      # 验证接口和工具
 │   ├── middleware/     # 中间件
-│   ├── errors/         # 错误处理
+│   ├── errors/         # 错误处理体系
+│   │   ├── response.go       # 统一响应结构
+│   │   ├── error_detail.go   # 错误详情结构
+│   │   └── helper.go         # 错误码和构建器
 │   └── utils/          # 工具函数
 └── ent/                # 数据模型
 ```
@@ -141,6 +204,8 @@ echo-template/
 - **类型安全**: Input验证 + 统一响应格式
 - **依赖注入**: 通过容器管理服务依赖
 - **HTTP 200**: 统一使用200状态码，通过code字段区分业务状态
+- **错误处理**: 基于 oops 的结构化错误处理，支持错误链追踪
+- **验证优先**: 所有Input类型必须实现Validate()方法
 - **规范同步**: 确保OpenAPI规范与代码实现保持一致
 - **文档驱动**: 基于 Redocly 最佳实践维护API文档
 
