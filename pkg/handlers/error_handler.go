@@ -17,28 +17,19 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 			return
 		}
 
-		var response *errors.Response
-
 		switch e := err.(type) {
 		case oops.OopsError:
-			response = handleOopsError(e, c)
-			logOopsError(logger, e, c)
-
+			handleOopsError(e, c, logger)
 		case *echo.HTTPError:
 			handleEchoHTTPError(e, c, logger)
-			return
-
 		default:
-			response = handleUnknownError(err, c)
-			logUnknownError(logger, err, c)
+			handleUnknownError(err, c, logger)
 		}
-
-		sendErrorResponse(c, response, logger)
 	}
 }
 
 // handleOopsError 处理 oops 错误
-func handleOopsError(err oops.OopsError, c echo.Context) *errors.Response {
+func handleOopsError(err oops.OopsError, c echo.Context, logger *slog.Logger) {
 	code := errors.InternalServerError
 	if errCode := err.Code(); errCode != "" {
 		if parsedCode, parseErr := strconv.Atoi(errCode); parseErr == nil {
@@ -47,12 +38,15 @@ func handleOopsError(err oops.OopsError, c echo.Context) *errors.Response {
 	}
 
 	message := oops.GetPublic(err, "服务暂时不可用")
-	return errors.NewErrorResponse(c, code, message)
+	response := errors.NewErrorResponse(c, code, message)
+
+	logError(logger, err, c, "Business error occurred")
+	sendResponse(c, response, logger)
 }
 
 // handleEchoHTTPError 处理Echo HTTP错误
 func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logger) {
-	logEchoHTTPError(logger, err, c)
+	logError(logger, err, c, "Echo HTTP error occurred")
 
 	message := err.Message
 	if message == nil {
@@ -63,51 +57,40 @@ func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logge
 }
 
 // handleUnknownError 处理未知错误
-func handleUnknownError(err error, c echo.Context) *errors.Response {
-	return errors.NewErrorResponse(c, errors.InternalServerError, "内部服务器错误")
+func handleUnknownError(err error, c echo.Context, logger *slog.Logger) {
+	response := errors.NewErrorResponse(c, errors.InternalServerError, "内部服务器错误")
+
+	logError(logger, err, c, "Unknown error occurred")
+	sendResponse(c, response, logger)
 }
 
-// sendErrorResponse 发送错误响应
-func sendErrorResponse(c echo.Context, response *errors.Response, logger *slog.Logger) {
+// sendResponse 发送错误响应
+func sendResponse(c echo.Context, response *errors.Response, logger *slog.Logger) {
 	if err := c.JSON(http.StatusOK, response); err != nil {
-		logErrorResponseFailure(logger, err, c, response.RequestID)
+		logger.Error("Failed to send error response",
+			"error", err,
+			"request_id", response.RequestID,
+			"path", c.Request().URL.Path,
+			"method", c.Request().Method,
+		)
 	}
 }
 
-// logErrorResponseFailure 记录响应发送失败的日志
-func logErrorResponseFailure(logger *slog.Logger, err error, c echo.Context, requestID string) {
-	logger.Error("Failed to send error response",
+// logError 统一的错误日志记录
+func logError(logger *slog.Logger, err error, c echo.Context, msg string) {
+	attrs := []any{
 		"error", err,
-		"request_id", requestID,
-		"path", c.Request().URL.Path,
-		"method", c.Request().Method,
-	)
-}
-
-// getRequestLogAttrs 获取请求的通用日志属性
-func getRequestLogAttrs(c echo.Context) []any {
-	return []any{
 		"path", c.Request().URL.Path,
 		"method", c.Request().Method,
 		"user_agent", c.Request().UserAgent(),
 		"remote_addr", c.RealIP(),
 	}
-}
 
-// logOopsError 记录 oops 错误日志
-func logOopsError(logger *slog.Logger, err oops.OopsError, c echo.Context) {
-	attrs := append([]any{"error", err}, getRequestLogAttrs(c)...)
-	logger.ErrorContext(c.Request().Context(), "Business error occurred", attrs...)
-}
-
-// logEchoHTTPError 记录Echo HTTP错误日志
-func logEchoHTTPError(logger *slog.Logger, err *echo.HTTPError, c echo.Context) {
-	attrs := append([]any{"http_status", err.Code, "message", err.Message}, getRequestLogAttrs(c)...)
-	logger.WarnContext(c.Request().Context(), "Echo HTTP error occurred", attrs...)
-}
-
-// logUnknownError 记录未知错误日志
-func logUnknownError(logger *slog.Logger, err error, c echo.Context) {
-	attrs := append([]any{"error", err.Error()}, getRequestLogAttrs(c)...)
-	logger.ErrorContext(c.Request().Context(), "Unknown error occurred", attrs...)
+	// 根据错误类型选择日志级别
+	switch err.(type) {
+	case *echo.HTTPError:
+		logger.WarnContext(c.Request().Context(), msg, attrs...)
+	default:
+		logger.ErrorContext(c.Request().Context(), msg, attrs...)
+	}
 }
