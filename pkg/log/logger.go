@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/liukeshao/echo-template/config"
-	appContext "github.com/liukeshao/echo-template/pkg/context"
+	"github.com/liukeshao/echo-template/pkg/appctx"
 )
 
 type ContextHandler struct {
@@ -15,7 +15,7 @@ type ContextHandler struct {
 
 func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	// 从 Context 中提取 Request ID
-	requestID, ok := appContext.GetRequestIDFromContext(ctx)
+	requestID, ok := appctx.GetRequestIDFromContext(ctx)
 	if ok {
 		r.AddAttrs(slog.String("request_id", requestID))
 	}

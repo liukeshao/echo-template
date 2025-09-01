@@ -2,8 +2,9 @@ package handlers
 
 import (
 	"github.com/labstack/echo/v4"
-	appcontext "github.com/liukeshao/echo-template/pkg/context"
-	"github.com/liukeshao/echo-template/pkg/errors"
+
+	"github.com/liukeshao/echo-template/pkg/appctx"
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
@@ -45,9 +46,9 @@ func (h *MeHandler) Get(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := appcontext.GetUserFromContext(ctx)
+	user, ok := appctx.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 获取用户信息
@@ -64,14 +65,14 @@ func (h *MeHandler) UpdateUsername(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := appcontext.GetUserFromContext(ctx)
+	user, ok := appctx.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	var in types.UpdateUsernameInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	// 验证输入
@@ -93,14 +94,14 @@ func (h *MeHandler) UpdateEmail(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := appcontext.GetUserFromContext(ctx)
+	user, ok := appctx.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	var in types.UpdateEmailInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	// 验证输入
@@ -122,14 +123,14 @@ func (h *MeHandler) ChangePassword(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从上下文获取当前用户ID
-	user, ok := appcontext.GetUserFromContext(ctx)
+	user, ok := appctx.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	var in types.ChangePasswordInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	// 验证输入

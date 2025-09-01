@@ -5,7 +5,8 @@ import (
 
 	z "github.com/Oudwins/zog"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/liukeshao/echo-template/pkg/errors"
+
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 )
 
 // Token 类型常量
@@ -27,10 +28,10 @@ type RegisterInput struct {
 }
 
 // Validate 验证注册输入
-func (i *RegisterInput) Validate() *errors.Response {
+func (i *RegisterInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}
@@ -53,10 +54,10 @@ type LoginInput struct {
 }
 
 // Validate 验证登录输入
-func (i *LoginInput) Validate() *errors.Response {
+func (i *LoginInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}
@@ -77,10 +78,10 @@ type RefreshTokenInput struct {
 }
 
 // Validate 验证刷新令牌输入
-func (i *RefreshTokenInput) Validate() *errors.Response {
+func (i *RefreshTokenInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}

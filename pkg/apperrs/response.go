@@ -1,10 +1,10 @@
-package errors
+package apperrs
 
 import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/pkg/context"
+	"github.com/liukeshao/echo-template/pkg/appctx"
 )
 
 var (
@@ -34,7 +34,7 @@ func initResponse(c echo.Context) *Response {
 		Data:      EmptyData,
 		Timestamp: time.Now().Unix(),
 		Errors:    nil,
-		RequestID: context.MustGetRequestIDFromContext(c.Request().Context()),
+		RequestID: appctx.MustGetRequestIDFromContext(c.Request().Context()),
 	}
 }
 

@@ -6,8 +6,8 @@ import (
 
 	"github.com/labstack/echo/v4"
 
-	appContext "github.com/liukeshao/echo-template/pkg/context"
-	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/appctx"
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
@@ -16,17 +16,17 @@ func extractTokenFromHeader(c echo.Context) (string, error) {
 	// 从Authorization header获取token
 	authHeader := c.Request().Header.Get("Authorization")
 	if authHeader == "" {
-		return "", errors.ErrUnauthorized.Errorf("缺少Authorization头")
+		return "", apperrs.ErrUnauthorized.Errorf("缺少Authorization头")
 	}
 
 	// 检查Bearer格式
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return "", errors.ErrUnauthorized.Errorf("无效的Authorization格式")
+		return "", apperrs.ErrUnauthorized.Errorf("无效的Authorization格式")
 	}
 
 	tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 	if tokenString == "" {
-		return "", errors.ErrUnauthorized.Errorf("令牌不能为空")
+		return "", apperrs.ErrUnauthorized.Errorf("令牌不能为空")
 	}
 
 	return tokenString, nil
@@ -55,7 +55,7 @@ func RequireAuth(authService *services.AuthService) echo.MiddlewareFunc {
 			authService.UpdateTokenUsage(token)
 
 			// 将用户信息存储到context中
-			ctx = appContext.WithUser(ctx, user)
+			ctx = appctx.WithUser(ctx, user)
 
 			c.SetRequest(c.Request().WithContext(ctx))
 			return next(c)

@@ -4,8 +4,8 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v4"
-	appcontext "github.com/liukeshao/echo-template/pkg/context"
-	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/appctx"
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
@@ -48,7 +48,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 
 	var in types.RegisterInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	if err := in.Validate(); err != nil {
@@ -70,7 +70,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 
 	var in types.LoginInput
 	if err := c.Bind(&in); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	if err := in.Validate(); err != nil {
@@ -92,7 +92,7 @@ func (h *AuthHandler) RefreshToken(c echo.Context) error {
 
 	var req types.RefreshTokenInput
 	if err := c.Bind(&req); err != nil {
-		return errors.ErrBadRequest.Wrap(err)
+		return apperrs.ErrBadRequest.Wrap(err)
 	}
 
 	// 验证输入
@@ -114,25 +114,25 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	ctx := c.Request().Context()
 
 	// 从认证中间件获取当前用户
-	_, ok := appcontext.GetUserFromContext(ctx)
+	_, ok := appctx.GetUserFromContext(ctx)
 	if !ok {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 从Authorization header获取token
 	authHeader := c.Request().Header.Get("Authorization")
 	if authHeader == "" {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 检查Bearer格式
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	token := strings.TrimPrefix(authHeader, "Bearer ")
 	if token == "" {
-		return errors.ErrUnauthorized.Errorf("用户未登录")
+		return apperrs.ErrUnauthorized.Errorf("用户未登录")
 	}
 
 	// 撤销token

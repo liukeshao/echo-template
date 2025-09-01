@@ -2,7 +2,8 @@ package types
 
 import (
 	z "github.com/Oudwins/zog"
-	"github.com/liukeshao/echo-template/pkg/errors"
+
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 )
 
 // 用户状态常量
@@ -26,10 +27,10 @@ type CreateUserInput struct {
 }
 
 // Validate 验证创建用户输入
-func (i *CreateUserInput) Validate() *errors.Response {
+func (i *CreateUserInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}
@@ -54,10 +55,10 @@ type UpdateUserInput struct {
 }
 
 // Validate 验证更新用户输入
-func (i *UpdateUserInput) Validate() *errors.Response {
+func (i *UpdateUserInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}
@@ -81,10 +82,10 @@ type ListUsersInput struct {
 }
 
 // Validate 验证获取用户列表输入
-func (i *ListUsersInput) Validate() *errors.Response {
+func (i *ListUsersInput) Validate() *apperrs.Response {
 	issuesMap := z.Struct(i.Shape()).Validate(i)
 	if issuesMap != nil {
-		return &errors.Response{
+		return &apperrs.Response{
 			Code:   400,
 			Errors: FormatIssuesAsErrorDetails(issuesMap),
 		}

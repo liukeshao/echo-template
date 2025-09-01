@@ -6,8 +6,9 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/pkg/errors"
 	"github.com/samber/oops"
+
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 )
 
 // EchoErrorHandler Echo框架的自定义错误处理器
@@ -30,7 +31,7 @@ func EchoErrorHandler(logger *slog.Logger) echo.HTTPErrorHandler {
 
 // handleOopsError 处理 oops 错误
 func handleOopsError(err oops.OopsError, c echo.Context, logger *slog.Logger) {
-	code := errors.InternalServerError
+	code := apperrs.InternalServerError
 	if errCode := err.Code(); errCode != "" {
 		if parsedCode, parseErr := strconv.Atoi(errCode); parseErr == nil {
 			code = parsedCode
@@ -38,7 +39,7 @@ func handleOopsError(err oops.OopsError, c echo.Context, logger *slog.Logger) {
 	}
 
 	message := oops.GetPublic(err, "服务暂时不可用")
-	response := errors.NewErrorResponse(c, code, message)
+	response := apperrs.NewErrorResponse(c, code, message)
 
 	logError(logger, err, c, "Business error occurred")
 	sendResponse(c, response, logger)
@@ -58,14 +59,14 @@ func handleEchoHTTPError(err *echo.HTTPError, c echo.Context, logger *slog.Logge
 
 // handleUnknownError 处理未知错误
 func handleUnknownError(err error, c echo.Context, logger *slog.Logger) {
-	response := errors.NewErrorResponse(c, errors.InternalServerError, "内部服务器错误")
+	response := apperrs.NewErrorResponse(c, apperrs.InternalServerError, "内部服务器错误")
 
 	logError(logger, err, c, "Unknown error occurred")
 	sendResponse(c, response, logger)
 }
 
 // sendResponse 发送错误响应
-func sendResponse(c echo.Context, response *errors.Response, logger *slog.Logger) {
+func sendResponse(c echo.Context, response *apperrs.Response, logger *slog.Logger) {
 	if err := c.JSON(http.StatusOK, response); err != nil {
 		logger.Error("Failed to send error response",
 			"error", err,

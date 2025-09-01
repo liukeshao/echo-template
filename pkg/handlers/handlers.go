@@ -4,7 +4,8 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/apperrs"
+
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
@@ -31,6 +32,6 @@ func GetHandlers() []Handler {
 
 // Success 成功响应
 func Success(c echo.Context, data any) error {
-	response := errors.NewSuccessResponse(c, data)
+	response := apperrs.NewSuccessResponse(c, data)
 	return c.JSON(http.StatusOK, response)
 }

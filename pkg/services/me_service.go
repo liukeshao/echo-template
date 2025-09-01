@@ -9,7 +9,7 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/pkg/errors"
+	"github.com/liukeshao/echo-template/pkg/apperrs"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
 
@@ -36,7 +36,7 @@ func (s *MeService) GetByID(ctx context.Context, userID string) (*types.UserOutp
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return nil, errors.ErrNotFound.
+			return nil, apperrs.ErrNotFound.
 				Wrapf(errorBuilder.Errorf("用户不存在"), "用户查询失败")
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
@@ -75,7 +75,7 @@ func (s *MeService) updateUsername(ctx context.Context, userID string, username 
 		return errorBuilder.Wrapf(err, "检查用户名失败")
 	}
 	if exists {
-		return errors.ErrConflict.
+		return apperrs.ErrConflict.
 			Wrapf(errorBuilder.Errorf("用户名已存在"), "用户名冲突")
 	}
 
@@ -111,7 +111,7 @@ func (s *MeService) updateEmail(ctx context.Context, userID string, email string
 		return errorBuilder.Wrapf(err, "检查邮箱失败")
 	}
 	if exists {
-		return errors.ErrConflict.
+		return apperrs.ErrConflict.
 			Wrapf(errorBuilder.Errorf("邮箱已存在"), "邮箱冲突")
 	}
 
@@ -142,7 +142,7 @@ func (s *MeService) UpdateUsername(ctx context.Context, userID string, input *ty
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return nil, errors.ErrNotFound.
+			return nil, apperrs.ErrNotFound.
 				Wrapf(errorBuilder.Errorf("用户不存在"), "用户查询失败")
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
@@ -191,7 +191,7 @@ func (s *MeService) UpdateEmail(ctx context.Context, userID string, input *types
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return nil, errors.ErrNotFound.
+			return nil, apperrs.ErrNotFound.
 				Wrapf(errorBuilder.Errorf("用户不存在"), "用户查询失败")
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
@@ -239,7 +239,7 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, input *ty
 	if err != nil {
 		if ent.IsNotFound(err) {
 			slog.WarnContext(ctx, "用户不存在", "user_id", userID)
-			return errors.ErrNotFound.
+			return apperrs.ErrNotFound.
 				Wrapf(errorBuilder.Errorf("用户不存在"), "用户查询失败")
 		}
 		slog.ErrorContext(ctx, "获取用户失败", "error", err, "user_id", userID)
@@ -250,7 +250,7 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, input *ty
 	err = bcrypt.CompareHashAndPassword([]byte(u.PasswordHash), []byte(input.OldPassword))
 	if err != nil {
 		slog.WarnContext(ctx, "旧密码验证失败", "user_id", userID)
-		return errors.ErrUnauthorized.
+		return apperrs.ErrUnauthorized.
 			Wrapf(errorBuilder.Errorf("旧密码不正确"), "密码验证失败")
 	}
 
