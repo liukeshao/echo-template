@@ -22,11 +22,6 @@ type Response struct {
 	RequestID string         `json:"request_id,omitempty"` // 请求ID
 }
 
-// NewResponse 创建新的泛型响应
-func NewResponse(c echo.Context) *Response {
-	return initResponse(c)
-}
-
 func initResponse(c echo.Context) *Response {
 	return &Response{
 		Code:      OK,
@@ -41,8 +36,6 @@ func initResponse(c echo.Context) *Response {
 // NewSuccessResponse 创建成功的响应
 func NewSuccessResponse(c echo.Context, data any) *Response {
 	response := initResponse(c)
-	response.Code = 0
-	response.Message = "success"
 	if data != nil {
 		response.Data = data
 	}

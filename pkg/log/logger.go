@@ -28,20 +28,20 @@ func NewContextHandler(h slog.Handler) *ContextHandler {
 }
 
 func Setup(cfg *config.Config) {
+	var opt slog.HandlerOptions
+	// Configure logging.
+	switch cfg.App.Environment {
+	case config.EnvProduction:
+		opt.Level = slog.LevelInfo
+	default:
+		opt.Level = slog.LevelDebug
+	}
 	// 原始 Handler（如 JSON Handler）
-	baseHandler := slog.NewJSONHandler(os.Stdout, nil)
+	baseHandler := slog.NewJSONHandler(os.Stdout, &opt)
 
 	// 使用自定义 ContextHandler 包装
 	handler := NewContextHandler(baseHandler)
 
 	// 设置为全局 Logger
 	slog.SetDefault(slog.New(handler))
-
-	// Configure logging.
-	switch cfg.App.Environment {
-	case config.EnvProduction:
-		slog.SetLogLoggerLevel(slog.LevelInfo)
-	default:
-		slog.SetLogLoggerLevel(slog.LevelDebug)
-	}
 }
