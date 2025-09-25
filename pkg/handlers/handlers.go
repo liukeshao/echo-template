@@ -32,6 +32,6 @@ func GetHandlers() []Handler {
 
 // Success 成功响应
 func Success(c echo.Context, data any) error {
-	response := apperrs.NewSuccessResponse(c, data)
+	response := apperrs.NewResponse(c, apperrs.WithData(data))
 	return c.JSON(http.StatusOK, response)
 }

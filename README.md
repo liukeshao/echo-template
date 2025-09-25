@@ -26,14 +26,14 @@ Echo Template 是一个基于 Go 语言和 Echo 框架构建的现代化 Web 应
 ## 技术栈
 
 ### 后端技术
-- **Go 1.24**：主要开发语言
-- **Echo v4**：高性能 Web 框架
-- **Ent v0.14**：类型安全的 ORM 框架
-- **JWT v5**：JSON Web Token 认证
-- **Viper v1.20**：配置管理
-- **Zog v0.21**：请求验证
-- **ULID v2**：分布式 ID 生成
-- **SQLite3**：轻量级数据库
+- **Go**：主要开发语言
+- **Echo**：高性能 Web 框架
+- **Ent**：类型安全的 ORM 框架
+- **JWT**：JSON Web Token 认证
+- **Viper**：配置管理
+- **Zog**：请求验证
+- **ULID**：分布式 ID 生成
+- **SQLite**：轻量级数据库
 
 ### 开发工具
 - **OpenAPI 3.0**：API 文档规范
@@ -67,7 +67,7 @@ echo-template/
 
 ### 环境要求
 
-- Go 1.24 或更高版本
+- Go 1.25 或更高版本
 - Node.js 16+ （用于 API 文档）
 - SQLite3
 
@@ -94,12 +94,6 @@ cd ..
 ```
 
 ### 配置应用
-
-复制并修改配置文件：
-
-```bash
-cp config/config.toml config/config.local.toml
-```
 
 主要配置项：
 
@@ -161,63 +155,6 @@ npm run build
 npm test
 ```
 
-### 核心 API 端点
-
-#### 认证相关
-
-```bash
-# 用户注册
-POST /api/v1/auth/register
-
-# 用户登录
-POST /api/v1/auth/login
-
-# 刷新 Token
-POST /api/v1/auth/refresh
-
-# 用户登出
-POST /api/v1/auth/logout
-```
-
-#### 用户管理
-
-```bash
-# 获取当前用户信息
-GET /api/v1/me
-
-# 修改用户信息
-PUT /api/v1/me
-
-# 修改密码
-PUT /api/v1/me/change-password
-```
-
-### 请求示例
-
-#### 用户注册
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "testuser",
-    "email": "test@example.com",
-    "password": "password123",
-    "real_name": "测试用户"
-  }'
-```
-
-#### 用户登录
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "test@example.com",
-    "password": "password123"
-  }'
-```
-
 ## 开发指南
 
 ### 添加新实体
@@ -259,24 +196,6 @@ go build -o bin/echo-template cmd/web/main.go
 
 # 运行
 ./bin/echo-template
-```
-
-### Docker 部署
-
-```dockerfile
-FROM golang:1.24-alpine AS builder
-
-WORKDIR /app
-COPY . .
-RUN go mod download
-RUN go build -o echo-template cmd/web/main.go
-
-FROM alpine:latest
-RUN apk --no-cache add ca-certificates
-WORKDIR /root/
-COPY --from=builder /app/echo-template .
-COPY --from=builder /app/config ./config
-CMD ["./echo-template"]
 ```
 
 ## 贡献指南

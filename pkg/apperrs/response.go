@@ -7,9 +7,8 @@ import (
 	"github.com/liukeshao/echo-template/pkg/appctx"
 )
 
-var (
-	EmptyData = map[string]any{}
-)
+// EmptyData 空数据默认值
+var EmptyData = map[string]any{}
 
 // Response 统一的API响应结构
 // HTTP状态码统一为200，通过code字段区分成功和失败，code=0表示成功，非0表示失败
@@ -22,8 +21,65 @@ type Response struct {
 	RequestID string         `json:"request_id,omitempty"` // 请求ID
 }
 
-func initResponse(c echo.Context) *Response {
-	return &Response{
+// Option 响应配置选项函数类型
+type Option func(*Response)
+
+// WithCode 设置业务状态码
+func WithCode(code int) Option {
+	return func(r *Response) {
+		r.Code = code
+	}
+}
+
+// WithMessage 设置响应消息
+func WithMessage(message string) Option {
+	return func(r *Response) {
+		r.Message = message
+	}
+}
+
+// WithData 设置响应数据
+func WithData(data any) Option {
+	return func(r *Response) {
+		r.Data = data
+	}
+}
+
+// WithErrors 设置错误详情列表
+func WithErrors(errors []*ErrorDetail) Option {
+	return func(r *Response) {
+		r.Errors = errors
+	}
+}
+
+// WithError 设置单个错误详情
+func WithError(error *ErrorDetail) Option {
+	return func(r *Response) {
+		if r.Errors == nil {
+			r.Errors = make([]*ErrorDetail, 0, 1)
+		}
+		r.Errors = append(r.Errors, error)
+	}
+}
+
+// WithTimestamp 设置自定义时间戳
+func WithTimestamp(timestamp int64) Option {
+	return func(r *Response) {
+		r.Timestamp = timestamp
+	}
+}
+
+// WithRequestID 设置请求ID
+func WithRequestID(requestID string) Option {
+	return func(r *Response) {
+		r.RequestID = requestID
+	}
+}
+
+// NewResponse 创建响应（Options模式）
+func NewResponse(c echo.Context, opts ...Option) *Response {
+	// 初始化默认响应
+	response := &Response{
 		Code:      OK,
 		Message:   "success",
 		Data:      EmptyData,
@@ -31,47 +87,13 @@ func initResponse(c echo.Context) *Response {
 		Errors:    nil,
 		RequestID: appctx.MustGetRequestIDFromContext(c.Request().Context()),
 	}
-}
 
-// NewSuccessResponse 创建成功的响应
-func NewSuccessResponse(c echo.Context, data any) *Response {
-	response := initResponse(c)
-	if data != nil {
-		response.Data = data
+	// 应用所有选项
+	for _, opt := range opts {
+		opt(response)
 	}
+
 	return response
-}
-
-// NewErrorResponse 创建失败的响应
-func NewErrorResponse(c echo.Context, code int, message string) *Response {
-	response := initResponse(c)
-	response.Code = code
-	response.Message = message
-	return response
-}
-
-// WithCode 设置业务状态码
-func (r *Response) WithCode(code int) *Response {
-	r.Code = code
-	return r
-}
-
-// WithMessage 设置响应消息
-func (r *Response) WithMessage(message string) *Response {
-	r.Message = message
-	return r
-}
-
-// WithData 设置响应数据
-func (r *Response) WithData(data any) *Response {
-	r.Data = data
-	return r
-}
-
-// WithErrors 设置错误详情列表
-func (r *Response) WithErrors(errors []*ErrorDetail) *Response {
-	r.Errors = errors
-	return r
 }
 
 // Error 实现error接口
