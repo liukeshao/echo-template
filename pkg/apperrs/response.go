@@ -80,7 +80,7 @@ func WithRequestID(requestID string) Option {
 func NewResponse(c echo.Context, opts ...Option) *Response {
 	// 初始化默认响应
 	response := &Response{
-		Code:      OK,
+		Code:      CodeOK.ToInt(),
 		Message:   "success",
 		Data:      EmptyData,
 		Timestamp: time.Now().Unix(),

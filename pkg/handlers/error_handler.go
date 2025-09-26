@@ -3,7 +3,6 @@ package handlers
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/samber/oops"
@@ -29,15 +28,13 @@ func AppErrorHandler(err error, c echo.Context) {
 
 // handleOopsError 处理 oops 错误
 func handleOopsError(err oops.OopsError, c echo.Context) {
-	code := apperrs.InternalServerError
+	code := apperrs.CodeInternalServerError
 	if errCode := err.Code(); errCode != "" {
-		if parsedCode, parseErr := strconv.Atoi(errCode); parseErr == nil {
-			code = parsedCode
-		}
+		code = apperrs.MustFromString(errCode)
 	}
 
 	message := oops.GetPublic(err, "服务暂时不可用")
-	response := apperrs.NewResponse(c, apperrs.WithCode(code), apperrs.WithMessage(message))
+	response := apperrs.NewResponse(c, apperrs.WithCode(code.ToInt()), apperrs.WithMessage(message))
 
 	logError(err, c, "Business error occurred")
 	sendResponse(c, response)
@@ -57,7 +54,7 @@ func handleEchoHTTPError(err *echo.HTTPError, c echo.Context) {
 
 // handleUnknownError 处理未知错误
 func handleUnknownError(err error, c echo.Context) {
-	response := apperrs.NewResponse(c, apperrs.WithCode(apperrs.InternalServerError), apperrs.WithMessage("内部服务器错误"))
+	response := apperrs.NewResponse(c, apperrs.WithCode(apperrs.CodeInternalServerError.ToInt()), apperrs.WithMessage("内部服务器错误"))
 
 	logError(err, c, "Unknown error occurred")
 	sendResponse(c, response)
