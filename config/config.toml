@@ -1,0 +1,39 @@
+[http]
+hostname = ""
+port = 8000
+gracefulTimeout = "10s"
+readTimeout = "5s"
+writeTimeout = "10s"
+idleTimeout = "2m"
+
+[app]
+name = "echo-template"
+# We manually set this rather than using the HTTP settings in order to build absolute URLs for users
+# since it's likely your app's HTTP settings are not identical to what is exposed by your server.
+host = "http://localhost:8000"
+environment = "local"
+
+# JWT配置
+[jwt]
+secret = "your-super-secret-jwt-key-change-this-in-production"
+accessTokenExpiry = "24h"   # Access token 过期时间
+refreshTokenExpiry = "168h" # Refresh token 过期时间 (7天)
+issuer = "echo-template"    # Token发行者
+
+[database]
+driver = "sqlite3"
+connection = "dbs/main.db?_journal=WAL&_timeout=5000&_fk=true"
+
+# Third-party API clients.
+# Each sub-table corresponds to a field in config.ClientsConfig.
+[clients.weather]
+baseURL = "https://api.weather.com/v1"
+apiKey  = "change-me"
+timeout = "5s"
+retry   = 2
+
+# 国际化配置。翻译文件通过 embed.FS 打包进二进制（pkg/i18n/messages/*.toml）。
+# default_locale 必须同时出现在 supported_locales 中。
+[i18n]
+defaultLocale    = "en"
+supportedLocales = ["en", "zh-CN"]

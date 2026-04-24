@@ -1,0 +1,561 @@
+definitions:
+  handlers.ErrorBody:
+    properties:
+      code:
+        description: HTTP status code, e.g. 404. Not the google.rpc.Code numeric value.
+        example: 404
+        type: integer
+      details:
+        description: |-
+          AIP-193 typed detail payloads. The "@type" field discriminates the entry:
+            - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
+            - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
+            - type.googleapis.com/google.rpc.Help             — documentation links (see errdetails.Help)
+            - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
+            - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
+        items:
+          type: object
+        type: array
+      message:
+        description: Developer-facing English description of the error.
+        example: requested entity was not found
+        type: string
+      status:
+        description: Canonical google.rpc.Code name in UPPER_SNAKE_CASE, e.g. "NOT_FOUND".
+        example: NOT_FOUND
+        type: string
+    type: object
+  handlers.ErrorResponse:
+    properties:
+      error:
+        $ref: '#/definitions/handlers.ErrorBody'
+    type: object
+  types.AuthResponse:
+    properties:
+      access_token:
+        type: string
+      expires_at:
+        type: integer
+      refresh_token:
+        type: string
+    type: object
+  types.BookResponse:
+    properties:
+      author:
+        type: string
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      price:
+        type: number
+      published_at:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  types.ChangePasswordRequest:
+    properties:
+      new_password:
+        type: string
+      old_password:
+        type: string
+    type: object
+  types.CreateBookRequest:
+    properties:
+      author:
+        type: string
+      book_id:
+        description: |-
+          BookID 用户自定义 ID（可选）。格式：26 位 ULID（大写字母 + 数字）。
+          若省略，服务端自动生成。
+        type: string
+      description:
+        type: string
+      price:
+        type: number
+      published_at:
+        type: string
+      title:
+        type: string
+    type: object
+  types.ListBooksResponse:
+    properties:
+      books:
+        items:
+          $ref: '#/definitions/types.BookResponse'
+        type: array
+      page:
+        type: integer
+      page_size:
+        type: integer
+      total_size:
+        type: integer
+    type: object
+  types.LoginRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+    type: object
+  types.RefreshTokenRequest:
+    properties:
+      refresh_token:
+        type: string
+    type: object
+  types.RegisterRequest:
+    properties:
+      email:
+        type: string
+      password:
+        type: string
+      username:
+        type: string
+    type: object
+  types.UpdateBookRequest:
+    properties:
+      author:
+        type: string
+      book:
+        description: Book 对应路径参数 {book}，即书籍 ULID。
+        type: string
+      description:
+        type: string
+      price:
+        type: number
+      published_at:
+        type: string
+      title:
+        type: string
+      update_mask:
+        description: |-
+          UpdateMask 字段掩码（可选）。有效字段名：title, author, description, price, published_at。
+          特殊值 * 表示全量替换。
+        items:
+          type: string
+        type: array
+    type: object
+  types.UpdateEmailRequest:
+    properties:
+      email:
+        type: string
+    type: object
+  types.UpdateUsernameRequest:
+    properties:
+      username:
+        type: string
+    type: object
+  types.UserInfo:
+    properties:
+      created_at:
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      last_login_at:
+        type: string
+      status:
+        type: string
+      username:
+        type: string
+    type: object
+host: localhost:8000
+info:
+  contact: {}
+  description: Echo Template RESTful API
+  title: Echo Template API
+  version: "1.0"
+paths:
+  /api/v1/auth/login:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 登录信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.LoginRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: 用户登录
+      tags:
+      - auth
+  /api/v1/auth/logout:
+    post:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 用户登出
+      tags:
+      - auth
+  /api/v1/auth/refresh:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 刷新令牌
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: 刷新访问令牌
+      tags:
+      - auth
+  /api/v1/auth/register:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 注册信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.RegisterRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.AuthResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      summary: 用户注册
+      tags:
+      - auth
+  /api/v1/books:
+    get:
+      parameters:
+      - description: 页码，从 1 开始（默认 1）
+        in: query
+        name: page
+        type: integer
+      - description: 每页数量（默认 50，最大 1000）
+        in: query
+        name: page_size
+        type: integer
+      - description: 排序，如 'price desc,title'；支持 title/author/price/created_at/updated_at/published_at
+        in: query
+        name: order_by
+        type: string
+      - description: '过滤表达式，如 ''title : \'
+        in: query
+        name: filter
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.ListBooksResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取书籍列表
+      tags:
+      - books
+    post:
+      consumes:
+      - application/json
+      description: AIP-133：book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回
+        409。
+      parameters:
+      - description: 书籍信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.CreateBookRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/types.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: book_id 已存在（ALREADY_EXISTS）
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 创建书籍
+      tags:
+      - books
+  /api/v1/books/{book}:
+    delete:
+      description: AIP-135：资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
+      parameters:
+      - description: 书籍资源名称（书籍 ULID）
+        in: path
+        name: book
+        required: true
+        type: string
+      responses:
+        "204":
+          description: No Content
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 删除书籍
+      tags:
+      - books
+    get:
+      parameters:
+      - description: 书籍资源名称（书籍 ULID）
+        in: path
+        name: book
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BookResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取书籍详情
+      tags:
+      - books
+    patch:
+      consumes:
+      - application/json
+      description: AIP-134：支持 update_mask 字段掩码。省略时更新所有已提供字段；["*"] 表示全量替换；指定字段名则仅更新对应字段。
+      parameters:
+      - description: 书籍资源名称（书籍 ULID）
+        in: path
+        name: book
+        required: true
+        type: string
+      - description: 更新信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdateBookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新书籍
+      tags:
+      - books
+  /api/v1/me:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.UserInfo'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 获取当前用户信息
+      tags:
+      - me
+  /api/v1/me/change-password:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: 密码信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.ChangePasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 修改密码
+      tags:
+      - me
+  /api/v1/me/email:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新邮箱
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdateEmailRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新邮箱
+      tags:
+      - me
+  /api/v1/me/username:
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: 新用户名
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.UpdateUsernameRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 更新用户名
+      tags:
+      - me
+securityDefinitions:
+  BearerAuth:
+    description: Bearer {token}
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

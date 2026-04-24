@@ -1,0 +1,47 @@
+package log
+
+import (
+	"context"
+	"log/slog"
+	"os"
+
+	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/pkg/appctx"
+)
+
+type ContextHandler struct {
+	slog.Handler
+}
+
+func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
+	// 从 Context 中提取 Request ID
+	requestID, ok := appctx.GetRequestIDFromContext(ctx)
+	if ok {
+		r.AddAttrs(slog.String("request_id", requestID))
+	}
+	return h.Handler.Handle(ctx, r)
+}
+
+// NewContextHandler 包装原始 Handler
+func NewContextHandler(h slog.Handler) *ContextHandler {
+	return &ContextHandler{Handler: h}
+}
+
+func Setup(cfg *config.Config) {
+	var opt slog.HandlerOptions
+	// Configure logging.
+	switch cfg.App.Environment {
+	case config.EnvProduction:
+		opt.Level = slog.LevelInfo
+	default:
+		opt.Level = slog.LevelDebug
+	}
+	// 原始 Handler（如 JSON Handler）
+	baseHandler := slog.NewJSONHandler(os.Stdout, &opt)
+
+	// 使用自定义 ContextHandler 包装
+	handler := NewContextHandler(baseHandler)
+
+	// 设置为全局 Logger
+	slog.SetDefault(slog.New(handler))
+}
