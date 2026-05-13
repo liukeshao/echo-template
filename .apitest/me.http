@@ -20,8 +20,46 @@ Content-Type: application/json
 
 ### 获取当前用户信息
 GET {{baseUrl}}/api/v1/me
+Authorization: Bearer {{accessToken}}
+
+
+### 全量替换当前用户资料（PUT）
+PUT {{baseUrl}}/api/v1/me
 Content-Type: application/json
 Authorization: Bearer {{accessToken}}
+
+{
+  "username": "renamed_user",
+  "email": "renamed@example.com"
+}
+
+
+### 局部更新（RFC 7386 JSON Merge Patch）
+PATCH {{baseUrl}}/api/v1/me
+Content-Type: application/merge-patch+json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "merged@example.com"
+}
+
+
+### 局部更新（RFC 6902 JSON Patch）
+PATCH {{baseUrl}}/api/v1/me
+Content-Type: application/json-patch+json
+Authorization: Bearer {{accessToken}}
+
+[
+  { "op": "replace", "path": "/email", "value": "json-patched@example.com" }
+]
+
+
+### 局部更新（Shorthand）
+PATCH {{baseUrl}}/api/v1/me
+Content-Type: application/merge-patch+shorthand
+Authorization: Bearer {{accessToken}}
+
+email: "shorthand@example.com"
 
 
 ### 修改当前用户密码

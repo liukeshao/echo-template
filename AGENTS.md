@@ -43,11 +43,11 @@ oops.Code(codes.DomainInternal.String()).Tags("domain").Wrapf(err, "op: %s", op)
 
 // not found — include AIP-193 ResourceInfo
 oops.Code(codes.DomainNotFound.String()).
-    With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
-        ResourceType: "Domain", ResourceName: id,
-    }).
-    Public(fmt.Sprintf("Domain %q not found.", id)).
-    Errorf("not found")
+ With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
+ ResourceType: "Domain", ResourceName: id,
+ }).
+ Public(fmt.Sprintf("Domain %q not found.", id)).
+ Errorf("not found")
 ```
 
 **Rules:**
@@ -62,6 +62,7 @@ oops.Code(codes.DomainNotFound.String()).
 - Ent schema files live in `ent/schema/`. Always use `DefaultMixin` (ULID primary key + soft delete + timestamps).
 - **Never return `*ent.Xxx` from handlers.** Always map to a `types.XxxResponse` DTO.
 - Response DTOs must not expose `password_hash`, `deleted_at`, or other internal fields.
+- Response DTO doubles as the JSON view used by PATCH (read-modify-write); read-only fields visible there are simply absent from `ReplaceXxxRequest`, so patches that mutate them are silently dropped during unmarshalling.
 - Mapping functions (`toXxxResponse`) belong in `pkg/handlers/<domain>.go`, not in services.
 
 ---
@@ -72,9 +73,9 @@ Request structs implement `Validate() error` returning `*validator.FieldViolatio
 
 ```go
 func (r *CreateXxxRequest) Validate() error {
-    v := validator.New()
-    v.Field("title", r.Title, rules.Required, rules.MaxLen(200))
-    return v.Violations()
+ v := validator.New()
+ v.Field("title", r.Title, rules.Required, rules.MaxLen(200))
+ return v.Violations()
 }
 ```
 
@@ -117,46 +118,164 @@ make swag
 
 ---
 
+## API Style — Kubernetes-style REST
+
+This template models resources as Kubernetes does: each resource type owns a collection URL, the URL path identifies the resource, and the HTTP method expresses the action. Custom verbs are sub-paths beneath the resource. There are no AIP-style field masks; instead, partial updates are expressed by PATCH with a `Content-Type` that selects one of three patch protocols.
+
+### Method semantics
+
+| Method  | Use for                                 | Idempotent | Body                                                              |
+|---------|-----------------------------------------|------------|-------------------------------------------------------------------|
+| POST    | Create / non-idempotent custom verbs    | No         | `CreateXxxRequest` (or custom-verb DTO)                           |
+| GET     | Read single / collection                | Yes        | none                                                              |
+| PUT     | Full replacement of an existing resource | Yes        | `ReplaceXxxRequest` (all writable fields)                         |
+| PATCH   | Partial update                          | Depends    | RFC 6902 / RFC 7386 / Shorthand — selected by `Content-Type`      |
+| DELETE  | Remove                                  | Yes        | none                                                              |
+
+Singleton resources (e.g. `/api/v1/me` bound to the current user) skip POST and DELETE — only GET / PUT / PATCH plus custom verbs.
+
+### Routes
+
+```go
+g.POST("",                  h.Create)
+g.GET("",                   h.List)
+g.GET("/:book",             h.Get)
+g.PUT("/:book",             h.Replace)        // full replacement
+g.PATCH("/:book",           h.Patch)          // RFC 6902 / 7386 / Shorthand
+g.DELETE("/:book",          h.Delete)
+
+// Custom methods (K8s subresource style): verb as a kebab-case path segment.
+g.POST("/:book/archive",    h.Archive)        // resource-level action
+g.POST("/batch-get",        h.BatchGet)       // collection-level action
+```
+
+- Path parameters use the resource type in singular form (`/:book`, not `/:id`).
+- Verb segments are **kebab-case** (`reset-password`, `batch-get`), never camelCase.
+- Method choice: idempotent transitions → `PUT`, non-idempotent actions → `POST`, sub-state reads → `GET`.
+
+### PATCH protocols
+
+The `PATCH` handler dispatches on `Content-Type`. Supported values:
+
+| Content-Type                              | Body format                                      |
+|-------------------------------------------|--------------------------------------------------|
+| `application/json-patch+json`             | RFC 6902 — array of `{op,path,value}` operations |
+| `application/merge-patch+json`            | RFC 7386 — JSON object; `null` deletes a field   |
+| `application/merge-patch+shorthand`       | Shorthand DSL (Daniel G. Taylor) overlaid on the original |
+| `application/json` / empty                | Compatibility: treated as Merge Patch            |
+
+The implementation lives in `pkg/patch`. Every domain's PATCH handler follows the same flow:
+
+```go
+func (h *BookHandler) Patch(c *echo.Context) error {
+    ctx := c.Request().Context()
+    var pathReq types.PatchBookRequest
+    if err := echo.BindPathValues(c, &pathReq); err != nil {
+        return err
+    }
+
+    current, err := h.book.Get(ctx, pathReq.Book)
+    if err != nil {
+        return err
+    }
+    currentJSON, _ := json.Marshal(toBookResponse(current))
+
+    body, err := io.ReadAll(c.Request().Body)
+    if err != nil {
+        return err
+    }
+    patched, err := patch.Apply(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType))
+    if err != nil {
+        return err
+    }
+
+    var req types.ReplaceBookRequest
+    _ = json.Unmarshal(patched, &req)
+    req.Book = pathReq.Book               // path is authoritative
+    if err := req.Validate(); err != nil {
+        return err
+    }
+    b, err := h.book.Replace(ctx, pathReq.Book, &req)
+    if err != nil {
+        return err
+    }
+    return c.JSON(http.StatusOK, toBookResponse(b))
+}
+```
+
+Rules:
+- PATCH handlers **must** call `echo.BindPathValues` directly — `c.Bind` would try to parse the body, which may legitimately be a JSON array (RFC 6902) or non-JSON shorthand.
+- After unmarshalling the patched JSON into the `ReplaceXxxRequest`, **always** reassign the path-derived ID. Never trust the patched body for identity.
+- PATCH and PUT must share the service-layer `Replace` method, so all three patch protocols and the explicit PUT path get the same validation and persistence semantics.
+- Read-only fields (`id`, `created_at`, `updated_at`, etc.) are absent from `ReplaceXxxRequest`, so patches that attempt to mutate them are dropped silently during unmarshalling.
+
+### Request struct conventions
+
+Every handler binds via a dedicated struct. **Never call `c.Param` directly.**
+
+| Method   | Struct                                                                 | Notes                                                                       |
+|----------|------------------------------------------------------------------------|-----------------------------------------------------------------------------|
+| POST     | `CreateXxxRequest{ XxxID string \`json:"xxx_id,omitempty"\` ... }`     | Optional `xxx_id` (ULID); generate via `utils.GenerateULID()` when empty.   |
+| GET (1)  | `GetXxxRequest{ Xxx string \`param:"xxx"\` }`                          |                                                                             |
+| PUT      | `ReplaceXxxRequest{ Xxx string \`param:"xxx" json:"-"\` ...writable }` | All writable fields required; absent optional fields are cleared.           |
+| PATCH    | `PatchXxxRequest{ Xxx string \`param:"xxx"\` }`                        | Only path-param holder; body is consumed by `patch.Apply`.                  |
+| DELETE   | `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }`                       | No body. Returns 204.                                                       |
+| LIST     | `ListXxxsRequest{ Page, PageSize int32; OrderBy, Filter string }`      | See LIST section below.                                                     |
+
+### Create methods
+
+- `CreateXxxRequest` **should** include an optional `xxx_id` field (ULID format). If provided it becomes the resource ID; if absent, generate via `utils.GenerateULID()`.
+- Register an `XXX_ALREADY_EXISTS` error code mapped to `rpccodes.AlreadyExists`; return it on `ent.IsConstraintError`.
+
+### Replace methods (PUT)
+
+- `ReplaceXxxRequest` contains every writable field. Required fields are validated by `Validate()`; optional fields that come in as zero value are explicitly **cleared** in the service.
+- `id`, `created_at`, `updated_at` are not part of `ReplaceXxxRequest`. They cannot be modified via PUT or PATCH.
+
+### Delete methods
+
+- `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }` — no request body.
+- Return `NOT_FOUND` if resource does not exist. Response is `204 No Content`.
+
+### List methods (AIP-132 style retained for collections)
+
+Every `List` handler accepts `ListXxxsRequest` and returns `ListXxxsResponse`. Request binds query params with `query` struct tags.
+
+- **Pagination**: `page_size int32` (default 50, max 1000; coerce if over max, reject if negative) + `page_token string`. Response includes `next_page_token` (omit when last page) and `total_size`.
+- **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Document supported fields. Default sort must be defined.
+- **Filtering**: `filter string` — call `filter.Parse(req.Filter)` → `Expr` AST, translate with `translateXxxFilter(expr)` in `pkg/services/<domain>_filter.go` using `filter.FilterTranslator[P]`. Return `ValidationInvalid` on errors; never build raw SQL. See `pkg/services/book_filter.go` as reference.
+- Page tokens are opaque base64-encoded JSON; never expose the internal offset to callers.
+- Service returns `([]*ent.Xxx, nextPageToken string, totalSize int32, error)`. Handler assembles `ListXxxsResponse` and maps entities via `toXxxResponse`.
+
+### Custom methods (resource actions)
+
+K8s subresource style: verbs are kebab-case path segments after the resource.
+
+- Examples: `POST /api/v1/cabinets/:cabinet/approve`, `POST /api/v1/cabinets/:cabinet/reject`, `POST /api/v1/users/:user/reset-password`, `POST /api/v1/books/:book/archive`.
+- Collection-level verbs go directly under the collection: `POST /api/v1/books/batch-get`. Do not collide with a resource ID — verbs occupy the same slot as `:book`, so any verb must not be a valid ULID (it never is) and must not shadow a planned resource segment.
+- HTTP method: idempotent state transitions use `PUT`; non-idempotent / side-effect actions use `POST`. Read-only sub-state queries use `GET`.
+- Request struct follows the same convention as other request types:
+
+  ```go
+  type ApproveCabinetRequest struct {
+      Cabinet string `param:"cabinet"`
+      Reason  string `json:"reason,omitempty"`
+  }
+  ```
+
+- Handler method is named after the verb in PascalCase (`Approve`, `Reject`, `ResetPassword`, `Archive`); register with the matching path: `g.POST("/:cabinet/approve", h.Approve)`.
+- Error codes for verb actions follow `<DOMAIN>_<VERB>_<REASON>` when the failure is verb-specific, e.g. `CABINET_APPROVE_FORBIDDEN`. Otherwise reuse existing domain codes.
+
+---
+
 ## Naming
 
 - Constructors: `NewFooService(i do.Injector) (*FooService, error)` — always accept injector.
 - Error codes: `SCREAMING_SNAKE_CASE` string constants, grouped by domain in `pkg/codes/<domain>.go`.
-- Handler methods: match HTTP semantics — `Create`, `List`, `Get`, `Update`, `Delete`.
+- Handler methods: match HTTP semantics — `Create`, `List`, `Get`, `Replace`, `Patch`, `Delete`. Custom verbs use PascalCase of the verb (`Archive`, `ResetPassword`).
+- Service methods: same as handler methods (`Create`, `Get`, `List`, `Replace`, `Delete`, …). PATCH does not appear in the service layer — it composes `Get` + `Replace` in the handler.
 - Internal helpers: unexported, placed at bottom of file.
-- **Route path parameters** (AIP-131): name the path variable after the resource type in singular form — e.g. `/:book`, `/:publisher`. Never use generic `/:id` or `/:name`. For multi-level routes this avoids ambiguity: `/publishers/:publisher/books/:book`.
-- **Request structs — all methods**: every handler must bind via a dedicated request struct. **Never call `c.Param` directly in handlers.**
-  - `GetXxxRequest{ Xxx string \`param:"xxx"\` }` — AIP-131
-  - `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }` — AIP-135
-  - `UpdateXxxRequest{ Xxx string \`param:"xxx"\`; UpdateMask []string \`json:"update_mask,omitempty"\`; ... }` — AIP-134
-  - `CreateXxxRequest{ XxxID string \`json:"xxx_id,omitempty"\`; ... }` — AIP-133
-- **Create methods** (AIP-133): `CreateXxxRequest` **should** include an optional `xxx_id` field (ULID format). If provided it becomes the resource ID; if absent, generate via `utils.GenerateULID()`. Register a `XXX_ALREADY_EXISTS` error code mapped to `rpccodes.AlreadyExists`; return it on `ent.IsConstraintError`.
-- **Update methods** (AIP-134): use HTTP `PATCH` (not `PUT`). `UpdateXxxRequest` must include an `UpdateMask []string` field. Service layer applies three-branch logic via a dedicated `applyXxxUpdateMask(q, req)` helper:
-  - mask omitted → update all non-nil fields in request
-  - `["*"]` → full replacement; require all mandatory fields, clear optional fields that are nil
-  - specific field names → update only those fields; clear optional fields not provided in the body
-  - Validate that all mask entries are known field names (or `*`); return `INVALID_ARGUMENT` on unknown entries.
-- **Delete methods** (AIP-135): `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }` — no request body. Return `NOT_FOUND` if resource does not exist. Response is `204 No Content`.
-- **List methods** (AIP-132): every `List` handler must accept a `ListXxxsRequest` and return `ListXxxsResponse`. Request binds query params with `query` struct tags.
-  - **Pagination**: `page_size int32` (default 50, max 1000; coerce if over max, reject if negative) + `page_token string`. Response includes `next_page_token` (omit when last page) and `total_size`.
-  - **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Document supported fields. Default sort must be defined.
-  - **Filtering**: `filter string` — call `filter.Parse(req.Filter)` → `Expr` AST, translate with `translateXxxFilter(expr)` in `pkg/services/<domain>_filter.go` using `filter.FilterTranslator[P]`. Return `ValidationInvalid` on errors; never build raw SQL. See `pkg/services/book_filter.go` as reference.
-  - Page tokens are opaque base64-encoded JSON; never expose the internal offset to callers.
-  - Service returns `([]*ent.Xxx, nextPageToken string, totalSize int32, error)`. Handler assembles `ListXxxsResponse` and maps entities via `toXxxResponse`.
-- **Custom methods** (resource actions / verbs — Kubernetes subresource style): express verbs as a kebab-case path segment after the resource. Pattern: `<METHOD> /api/v1/<collection>/:<resource>/<verb>`.
-  - Examples: `POST /api/v1/cabinets/:cabinet/approve`, `POST /api/v1/cabinets/:cabinet/reject`, `POST /api/v1/users/:user/reset-password`, `POST /api/v1/books/:book/archive`.
-  - Multi-word verbs use **kebab-case** (`reset-password`, `change-password`, `batch-get`). Never use camelCase segments.
-  - HTTP method: idempotent state transitions use `PUT`; non-idempotent / side-effect actions use `POST`. Read-only sub-state queries use `GET`.
-  - Collection-level verbs go directly under the collection: `POST /api/v1/books/batch-get`. Do not collide with a resource ID — verbs occupy the same slot as `:book`, so any verb must not be a valid ULID (it never is) and must not shadow a planned resource segment.
-  - Request struct follows the same convention as other AIP request types: path param via `param:"<resource>"` tag; body fields validated by `Validate()`.
-
-    ```go
-    type ApproveCabinetRequest struct {
-        Cabinet string `param:"cabinet"`
-        Reason  string `json:"reason,omitempty"`
-    }
-    ```
-  - Handler method is named after the verb in PascalCase (`Approve`, `Reject`, `ResetPassword`, `Archive`); register with the matching path: `g.POST("/:cabinet/approve", h.Approve)`.
-  - Error codes for verb actions follow `<DOMAIN>_<VERB>_<REASON>` when the failure is verb-specific, e.g. `CABINET_APPROVE_FORBIDDEN`. Otherwise reuse existing domain codes.
+- Route path parameters: name the path variable after the resource type in singular form — e.g. `/:book`, `/:publisher`. Never use generic `/:id` or `/:name`.
 
 ---
 
@@ -171,8 +290,10 @@ make swag
 | Storing `context.Context` in struct | Violates Go context contract |
 | Adding user data to JWT claims | Over-exposure; trust DB as source of truth |
 | Manually editing `static/openapi/openapi.yaml` | Generated by `make swag`; manual edits are overwritten |
-| `c.Param(...)` called directly in handler | Use typed `XxxRequest{ Xxx string \`param:"xxx"\` }` and `c.Bind` |
-| `PUT` for update routes | Use `PATCH`; `PUT` breaks when new fields are added (AIP-134) |
+| `c.Param(...)` called directly in handler | Use typed `XxxRequest{ Xxx string \`param:"xxx"\` }` and `c.Bind` or `echo.BindPathValues` |
+| `c.Bind` in a PATCH handler | Body may be a JSON Patch array; use `echo.BindPathValues` + `patch.Apply` instead |
+| Skipping `req.Xxx = pathReq.Xxx` after patch | Patches can fake the path-derived ID; the URL must remain authoritative |
+| Re-implementing PATCH instead of calling `Replace` | All three patch protocols must converge on the service-layer `Replace` |
 | `:verb`-suffix routes (e.g. `/:book:archive`) | Echo router scans `:` greedily up to the next `/`, so `book:archive` becomes a single param name. Use sub-path verb form `/:book/archive` |
 | camelCase verb segments (e.g. `/resetPassword`) | Inconsistent with the rest of the URL space; use kebab-case (`/reset-password`) |
 | Raw `http.Get`/`http.Post` outside `pkg/clients/` | Bypasses shared transport, retry, and error classification |

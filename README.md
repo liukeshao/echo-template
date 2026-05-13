@@ -15,7 +15,7 @@
 | ID 生成 | ULID |
 | 配置管理 | Viper（TOML + 环境变量）|
 | 外部 API 客户端 | 接口隔离 + 共享 HTTP 传输 + 线性退避重试 |
-| API 风格 | AIP-131 Get · AIP-132 List（分页/排序/过滤）· AIP-133 Create · AIP-134 Update · AIP-135 Delete · AIP-160 Filter · 自定义方法采用 Kubernetes 子资源式 `/:resource/<verb>` |
+| API 风格 | Kubernetes 式 REST：POST/GET/PUT/PATCH/DELETE；多协议 PATCH（RFC 6902 / RFC 7386 / Shorthand）；自定义动词以 `/:resource/<verb>` 形式挂在资源下 |
 | API 文档 | Swaggo → OpenAPI YAML → Stoplight Elements |
 
 ## 项目结构
@@ -39,7 +39,8 @@ pkg/
   handlers/             HTTP handler + router + error_handler
   infra/                DB / ORM / 共享 HTTPClient 基础设施（DI 生命周期）
   log/                  slog ContextHandler（日志自动带 request_id）
-  middleware/            RequireAuth、RequestContext
+  middleware/           RequireAuth、RequestContext
+  patch/                多协议 PATCH 实现（RFC 6902 / 7386 / Shorthand）
   services/             领域服务（业务逻辑）
     <domain>_filter.go  AIP-160 过滤器 → ent predicate 翻译（每个领域一个文件）
   types/                Request / Response DTO + Validate()
@@ -75,6 +76,53 @@ open http://localhost:8000/docs
 ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/
 ```
 
+## API 风格 — Kubernetes 式 REST
+
+资源以集合 URL 暴露，HTTP 方法表达动作；自定义动词作为子路径段挂在资源下。**没有** AIP-134 的 `update_mask`；局部更新统一通过 PATCH + Content-Type 选择三种 patch 协议之一。
+
+### 方法语义
+
+| 方法    | 用途                              | 幂等 | 请求体                                                              |
+|---------|-----------------------------------|------|---------------------------------------------------------------------|
+| POST    | 创建 / 非幂等自定义动词           | 否   | `CreateXxxRequest`（或自定义动词的专属 DTO）                        |
+| GET     | 读取单资源或集合                  | 是   | 无                                                                  |
+| PUT     | 全量替换（覆盖所有可写字段）      | 是   | `ReplaceXxxRequest`                                                 |
+| PATCH   | 局部更新（按 Content-Type 分派）  | 视协议 | RFC 6902 / RFC 7386 / Shorthand                                   |
+| DELETE  | 删除                              | 是   | 无                                                                  |
+
+单例资源（如 `/api/v1/me`，隐式绑定到当前用户）只有 GET / PUT / PATCH 与自定义动词，没有 POST / DELETE。
+
+### PATCH 多协议
+
+PATCH handler 根据 `Content-Type` 选择 patch 算法，然后走"GET → apply → Replace"流程把结果写回。所有协议最终共享同一份服务端校验与持久化逻辑。
+
+| Content-Type                              | 主体格式                                                 | 示例                                                                 |
+|-------------------------------------------|----------------------------------------------------------|----------------------------------------------------------------------|
+| `application/json-patch+json`             | RFC 6902：`{op,path,value}` 数组                          | `[{"op":"replace","path":"/title","value":"New"}]`                  |
+| `application/merge-patch+json`            | RFC 7386：JSON 对象；`null` 表示删除字段                  | `{"title":"New","price":null}`                                       |
+| `application/merge-patch+shorthand`       | Shorthand DSL（可省略外层 `{}`），叠加到原资源            | `title: "New", price: 19.99`                                         |
+| `application/json` / 缺省                 | 兼容：按 Merge Patch 处理                                 | `{"title":"New"}`                                                     |
+
+### 路由示例
+
+```go
+g.POST("",                  h.Create)
+g.GET("",                   h.List)
+g.GET("/:book",             h.Get)
+g.PUT("/:book",             h.Replace)        // 幂等全量替换
+g.PATCH("/:book",           h.Patch)          // RFC 6902 / 7386 / Shorthand
+g.DELETE("/:book",          h.Delete)
+
+// 自定义动词（K8s 子资源风格）：动词作为资源后的 path 段
+g.POST("/:book/archive",    h.Archive)        // 资源级动作
+g.POST("/batch-get",        h.BatchGet)       // 集合级动作
+```
+
+约束：
+- 路径参数命名为资源类型的单数（`/:book` 而不是 `/:id`）。
+- 自定义动词使用 **kebab-case**（`reset-password`、`batch-get`），不要用 camelCase。
+- 幂等状态转移用 `PUT`，非幂等动作用 `POST`，子状态读取用 `GET`。
+
 ## 增加一个新领域（Checklist）
 
 以增加 `Order` 领域为例：
@@ -84,16 +132,16 @@ ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/
 ```bash
 # 新建 ent/schema/order.go
 # 参考 ent/schema/book.go，使用 DefaultMixin（含 ULID 主键、软删除、时间戳）
-cd ent && go generate   # 重新生成 ORM 代码
+make ent
 ```
 
 **2. 错误码**（`pkg/codes/order.go`）
 
 ```go
 const (
-    OrderNotFound     Code = "ORDER_NOT_FOUND"
-    OrderAlreadyExists Code = "ORDER_ALREADY_EXISTS"  // AIP-133
-    OrderInternal     Code = "ORDER_INTERNAL_ERROR"
+    OrderNotFound      Code = "ORDER_NOT_FOUND"
+    OrderAlreadyExists Code = "ORDER_ALREADY_EXISTS"
+    OrderInternal      Code = "ORDER_INTERNAL_ERROR"
 )
 
 func init() {
@@ -106,28 +154,34 @@ func init() {
 **3. DTO**（`pkg/types/order.go`）
 
 ```go
-// AIP-133 Create：order_id 可选；提供则用作资源 ID（ULID），省略则自动生成
+// 创建：order_id 可选；提供则用作资源 ID（ULID），省略则自动生成
 type CreateOrderRequest struct {
     OrderID string `json:"order_id,omitempty"`
     // ...
 }
 func (r *CreateOrderRequest) Validate() error { ... }
 
-type OrderResponse struct { ... } // 不含 deleted_at 等内部字段
+// 响应 DTO，不含 deleted_at / 密码 / 内部状态等字段；
+// 同时作为 PATCH "read-modify-write" 流程中的 JSON 中间表示
+type OrderResponse struct { ... }
 
-// AIP-131 Get / AIP-135 Delete：路径参数绑定到专属结构体，禁止 c.Param 直接调用
+// 单资源读 / 删
 type GetOrderRequest    struct { Order string `param:"order"` }
 type DeleteOrderRequest struct { Order string `param:"order"` }
 
-// AIP-134 Update：PATCH + 字段掩码
-type UpdateOrderRequest struct {
-    Order      string   `param:"order"`
-    UpdateMask []string `json:"update_mask,omitempty"`
-    // 可更新字段均为指针类型（nil = 未提供）
-}
-func (r *UpdateOrderRequest) Validate() error { ... }
+// 仅用作 PATCH handler 的路径参数容器（不绑定 body）
+type PatchOrderRequest  struct { Order string `param:"order"` }
 
-// AIP-132 List：分页 + 排序 + 过滤
+// PUT：全量替换（所有可写字段；可选字段未提供视为清除）
+type ReplaceOrderRequest struct {
+    Order  string `param:"order" json:"-"`
+    Title  string `json:"title"`
+    Amount float64 `json:"amount,omitempty"`
+    // ...
+}
+func (r *ReplaceOrderRequest) Validate() error { ... }
+
+// 列表
 type ListOrdersRequest struct {
     PageSize  int32  `query:"page_size"`
     PageToken string `query:"page_token"`
@@ -149,11 +203,10 @@ type OrderService struct { orm *ent.Client }
 
 func NewOrderService(i do.Injector) (*OrderService, error) { ... }
 
-// Create（AIP-133）：优先使用 req.OrderID，否则自动生成；ent.IsConstraintError → OrderAlreadyExists
+// Get / List / Delete / Create / Replace
+// 注意：service 层没有 Patch 方法；多协议 PATCH 在 handler 层组合 Get + Replace 完成。
 func (s *OrderService) Create(ctx context.Context, req *types.CreateOrderRequest) (*ent.Order, error) { ... }
-
-// Update（AIP-134）：委托给 applyOrderUpdateMask(q, req) 实现三路 mask 逻辑
-func (s *OrderService) Update(ctx context.Context, id string, req *types.UpdateOrderRequest) (*ent.Order, error) { ... }
+func (s *OrderService) Replace(ctx context.Context, id string, req *types.ReplaceOrderRequest) (*ent.Order, error) { ... }
 ```
 
 注册到 `pkg/services/package.go`：
@@ -187,57 +240,44 @@ func translateOrderFilter(expr filter.Expr) (predicate.Order, error) {
 **5. Handler**（`pkg/handlers/order.go`）
 
 ```go
-type OrderHandler struct { order *services.OrderService; auth *services.AuthService }
+type OrderHandler struct {
+    order  *services.OrderService
+    authMW middleware.AuthMiddleware
+}
 
 func NewOrderHandler(i do.Injector) (*OrderHandler, error) { ... }
-func (h *OrderHandler) Routes(g *echo.Group) { ... }
+
+func (h *OrderHandler) Routes(g *echo.Group) {
+    protected := g.Group("/api/v1/orders")
+    protected.Use(echo.MiddlewareFunc(h.authMW))
+
+    protected.POST("",          h.Create)
+    protected.GET("",           h.List)
+    protected.GET("/:order",    h.Get)
+    protected.PUT("/:order",    h.Replace)
+    protected.PATCH("/:order",  h.Patch)
+    protected.DELETE("/:order", h.Delete)
+}
 ```
+
+PATCH handler 直接复用 `pkg/patch` 提供的多协议 dispatch；具体实现见 `pkg/handlers/book.go` 的 `Patch` 方法。
 
 注册到 `pkg/handlers/package.go` 和 `BuildRouter`。
 
-**6. 路由命名规范**（AIP-131/134/135 + Kubernetes 子资源式自定义方法）
+**6. 自定义方法（资源动作）**
 
-路由路径参数以资源类型单数命名，而非 `:id` 或 `:name`；更新使用 `PATCH`（非 `PUT`）。
-自定义方法（动词动作）以 kebab-case 段落形式挂在资源后，HTTP 方法表达动作语义：
-
-```go
-g.POST("",                  h.Create)
-g.GET("",                   h.List)
-g.GET("/:order",            h.Get)
-g.PATCH("/:order",          h.Update)        // AIP-134：必须用 PATCH
-g.DELETE("/:order",         h.Delete)
-
-// 自定义方法（K8s 子资源风格）：动词作为资源后的 path 段
-g.POST("/:order/cancel",    h.Cancel)        // 资源级动作
-g.POST("/:order/refund",    h.Refund)
-g.POST("/batch-get",        h.BatchGet)      // 集合级动作
-```
-
-所有含路径参数的 handler 均通过专属请求结构体绑定，**禁止** `c.Param("order")` 直接调用：
+K8s 子资源风格：动词作为 kebab-case 路径段挂在资源后。
 
 ```go
-// Get / Delete
-var req types.GetOrderRequest   // 或 DeleteOrderRequest
-c.Bind(&req)
-// req.Order 即路径参数值
-
-// Update
-var req types.UpdateOrderRequest
-c.Bind(&req)   // 同时绑定路径参数和 JSON 体（含 update_mask）
-
-// 自定义方法
 type CancelOrderRequest struct {
     Order  string `param:"order"`
     Reason string `json:"reason,omitempty"`
 }
-var req types.CancelOrderRequest
-c.Bind(&req)
+
+protected.POST("/:order/cancel", h.Cancel)
 ```
 
-约束：
-- 多词动词使用 **kebab-case**（`reset-password`、`batch-get`），不要用 camelCase。
-- 幂等状态转移用 `PUT`，非幂等动作用 `POST`，子状态读取用 `GET`。
-- handler 方法名为动词的 PascalCase 形式（`Cancel`、`Refund`、`ResetPassword`）。
+handler 方法名为动词的 PascalCase 形式（`Cancel`、`Refund`、`ResetPassword`）。
 
 **7. 更新 OpenAPI 注解**
 
@@ -272,7 +312,7 @@ oops.Code(codes.OrderNotFound.String()).
 // config/config.go
 type ClientsConfig struct {
     Weather ExternalClientConfig
-    Stripe  ExternalClientConfig  // 新增
+    Stripe  ExternalClientConfig
 }
 ```
 
@@ -314,7 +354,7 @@ func init() {
 ```go
 var Package = do.Package(
     weather.Package,
-    stripe.Package,  // 追加
+    stripe.Package,
 )
 ```
 
@@ -324,7 +364,7 @@ Service 字段类型为 interface，不依赖 `*Client`：
 
 ```go
 type PaymentService struct {
-    stripe stripeapi.API   // interface
+    stripe stripeapi.API
 }
 
 func NewPaymentService(i do.Injector) (*PaymentService, error) {
@@ -340,7 +380,7 @@ func NewPaymentService(i do.Injector) (*PaymentService, error) {
 
 ```bash
 make swag              # 生成 OpenAPI YAML
-cd ent && go generate  # 重新生成 ent ORM 代码
-go test ./...          # 运行测试
-go build ./...         # 编译
+make ent               # 重新生成 ent ORM 代码
+make test              # 运行测试
+make build             # 编译
 ```

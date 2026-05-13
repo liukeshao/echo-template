@@ -36,57 +36,65 @@ func meInternal(err error, op string) error {
 		Wrapf(err, "%s", op)
 }
 
-// UpdateUsername 检查用户名唯一性后更新已登录用户的用户名。
-func (s *MeService) UpdateUsername(ctx context.Context, userID string, req *types.UpdateUsernameRequest) error {
-	exists, err := s.orm.User.Query().
-		Where(
-			user.UsernameEQ(req.Username),
-			user.IDNEQ(userID),
-		).
+// Get 读取当前登录用户的资料（供 PATCH "read-modify-write" 与 GET handler 共用）。
+func (s *MeService) Get(ctx context.Context, userID string) (*ent.User, error) {
+	u, err := s.orm.User.Query().Where(user.IDEQ(userID)).First(ctx)
+	if err != nil {
+		return nil, meInternal(err, "fetching current user")
+	}
+	return u, nil
+}
+
+// Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
+//
+// 唯一性约束：username 与 email 全局唯一（排除当前用户自身），冲突时返回
+// ME_USERNAME_TAKEN / ME_EMAIL_TAKEN，对应 HTTP 409。
+//
+// PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
+// 故 RFC 6902 / 7386 / Shorthand 三种 patch 协议共享同一份服务端校验逻辑。
+func (s *MeService) Replace(ctx context.Context, userID string, req *types.ReplaceMeRequest) (*ent.User, error) {
+	usernameTaken, err := s.orm.User.Query().
+		Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).
 		Exist(ctx)
 	if err != nil {
-		return meInternal(err, "checking username uniqueness")
+		return nil, meInternal(err, "checking username uniqueness")
 	}
-	if exists {
-		return oops.
+	if usernameTaken {
+		return nil, oops.
 			Code(codes.MeUsernameTaken.String()).
 			With(codes.CtxKeyMetadata, map[string]string{"username": req.Username}).
 			Public(fmt.Sprintf("the username %q is already taken", req.Username)).
 			Errorf("username taken: %s", req.Username)
 	}
 
-	if err := s.orm.User.UpdateOneID(userID).SetUsername(req.Username).Exec(ctx); err != nil {
-		return meInternal(err, "updating username")
-	}
-	return nil
-}
-
-// UpdateEmail 检查邮箱唯一性后更新已登录用户的邮箱。
-func (s *MeService) UpdateEmail(ctx context.Context, userID string, req *types.UpdateEmailRequest) error {
-	exists, err := s.orm.User.Query().
-		Where(
-			user.EmailEQ(req.Email),
-			user.IDNEQ(userID),
-		).
+	emailTaken, err := s.orm.User.Query().
+		Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).
 		Exist(ctx)
 	if err != nil {
-		return meInternal(err, "checking email uniqueness")
+		return nil, meInternal(err, "checking email uniqueness")
 	}
-	if exists {
-		return oops.
+	if emailTaken {
+		return nil, oops.
 			Code(codes.MeEmailTaken.String()).
 			With(codes.CtxKeyMetadata, map[string]string{"email": req.Email}).
 			Public(fmt.Sprintf("the email %q is already in use", req.Email)).
 			Errorf("email taken: %s", req.Email)
 	}
 
-	if err := s.orm.User.UpdateOneID(userID).SetEmail(req.Email).Exec(ctx); err != nil {
-		return meInternal(err, "updating email")
+	u, err := s.orm.User.UpdateOneID(userID).
+		SetUsername(req.Username).
+		SetEmail(req.Email).
+		Save(ctx)
+	if err != nil {
+		return nil, meInternal(err, "replacing user profile")
 	}
-	return nil
+	return u, nil
 }
 
-// ChangePassword 修改已登录用户的密码。
+// ChangePassword 修改已登录用户的密码（自定义子资源动作）。
+//
+// 不通过 PUT /me 暴露：密码不出现在 UserInfo 响应中，
+// 且需要校验 old_password 才能轮换，这与"幂等全量替换"语义不兼容。
 func (s *MeService) ChangePassword(ctx context.Context, userID string, req *types.ChangePasswordRequest) error {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).

@@ -1,12 +1,17 @@
 package handlers
 
 import (
+	"encoding/json"
+	"io"
+	"net/http"
+
 	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/ent"
 	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
 	"github.com/liukeshao/echo-template/pkg/middleware"
+	"github.com/liukeshao/echo-template/pkg/patch"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
@@ -25,7 +30,14 @@ func NewBookHandler(i do.Injector) (*BookHandler, error) {
 	}, nil
 }
 
-// Routes 注册路由
+// Routes 注册路由（Kubernetes 风格 CRUD）。
+//
+// 方法语义：
+//   - POST   ：创建（非幂等，服务端可生成 ID）
+//   - GET    ：读取（单资源或集合）
+//   - PUT    ：幂等全量替换；可选字段未提供视为清除
+//   - PATCH  ：partial update；根据 Content-Type 分派 RFC 6902 / 7386 / Shorthand
+//   - DELETE ：删除
 func (h *BookHandler) Routes(g *echo.Group) {
 	protected := g.Group("/api/v1/books")
 	protected.Use(echo.MiddlewareFunc(h.authMW))
@@ -33,7 +45,8 @@ func (h *BookHandler) Routes(g *echo.Group) {
 	protected.POST("", h.Create)
 	protected.GET("", h.List)
 	protected.GET("/:book", h.Get)
-	protected.PATCH("/:book", h.Update)
+	protected.PUT("/:book", h.Replace)
+	protected.PATCH("/:book", h.Patch)
 	protected.DELETE("/:book", h.Delete)
 }
 
@@ -63,7 +76,7 @@ func toBookResponses(books []*ent.Book) []types.BookResponse {
 // Create 创建书籍
 //
 //	@Summary		创建书籍
-//	@Description	AIP-133：book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回 409。
+//	@Description	book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回 409。
 //	@Tags			books
 //	@Security		BearerAuth
 //	@Accept			json
@@ -88,7 +101,7 @@ func (h *BookHandler) Create(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(201, toBookResponse(b))
+	return c.JSON(http.StatusCreated, toBookResponse(b))
 }
 
 // List 获取书籍列表
@@ -126,7 +139,7 @@ func (h *BookHandler) List(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(200, types.ListBooksResponse{
+	return c.JSON(http.StatusOK, types.ListBooksResponse{
 		Books:     toBookResponses(books),
 		Page:      page,
 		PageSize:  limit,
@@ -156,26 +169,26 @@ func (h *BookHandler) Get(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(200, toBookResponse(b))
+	return c.JSON(http.StatusOK, toBookResponse(b))
 }
 
-// Update 更新书籍
+// Replace 替换书籍（幂等全量更新，Kubernetes 风格 PUT）。
 //
-//	@Summary		更新书籍
-//	@Description	AIP-134：支持 update_mask 字段掩码。省略时更新所有已提供字段；["*"] 表示全量替换；指定字段名则仅更新对应字段。
+//	@Summary		替换书籍
+//	@Description	使用请求体中的全部字段替换资源；未提供的可选字段会被清除。响应为更新后的资源。
 //	@Tags			books
 //	@Security		BearerAuth
 //	@Accept			json
 //	@Produce		json
-//	@Param			book	path		string					true	"书籍资源名称（书籍 ULID）"
-//	@Param			body	body		types.UpdateBookRequest	true	"更新信息"
+//	@Param			book	path		string						true	"书籍资源名称（书籍 ULID）"
+//	@Param			body	body		types.ReplaceBookRequest	true	"完整书籍信息"
 //	@Success		200		{object}	types.BookResponse
 //	@Failure		400		{object}	ErrorResponse
 //	@Failure		401		{object}	ErrorResponse
 //	@Failure		404		{object}	ErrorResponse
-//	@Router			/api/v1/books/{book} [patch]
-func (h *BookHandler) Update(c *echo.Context) error {
-	var req types.UpdateBookRequest
+//	@Router			/api/v1/books/{book} [put]
+func (h *BookHandler) Replace(c *echo.Context) error {
+	var req types.ReplaceBookRequest
 	if err := c.Bind(&req); err != nil {
 		return err
 	}
@@ -183,18 +196,85 @@ func (h *BookHandler) Update(c *echo.Context) error {
 		return err
 	}
 
-	b, err := h.book.Update(c.Request().Context(), req.Book, &req)
+	b, err := h.book.Replace(c.Request().Context(), req.Book, &req)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(200, toBookResponse(b))
+	return c.JSON(http.StatusOK, toBookResponse(b))
+}
+
+// Patch 局部更新书籍（多协议 PATCH）。
+//
+// 根据 Content-Type 选择不同 patch 协议；统一通过"GET → apply → Replace"流程落库，
+// 因此 PATCH 与 PUT 共享同一份服务端校验与持久化逻辑。
+//
+//	@Summary		局部更新书籍
+//	@Description	根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902) / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
+//	@Tags			books
+//	@Security		BearerAuth
+//	@Accept			json
+//	@Produce		json
+//	@Param			book			path		string	true	"书籍资源名称（书籍 ULID）"
+//	@Param			Content-Type	header		string	false	"application/json-patch+json | application/merge-patch+json | application/merge-patch+shorthand"
+//	@Param			body			body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
+//	@Success		200				{object}	types.BookResponse
+//	@Failure		400				{object}	ErrorResponse
+//	@Failure		401				{object}	ErrorResponse
+//	@Failure		404				{object}	ErrorResponse
+//	@Router			/api/v1/books/{book} [patch]
+func (h *BookHandler) Patch(c *echo.Context) error {
+	ctx := c.Request().Context()
+
+	// PATCH 不能直接 c.Bind：body 可能是 JSON Patch 数组而不是任何 struct。
+	// 仅绑定路径参数，body 留给 patch.Apply 独占处理。
+	var pathReq types.PatchBookRequest
+	if err := echo.BindPathValues(c, &pathReq); err != nil {
+		return err
+	}
+
+	current, err := h.book.Get(ctx, pathReq.Book)
+	if err != nil {
+		return err
+	}
+
+	currentJSON, err := json.Marshal(toBookResponse(current))
+	if err != nil {
+		return err
+	}
+
+	body, err := io.ReadAll(c.Request().Body)
+	if err != nil {
+		return err
+	}
+
+	patched, err := patch.Apply(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType))
+	if err != nil {
+		return err
+	}
+
+	var req types.ReplaceBookRequest
+	if err := json.Unmarshal(patched, &req); err != nil {
+		return err
+	}
+	// 覆盖 patch 中可能伪造的 path param，路径才是权威。
+	req.Book = pathReq.Book
+	if err := req.Validate(); err != nil {
+		return err
+	}
+
+	b, err := h.book.Replace(ctx, pathReq.Book, &req)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, toBookResponse(b))
 }
 
 // Delete 删除书籍
 //
 //	@Summary		删除书籍
-//	@Description	AIP-135：资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
+//	@Description	资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
 //	@Tags			books
 //	@Security		BearerAuth
 //	@Param			book	path	string	true	"书籍资源名称（书籍 ULID）"
@@ -212,5 +292,5 @@ func (h *BookHandler) Delete(c *echo.Context) error {
 		return err
 	}
 
-	return c.NoContent(204)
+	return c.NoContent(http.StatusNoContent)
 }

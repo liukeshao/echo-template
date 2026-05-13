@@ -117,12 +117,9 @@ definitions:
       username:
         type: string
     type: object
-  types.UpdateBookRequest:
+  types.ReplaceBookRequest:
     properties:
       author:
-        type: string
-      book:
-        description: Book 对应路径参数 {book}，即书籍 ULID。
         type: string
       description:
         type: string
@@ -132,21 +129,11 @@ definitions:
         type: string
       title:
         type: string
-      update_mask:
-        description: |-
-          UpdateMask 字段掩码（可选）。有效字段名：title, author, description, price, published_at。
-          特殊值 * 表示全量替换。
-        items:
-          type: string
-        type: array
     type: object
-  types.UpdateEmailRequest:
+  types.ReplaceMeRequest:
     properties:
       email:
         type: string
-    type: object
-  types.UpdateUsernameRequest:
-    properties:
       username:
         type: string
     type: object
@@ -313,8 +300,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: AIP-133：book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回
-        409。
+      description: book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回 409。
       parameters:
       - description: 书籍信息
         in: body
@@ -348,7 +334,7 @@ paths:
       - books
   /api/v1/books/{book}:
     delete:
-      description: AIP-135：资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
+      description: 资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
       parameters:
       - description: 书籍资源名称（书籍 ULID）
         in: path
@@ -401,19 +387,25 @@ paths:
     patch:
       consumes:
       - application/json
-      description: AIP-134：支持 update_mask 字段掩码。省略时更新所有已提供字段；["*"] 表示全量替换；指定字段名则仅更新对应字段。
+      description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
+        / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
       parameters:
       - description: 书籍资源名称（书籍 ULID）
         in: path
         name: book
         required: true
         type: string
-      - description: 更新信息
+      - description: application/json-patch+json | application/merge-patch+json |
+          application/merge-patch+shorthand
+        in: header
+        name: Content-Type
+        type: string
+      - description: patch 主体（具体格式由 Content-Type 决定）
         in: body
         name: body
         required: true
         schema:
-          $ref: '#/definitions/types.UpdateBookRequest'
+          type: object
       produces:
       - application/json
       responses:
@@ -435,7 +427,47 @@ paths:
             $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
-      summary: 更新书籍
+      summary: 局部更新书籍
+      tags:
+      - books
+    put:
+      consumes:
+      - application/json
+      description: 使用请求体中的全部字段替换资源；未提供的可选字段会被清除。响应为更新后的资源。
+      parameters:
+      - description: 书籍资源名称（书籍 ULID）
+        in: path
+        name: book
+        required: true
+        type: string
+      - description: 完整书籍信息
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.ReplaceBookRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.BookResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 替换书籍
       tags:
       - books
   /api/v1/me:
@@ -456,6 +488,82 @@ paths:
       summary: 获取当前用户信息
       tags:
       - me
+    patch:
+      consumes:
+      - application/json
+      description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
+        / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
+      parameters:
+      - description: application/json-patch+json | application/merge-patch+json |
+          application/merge-patch+shorthand
+        in: header
+        name: Content-Type
+        type: string
+      - description: patch 主体（具体格式由 Content-Type 决定）
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.UserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 局部更新当前用户资料
+      tags:
+      - me
+    put:
+      consumes:
+      - application/json
+      description: 使用请求体中的 username 与 email 覆盖现有资料。username / email 各自全局唯一，冲突时返回 409。
+      parameters:
+      - description: 完整资料
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/types.ReplaceMeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/types.UserInfo'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          description: username / email 已被占用
+          schema:
+            $ref: '#/definitions/handlers.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: 替换当前用户资料
+      tags:
+      - me
   /api/v1/me/change-password:
     post:
       consumes:
@@ -470,11 +578,8 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
+        "204":
+          description: No Content
         "400":
           description: Bad Request
           schema:
@@ -486,70 +591,6 @@ paths:
       security:
       - BearerAuth: []
       summary: 修改密码
-      tags:
-      - me
-  /api/v1/me/email:
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: 新邮箱
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/types.UpdateEmailRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: 更新邮箱
-      tags:
-      - me
-  /api/v1/me/username:
-    put:
-      consumes:
-      - application/json
-      parameters:
-      - description: 新用户名
-        in: body
-        name: body
-        required: true
-        schema:
-          $ref: '#/definitions/types.UpdateUsernameRequest'
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties: true
-            type: object
-        "400":
-          description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
-        "401":
-          description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
-      security:
-      - BearerAuth: []
-      summary: 更新用户名
       tags:
       - me
 securityDefinitions:

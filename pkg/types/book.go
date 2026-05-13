@@ -8,12 +8,12 @@ import (
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// validBookUpdateFieldsList 与 validBookUpdateFields 同步，供错误消息模板复用。
-const validBookUpdateFieldsList = "title, author, description, price, published_at"
-
 // BookResponse 书籍响应 DTO。
 // handler 层将 *ent.Book 映射到此类型后返回，
 // 确保响应结构与存储层解耦，不会泄漏 deleted_at 等内部字段。
+//
+// 该结构同时作为 PATCH "read-modify-write" 的中间 JSON 表示：
+// PATCH handler 会先 GET 资源、序列化为该结构、应用 patch、再反序列化为 ReplaceBookRequest 写回。
 type BookResponse struct {
 	ID          string     `json:"id"`
 	Title       string     `json:"title"`
@@ -25,7 +25,7 @@ type BookResponse struct {
 	UpdatedAt   time.Time  `json:"updated_at"`
 }
 
-// CreateBookRequest 创建书籍请求（AIP-133）。
+// CreateBookRequest 创建书籍请求。
 //
 // book_id 为可选字段，若提供则用作资源的最终 ID（必须为合法 ULID 格式）；
 // 若省略则由服务端自动生成。若指定的 book_id 已存在，服务返回 ALREADY_EXISTS 错误。
@@ -45,19 +45,7 @@ func (r *CreateBookRequest) Validate() error {
 	if r.BookID != "" && !utils.IsValidULID(r.BookID) {
 		v.Add("book_id", validator.KeyULID, map[string]string{"field": "book_id"})
 	}
-	if strings.TrimSpace(r.Title) == "" {
-		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
-	} else if len(r.Title) > 200 {
-		v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
-	}
-	if strings.TrimSpace(r.Author) == "" {
-		v.Add("author", validator.KeyRequired, map[string]string{"field": "author"})
-	} else if len(r.Author) > 100 {
-		v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
-	}
-	if r.Price < 0 {
-		v.Add("price", validator.KeyNonNegative, map[string]string{"field": "price"})
-	}
+	validateBookWritableFields(&v, r.Title, r.Author, r.Price)
 	return v.Err()
 }
 
@@ -67,10 +55,20 @@ type GetBookRequest struct {
 	Book string `param:"book"`
 }
 
-// DeleteBookRequest 删除书籍请求（AIP-135）。
+// DeleteBookRequest 删除书籍请求。
 // Book 对应路径参数 {book}，即书籍的 ULID。
 // 响应为空（HTTP 204）；资源不存在时返回 NOT_FOUND。
 type DeleteBookRequest struct {
+	Book string `param:"book"`
+}
+
+// PatchBookRequest 仅用于 PATCH handler 在不解析 body 的情况下取出路径参数。
+//
+// 之所以单独定义而不复用 GetBookRequest：
+//   - 语义上 PATCH 与 GET 不同；类型独立利于后续按需扩展（例如 strategic-merge 标签开关）
+//   - PATCH 的 body 形态由 Content-Type 决定（可能是 JSON Patch 数组，无法套到任何 struct），
+//     因此 handler 需要使用 echo.BindPathValues 而非全量 c.Bind，保留 body 给 patch.Apply 独占处理。
+type PatchBookRequest struct {
 	Book string `param:"book"`
 }
 
@@ -113,87 +111,46 @@ type ListBooksResponse struct {
 	TotalSize int32          `json:"total_size"`
 }
 
-// validBookUpdateFields 是 update_mask 中合法的字段名集合（对应资源字段，非请求字段）。
-var validBookUpdateFields = map[string]struct{}{
-	"title": {}, "author": {}, "description": {}, "price": {}, "published_at": {},
-}
-
-// UpdateBookRequest 更新书籍请求（AIP-134）。
+// ReplaceBookRequest 替换（PUT）书籍请求 —— Kubernetes 风格的幂等全量更新。
 //
-// update_mask 控制哪些字段被更新：
-//   - 省略（空）→ 更新请求体中所有已设置的字段（非 nil）
-//   - ["*"] → 全量替换；title/author 必填，可选字段若未提供则被清除
-//   - ["title","price",...] → 仅更新 mask 中列出的字段；
-//     可选字段在 mask 中但请求体中为 nil 时，将被清除
-type UpdateBookRequest struct {
+// 语义：请求体描述资源期望的完整状态，所有可选字段若未提供将被清除。
+// PATCH handler 在应用 RFC 6902 / 7386 / Shorthand patch 后，
+// 会将合并结果反序列化到本结构再调用 service.Replace。
+//
+// 该结构故意不包含 id / created_at / updated_at —— 这些是只读字段，
+// 即便客户端在 PATCH 中尝试修改也会被这里的 JSON 反序列化直接忽略。
+type ReplaceBookRequest struct {
 	// Book 对应路径参数 {book}，即书籍 ULID。
-	Book string `param:"book"`
-	// UpdateMask 字段掩码（可选）。有效字段名：title, author, description, price, published_at。
-	// 特殊值 * 表示全量替换。
-	UpdateMask  []string   `json:"update_mask,omitempty"`
-	Title       *string    `json:"title,omitempty"`
-	Author      *string    `json:"author,omitempty"`
-	Description *string    `json:"description,omitempty"`
-	Price       *float64   `json:"price,omitempty"`
+	// PATCH handler 在应用补丁后会显式覆写该字段；PUT handler 通过 echo.Bind 注入。
+	Book string `param:"book" json:"-"`
+
+	Title       string     `json:"title"`
+	Author      string     `json:"author"`
+	Description string     `json:"description,omitempty"`
+	Price       float64    `json:"price,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
-func (r *UpdateBookRequest) Validate() error {
+func (r *ReplaceBookRequest) Validate() error {
 	var v validator.FieldViolations
+	validateBookWritableFields(&v, r.Title, r.Author, r.Price)
+	return v.Err()
+}
 
-	// 校验 update_mask 中的字段名是否合法
-	hasWildcard := false
-	for _, f := range r.UpdateMask {
-		if f == "*" {
-			hasWildcard = true
-			continue
-		}
-		if _, ok := validBookUpdateFields[f]; !ok {
-			v.Add("update_mask", validator.KeyUnknownField, map[string]string{
-				"field":   f,
-				"allowed": validBookUpdateFieldsList,
-			})
-		}
+// validateBookWritableFields 集中处理 title / author / price 的字段级校验，
+// 在 Create 与 Replace 两条路径上共享，避免规则发散。
+func validateBookWritableFields(v *validator.FieldViolations, title, author string, price float64) {
+	if strings.TrimSpace(title) == "" {
+		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
+	} else if len(title) > 200 {
+		v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
 	}
-	if err := v.Err(); err != nil {
-		return err
+	if strings.TrimSpace(author) == "" {
+		v.Add("author", validator.KeyRequired, map[string]string{"field": "author"})
+	} else if len(author) > 100 {
+		v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
 	}
-
-	// mask 省略时，至少需要提供一个字段
-	if len(r.UpdateMask) == 0 {
-		if r.Title == nil && r.Author == nil && r.Description == nil && r.Price == nil && r.PublishedAt == nil {
-			v.Add("", validator.KeyAtLeastOne, nil)
-			return v.Err()
-		}
-	}
-
-	// mask=* 全量替换时，必填字段不能缺失
-	if hasWildcard {
-		if r.Title == nil {
-			v.Add("title", validator.KeyRequiredForReplace, map[string]string{"field": "title"})
-		}
-		if r.Author == nil {
-			v.Add("author", validator.KeyRequiredForReplace, map[string]string{"field": "author"})
-		}
-	}
-
-	// 校验请求体中已提供的字段值
-	if r.Title != nil {
-		if strings.TrimSpace(*r.Title) == "" {
-			v.Add("title", validator.KeyNotBlank, map[string]string{"field": "title"})
-		} else if len(*r.Title) > 200 {
-			v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
-		}
-	}
-	if r.Author != nil {
-		if strings.TrimSpace(*r.Author) == "" {
-			v.Add("author", validator.KeyNotBlank, map[string]string{"field": "author"})
-		} else if len(*r.Author) > 100 {
-			v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
-		}
-	}
-	if r.Price != nil && *r.Price < 0 {
+	if price < 0 {
 		v.Add("price", validator.KeyNonNegative, map[string]string{"field": "price"})
 	}
-	return v.Err()
 }

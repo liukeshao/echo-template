@@ -10,20 +10,16 @@ import (
 //
 // 与 pkg/i18n/messages/*.toml 中 [validation] section 的键一一对应。
 const (
-	KeyRequired           = "validation.required"
-	KeyMinLength          = "validation.min_length"
-	KeyMaxLength          = "validation.max_length"
-	KeyLengthRange        = "validation.length_range"
-	KeyCharset            = "validation.charset"
-	KeyEmail              = "validation.email"
-	KeyPasswordWeak       = "validation.password_weak"
-	KeyNonNegative        = "validation.non_negative"
-	KeyMustDiffer         = "validation.must_differ"
-	KeyULID               = "validation.ulid"
-	KeyUnknownField       = "validation.unknown_field"
-	KeyAtLeastOne         = "validation.at_least_one"
-	KeyRequiredForReplace = "validation.required_for_replace"
-	KeyNotBlank           = "validation.not_blank"
+	KeyRequired     = "validation.required"
+	KeyMinLength    = "validation.min_length"
+	KeyMaxLength    = "validation.max_length"
+	KeyLengthRange  = "validation.length_range"
+	KeyCharset      = "validation.charset"
+	KeyEmail        = "validation.email"
+	KeyPasswordWeak = "validation.password_weak"
+	KeyNonNegative  = "validation.non_negative"
+	KeyMustDiffer   = "validation.must_differ"
+	KeyULID         = "validation.ulid"
 )
 
 // --- 原子级规则（供外部直接判断） ---

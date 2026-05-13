@@ -177,14 +177,16 @@ func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.B
 	return books, int32(total), nil
 }
 
-// Update 更新书籍（AIP-134）。
+// Replace 全量替换书籍 —— Kubernetes 风格的幂等 PUT 语义。
 //
-// field mask 语义：
-//   - req.UpdateMask 为空 → 更新请求体中所有非 nil 字段
-//   - req.UpdateMask == ["*"] → 全量替换：必填字段设置，可选字段未提供则清除
-//   - req.UpdateMask 含具体字段名 → 仅更新 mask 中列出的字段；
-//     可选字段在 mask 中但请求体为 nil 时被清除
-func (s *BookService) Update(ctx context.Context, id string, req *types.UpdateBookRequest) (*ent.Book, error) {
+// 行为：
+//   - 必填字段（title / author）直接 Set
+//   - 可选字段（description / price / published_at）有则 Set，无则 Clear
+//   - id / created_at 不会被覆盖；updated_at 由 ent hook 自动刷新
+//
+// PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
+// 因此 patch 的所有协议（RFC 6902 / 7386 / Shorthand）最终统一落到这一处幂等写入。
+func (s *BookService) Replace(ctx context.Context, id string, req *types.ReplaceBookRequest) (*ent.Book, error) {
 	_, err := s.orm.Book.Query().
 		Where(book.IDEQ(id)).
 		First(ctx)
@@ -193,100 +195,34 @@ func (s *BookService) Update(ctx context.Context, id string, req *types.UpdateBo
 	case ent.IsNotFound(err):
 		return nil, bookNotFound(id)
 	default:
-		return nil, bookDB(err, "getting book for update", id)
+		return nil, bookDB(err, "getting book for replace", id)
 	}
 
-	q := s.orm.Book.UpdateOneID(id)
-	applyBookUpdateMask(q, req)
+	q := s.orm.Book.UpdateOneID(id).
+		SetTitle(req.Title).
+		SetAuthor(req.Author)
+
+	if strings.TrimSpace(req.Description) != "" {
+		q.SetDescription(req.Description)
+	} else {
+		q.ClearDescription()
+	}
+	if req.Price != 0 {
+		q.SetPrice(req.Price)
+	} else {
+		q.ClearPrice()
+	}
+	if req.PublishedAt != nil {
+		q.SetPublishedAt(*req.PublishedAt)
+	} else {
+		q.ClearPublishedAt()
+	}
 
 	b, err := q.Save(ctx)
 	if err != nil {
-		return nil, bookDB(err, "updating book", id)
+		return nil, bookDB(err, "replacing book", id)
 	}
 	return b, nil
-}
-
-// applyBookUpdateMask 根据 update_mask 将 req 中的字段变更应用到 ent 更新构造器（AIP-134）。
-func applyBookUpdateMask(q *ent.BookUpdateOne, req *types.UpdateBookRequest) {
-	mask := req.UpdateMask
-
-	// mask 省略：更新所有已填充（非 nil）的字段
-	if len(mask) == 0 {
-		if req.Title != nil {
-			q.SetTitle(*req.Title)
-		}
-		if req.Author != nil {
-			q.SetAuthor(*req.Author)
-		}
-		if req.Description != nil {
-			q.SetDescription(*req.Description)
-		}
-		if req.Price != nil {
-			q.SetPrice(*req.Price)
-		}
-		if req.PublishedAt != nil {
-			q.SetPublishedAt(*req.PublishedAt)
-		}
-		return
-	}
-
-	// mask=* 全量替换：必填字段直接设置，可选字段未提供则清除
-	for _, f := range mask {
-		if f == "*" {
-			q.SetTitle(*req.Title)   // Validate() 已保证非 nil
-			q.SetAuthor(*req.Author) // Validate() 已保证非 nil
-			if req.Description != nil {
-				q.SetDescription(*req.Description)
-			} else {
-				q.ClearDescription()
-			}
-			if req.Price != nil {
-				q.SetPrice(*req.Price)
-			} else {
-				q.ClearPrice()
-			}
-			if req.PublishedAt != nil {
-				q.SetPublishedAt(*req.PublishedAt)
-			} else {
-				q.ClearPublishedAt()
-			}
-			return
-		}
-	}
-
-	// 具体字段 mask：仅操作 mask 中列出的字段
-	maskSet := make(map[string]struct{}, len(mask))
-	for _, f := range mask {
-		maskSet[f] = struct{}{}
-	}
-
-	if _, ok := maskSet["title"]; ok && req.Title != nil {
-		q.SetTitle(*req.Title)
-	}
-	if _, ok := maskSet["author"]; ok && req.Author != nil {
-		q.SetAuthor(*req.Author)
-	}
-	if _, ok := maskSet["description"]; ok {
-		if req.Description != nil {
-			q.SetDescription(*req.Description)
-		} else {
-			q.ClearDescription()
-		}
-	}
-	if _, ok := maskSet["price"]; ok {
-		if req.Price != nil {
-			q.SetPrice(*req.Price)
-		} else {
-			q.ClearPrice()
-		}
-	}
-	if _, ok := maskSet["published_at"]; ok {
-		if req.PublishedAt != nil {
-			q.SetPublishedAt(*req.PublishedAt)
-		} else {
-			q.ClearPublishedAt()
-		}
-	}
 }
 
 // Delete 删除书籍

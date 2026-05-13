@@ -1,0 +1,90 @@
+### 用户登录（获取 access_token）
+POST {{baseUrl}}/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "{{testUser.email}}",
+  "password": "{{testUser.password}}"
+}
+
+> {%
+    client.test("Login successful", function() {
+        client.assert(response.status === 200, "Expected status 200");
+    });
+    client.global.set("accessToken", response.body.data.access_token);
+%}
+
+### 创建书籍（POST）
+POST {{baseUrl}}/api/v1/books
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "The Go Programming Language",
+  "author": "Donovan & Kernighan",
+  "description": "Classic.",
+  "price": 49.99
+}
+
+> {%
+    client.test("Created", function() {
+        client.assert(response.status === 201, "Expected status 201");
+    });
+    client.global.set("bookId", response.body.id);
+%}
+
+### 列出书籍（GET）
+GET {{baseUrl}}/api/v1/books?page=1&page_size=10&order_by=created_at desc
+Authorization: Bearer {{accessToken}}
+
+
+### 获取单本书籍（GET）
+GET {{baseUrl}}/api/v1/books/{{bookId}}
+Authorization: Bearer {{accessToken}}
+
+
+### 全量替换（PUT）—— 未提供的可选字段会被清除
+PUT {{baseUrl}}/api/v1/books/{{bookId}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "title": "The Go Programming Language (2nd ed.)",
+  "author": "Donovan & Kernighan",
+  "price": 59.99
+}
+
+
+### 局部更新（RFC 7386 JSON Merge Patch）—— null 表示删除该字段
+PATCH {{baseUrl}}/api/v1/books/{{bookId}}
+Content-Type: application/merge-patch+json
+Authorization: Bearer {{accessToken}}
+
+{
+  "price": 55,
+  "description": null
+}
+
+
+### 局部更新（RFC 6902 JSON Patch）
+PATCH {{baseUrl}}/api/v1/books/{{bookId}}
+Content-Type: application/json-patch+json
+Authorization: Bearer {{accessToken}}
+
+[
+  { "op": "replace", "path": "/title", "value": "Patched via JSON Patch" },
+  { "op": "replace", "path": "/price", "value": 42.0 }
+]
+
+
+### 局部更新（Shorthand）—— 紧凑语法，无需 JSON 包装
+PATCH {{baseUrl}}/api/v1/books/{{bookId}}
+Content-Type: application/merge-patch+shorthand
+Authorization: Bearer {{accessToken}}
+
+title: "Shorthand patched", price: 33.5
+
+
+### 删除（DELETE）
+DELETE {{baseUrl}}/api/v1/books/{{bookId}}
+Authorization: Bearer {{accessToken}}
