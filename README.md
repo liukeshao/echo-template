@@ -15,7 +15,7 @@
 | ID 生成 | ULID |
 | 配置管理 | Viper（TOML + 环境变量）|
 | 外部 API 客户端 | 接口隔离 + 共享 HTTP 传输 + 线性退避重试 |
-| API 风格 | AIP-131 Get · AIP-132 List（分页/排序/过滤）· AIP-133 Create · AIP-134 Update · AIP-135 Delete · AIP-160 Filter |
+| API 风格 | AIP-131 Get · AIP-132 List（分页/排序/过滤）· AIP-133 Create · AIP-134 Update · AIP-135 Delete · AIP-160 Filter · 自定义方法采用 Kubernetes 子资源式 `/:resource/<verb>` |
 | API 文档 | Swaggo → OpenAPI YAML → Stoplight Elements |
 
 ## 项目结构
@@ -195,16 +195,22 @@ func (h *OrderHandler) Routes(g *echo.Group) { ... }
 
 注册到 `pkg/handlers/package.go` 和 `BuildRouter`。
 
-**6. 路由命名规范**（AIP-131/134/135）
+**6. 路由命名规范**（AIP-131/134/135 + Kubernetes 子资源式自定义方法）
 
-路由路径参数以资源类型单数命名，而非 `:id` 或 `:name`；更新使用 `PATCH`（非 `PUT`）：
+路由路径参数以资源类型单数命名，而非 `:id` 或 `:name`；更新使用 `PATCH`（非 `PUT`）。
+自定义方法（动词动作）以 kebab-case 段落形式挂在资源后，HTTP 方法表达动作语义：
 
 ```go
-g.POST("",         h.Create)
-g.GET("",          h.List)
-g.GET("/:order",   h.Get)
-g.PATCH("/:order", h.Update)   // AIP-134：必须用 PATCH
-g.DELETE("/:order", h.Delete)
+g.POST("",                  h.Create)
+g.GET("",                   h.List)
+g.GET("/:order",            h.Get)
+g.PATCH("/:order",          h.Update)        // AIP-134：必须用 PATCH
+g.DELETE("/:order",         h.Delete)
+
+// 自定义方法（K8s 子资源风格）：动词作为资源后的 path 段
+g.POST("/:order/cancel",    h.Cancel)        // 资源级动作
+g.POST("/:order/refund",    h.Refund)
+g.POST("/batch-get",        h.BatchGet)      // 集合级动作
 ```
 
 所有含路径参数的 handler 均通过专属请求结构体绑定，**禁止** `c.Param("order")` 直接调用：
@@ -218,7 +224,20 @@ c.Bind(&req)
 // Update
 var req types.UpdateOrderRequest
 c.Bind(&req)   // 同时绑定路径参数和 JSON 体（含 update_mask）
+
+// 自定义方法
+type CancelOrderRequest struct {
+    Order  string `param:"order"`
+    Reason string `json:"reason,omitempty"`
+}
+var req types.CancelOrderRequest
+c.Bind(&req)
 ```
+
+约束：
+- 多词动词使用 **kebab-case**（`reset-password`、`batch-get`），不要用 camelCase。
+- 幂等状态转移用 `PUT`，非幂等动作用 `POST`，子状态读取用 `GET`。
+- handler 方法名为动词的 PascalCase 形式（`Cancel`、`Refund`、`ResetPassword`）。
 
 **7. 更新 OpenAPI 注解**
 
