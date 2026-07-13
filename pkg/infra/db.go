@@ -3,6 +3,7 @@ package infra
 import (
 	"database/sql"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/samber/do/v2"
@@ -28,14 +29,30 @@ func NewDB(i do.Injector) (*DB, error) {
 }
 
 func openDB(driver, connection string) (*sql.DB, error) {
-	if driver == "sqlite3" {
-		parts := strings.Split(connection, "/")
-		if len(parts) > 1 {
-			dir := strings.Join(parts[:len(parts)-1], "/")
-			if err := os.MkdirAll(dir, 0755); err != nil {
-				return nil, err
-			}
+	if isSQLiteDriver(driver) {
+		if err := ensureSQLiteDir(connection); err != nil {
+			return nil, err
 		}
 	}
 	return sql.Open(driver, connection)
+}
+
+func isSQLiteDriver(driver string) bool {
+	return driver == "sqlite" || driver == "sqlite3"
+}
+
+func ensureSQLiteDir(connection string) error {
+	path := connection
+	if i := strings.IndexRune(path, '?'); i >= 0 {
+		path = path[:i]
+	}
+	path = strings.TrimPrefix(path, "file:")
+	if path == "" || path == ":memory:" {
+		return nil
+	}
+	dir := filepath.Dir(path)
+	if dir == "." || dir == "" {
+		return nil
+	}
+	return os.MkdirAll(dir, 0755)
 }

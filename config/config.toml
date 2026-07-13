@@ -21,8 +21,8 @@ refreshTokenExpiry = "168h" # Refresh token 过期时间 (7天)
 issuer = "echo-template"    # Token发行者
 
 [database]
-driver = "sqlite3"
-connection = "dbs/main.db?_journal=WAL&_timeout=5000&_fk=true"
+driver = "sqlite"
+connection = "dbs/main.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
 
 # Third-party API clients.
 # Each sub-table corresponds to a field in config.ClientsConfig.

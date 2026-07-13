@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 
+	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
 	"github.com/samber/do/v2"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 
 	_ "github.com/liukeshao/echo-template/ent/runtime"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // ORM wraps *ent.Client and implements do.Shutdowner so the DI
@@ -27,11 +28,18 @@ func NewORM(i do.Injector) (*ORM, error) {
 	db := do.MustInvoke[*DB](i)
 	cfg := do.MustInvoke[*config.Config](i)
 
-	drv := entsql.OpenDB(cfg.Database.Driver, db.DB)
+	drv := entsql.OpenDB(entDialect(cfg.Database.Driver), db.DB)
 	client := ent.NewClient(ent.Driver(drv))
 
 	if err := client.Schema.Create(context.Background()); err != nil {
 		return nil, err
 	}
 	return &ORM{client}, nil
+}
+
+func entDialect(driver string) string {
+	if driver == "sqlite" {
+		return dialect.SQLite
+	}
+	return driver
 }
