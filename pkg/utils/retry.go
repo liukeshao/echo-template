@@ -54,8 +54,7 @@ func Retry(ctx context.Context, maxAttempts int, fn func() error) error {
 		if err == nil {
 			return nil
 		}
-		var perm *permanentError
-		if errors.As(err, &perm) {
+		if perm, ok := errors.AsType[*permanentError](err); ok {
 			return perm.err
 		}
 	}

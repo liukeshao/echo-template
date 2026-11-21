@@ -113,14 +113,12 @@ func (s *AuthService) generateToken(userID string, tokenType token.Type) (string
 	claims := &types.JWTClaims{
 		UserID:    userID,
 		TokenType: string(tokenType),
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        utils.GenerateULID(),
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			Issuer:    s.jwtConfig.Issuer,
-			Subject:   userID,
-		},
+		ID:        utils.GenerateULID(),
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		IssuedAt:  jwt.NewNumericDate(now),
+		NotBefore: jwt.NewNumericDate(now),
+		Issuer:    s.jwtConfig.Issuer,
+		Subject:   userID,
 	}
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

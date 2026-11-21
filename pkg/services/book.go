@@ -245,7 +245,7 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		opts []book.OrderOption
 		v    validator.FieldViolations
 	)
-	for _, part := range strings.Split(orderBy, ",") {
+	for part := range strings.SplitSeq(orderBy, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			continue

@@ -435,7 +435,8 @@ func (p *parser) parseRestriction() (Expr, error) {
 		return nil, fmt.Errorf("position %d: unexpected keyword %q where field name expected", t.pos, t.raw)
 	}
 	p.consume()
-	field := t.raw
+	var field strings.Builder
+	field.WriteString(t.raw)
 
 	// Dotted traversal: field = IDENT ( "." IDENT )*
 	for p.peek().kind == kDot {
@@ -445,20 +446,20 @@ func (p *parser) parseRestriction() (Expr, error) {
 			return nil, fmt.Errorf("position %d: expected field name after '.', got %q", next.pos, next.raw)
 		}
 		p.consume()
-		field += "." + next.raw
+		field.WriteString("." + next.raw)
 	}
 
 	op, err := p.parseOp()
 	if err != nil {
-		return nil, fmt.Errorf("field %q: %w", field, err)
+		return nil, fmt.Errorf("field %q: %w", field.String(), err)
 	}
 
 	val, err := p.parseValue()
 	if err != nil {
-		return nil, fmt.Errorf("field %q: %w", field, err)
+		return nil, fmt.Errorf("field %q: %w", field.String(), err)
 	}
 
-	return &RestrictionExpr{Field: field, Op: op, Value: val}, nil
+	return &RestrictionExpr{Field: field.String(), Op: op, Value: val}, nil
 }
 
 func (p *parser) parseOp() (Op, error) {

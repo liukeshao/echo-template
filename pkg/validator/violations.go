@@ -10,6 +10,7 @@ package validator
 
 import (
 	"fmt"
+	"maps"
 	"strings"
 )
 
@@ -40,9 +41,7 @@ func (v *FieldViolations) Add(field, key string, vars map[string]string) *FieldV
 	var copied map[string]string
 	if len(vars) > 0 {
 		copied = make(map[string]string, len(vars))
-		for k, vv := range vars {
-			copied[k] = vv
-		}
+		maps.Copy(copied, vars)
 	}
 	v.items = append(v.items, Violation{
 		Field: field,

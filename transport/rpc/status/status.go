@@ -63,8 +63,7 @@ func (s *Status) Error() string {
 
 // As 判断 err 是否（或其链中）包含 *Status，等同于 errors.As。
 func As(err error) (*Status, bool) {
-	var s *Status
-	if errors.As(err, &s) {
+	if s, ok := errors.AsType[*Status](err); ok {
 		return s, true
 	}
 	return nil, false
