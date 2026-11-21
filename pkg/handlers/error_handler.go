@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/labstack/echo/v5"
-	"github.com/samber/do/v2"
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
 
@@ -51,7 +50,6 @@ type ErrorBody struct {
 	// AIP-193 typed detail payloads. The "@type" field discriminates the entry:
 	//   - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
 	//   - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
-	//   - type.googleapis.com/google.rpc.Help             — documentation links (see errdetails.Help)
 	//   - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
 	//   - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
 	Details []any `json:"details,omitempty" swaggertype:"array,object"`
@@ -82,7 +80,7 @@ func handleError(c *echo.Context, err error, t i18n.Translator) {
 	ctx := c.Request().Context()
 	loc := appctx.LocaleFromContext(ctx, t.Default())
 
-	s := classify(ctx, err, t, loc)
+	s := classify(err, t, loc)
 	s = ensureErrorInfo(s)
 	s = ensureLocalizedMessage(s, t, loc)
 
@@ -100,7 +98,7 @@ func handleError(c *echo.Context, err error, t i18n.Translator) {
 		},
 	}
 
-	if r, ok := c.Response().(*echo.Response); ok && r.Committed {
+	if r, unwrapErr := echo.UnwrapResponse(c.Response()); unwrapErr == nil && r.Committed {
 		return
 	}
 	if writeErr := c.JSON(httpCode, resp); writeErr != nil {
@@ -109,23 +107,20 @@ func handleError(c *echo.Context, err error, t i18n.Translator) {
 }
 
 // classify maps any error to a canonical *rpcstatus.Status.
-func classify(_ context.Context, err error, t i18n.Translator, loc language.Tag) *rpcstatus.Status {
+func classify(err error, t i18n.Translator, loc language.Tag) *rpcstatus.Status {
 	if s, ok := rpcstatus.As(err); ok {
 		return s
 	}
 	if oopsErr, ok := errors.AsType[oops.OopsError](err); ok {
 		if codeStr, _ := oopsErr.Code().(string); codeStr != "" {
-			return classifyOops(oopsErr, codeStr, t, loc)
+			return classifyOops(oopsErr, codeStr)
 		}
 	}
 	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok {
 		return classifyFieldViolations(fv, t, loc)
 	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return rpcstatus.New(codes.DeadlineExceeded, "request deadline exceeded")
-	}
-	if errors.Is(err, context.Canceled) {
-		return rpcstatus.New(codes.Canceled, "request was canceled")
+	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+		return rpcstatus.FromContextError(err)
 	}
 	// echo v5 has two error types: exported *HTTPError (NewHTTPError) and unexported
 	// *httpError (ErrNotFound, ErrUnauthorized, etc.). Both implement HTTPStatusCoder,
@@ -198,7 +193,7 @@ func classifyFieldViolations(fv *validator.FieldViolations, t i18n.Translator, l
 //  3. generic "an internal server error occurred" — always used for Internal/Unknown
 //
 // 本地化消息通过 ensureLocalizedMessage 附加到 details，不替换 error.message。
-func classifyOops(oopsErr oops.OopsError, codeStr string, _ i18n.Translator, _ language.Tag) *rpcstatus.Status {
+func classifyOops(oopsErr oops.OopsError, codeStr string) *rpcstatus.Status {
 	rpcCode := appcodes.Lookup(appcodes.Code(codeStr))
 
 	msg := oops.GetPublic(oopsErr, "")
@@ -221,6 +216,9 @@ func classifyOops(oopsErr oops.OopsError, codeStr string, _ i18n.Translator, _ l
 
 	details := []any{errorInfo}
 	if ri, ok := oopsErr.Context()[appcodes.CtxKeyResourceInfo].(errdetails.ResourceInfo); ok {
+		if ri.Type == "" {
+			ri.Type = errdetails.TypeResourceInfo
+		}
 		details = append(details, ri)
 	}
 
@@ -280,9 +278,4 @@ func ensureLocalizedMessage(s *rpcstatus.Status, t i18n.Translator, loc language
 		Locale:  used.String(),
 		Message: text,
 	})
-}
-
-// resolveTranslator 仅用于简化 router 中的注入调用。
-func resolveTranslator(i do.Injector) i18n.Translator {
-	return do.MustInvoke[i18n.Translator](i)
 }

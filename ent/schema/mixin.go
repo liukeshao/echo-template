@@ -12,7 +12,6 @@ import (
 	"entgo.io/ent/schema/mixin"
 
 	gen "github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/ent/hook"
 	"github.com/liukeshao/echo-template/ent/intercept"
 )
 
@@ -101,33 +100,40 @@ func (d SoftDeleteMixin) Interceptors() []ent.Interceptor {
 	}
 }
 
-// Hooks 钩子 - 将删除操作转换为更新操作
+// Hooks 钩子：
+//   - 将 Delete / DeleteOne 转换为设置 deleted_at 的逻辑删除更新。
+//   - 为 Update / UpdateOne 自动附加 deleted_at = 0 条件，防止误修改已逻辑删除的记录。
 func (d SoftDeleteMixin) Hooks() []ent.Hook {
 	return []ent.Hook{
-		hook.On(
-			func(next ent.Mutator) ent.Mutator {
-				return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-					// Skip soft-delete, means delete the entity permanently.
-					if skip, _ := ctx.Value(softDeleteKey{}).(bool); skip {
-						return next.Mutate(ctx, m)
-					}
+		func(next ent.Mutator) ent.Mutator {
+			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
+				// Skip soft-delete: allow permanent deletion or updating soft-deleted rows.
+				if skip, _ := ctx.Value(softDeleteKey{}).(bool); skip {
+					return next.Mutate(ctx, m)
+				}
+				switch {
+				case m.Op().Is(ent.OpDeleteOne | ent.OpDelete):
 					mx, ok := m.(interface {
 						SetOp(ent.Op)
 						Client() *gen.Client
-						SetDeleteTime(int64)
+						SetDeletedAt(int64)
 						WhereP(...func(*sql.Selector))
 					})
 					if !ok {
 						return nil, fmt.Errorf("unexpected mutation type %T", m)
 					}
-					d.P(mx)
 					mx.SetOp(ent.OpUpdate)
-					mx.SetDeleteTime(time.Now().UnixMilli())
+					mx.SetDeletedAt(time.Now().UnixMilli())
 					return mx.Client().Mutate(ctx, m)
-				})
-			},
-			ent.OpDeleteOne|ent.OpDelete,
-		),
+
+				case m.Op().Is(ent.OpUpdate | ent.OpUpdateOne):
+					if mx, ok := m.(interface{ WhereP(...func(*sql.Selector)) }); ok {
+						d.P(mx)
+					}
+				}
+				return next.Mutate(ctx, m)
+			})
+		},
 	}
 }
 

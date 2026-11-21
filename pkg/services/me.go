@@ -9,6 +9,7 @@ import (
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/infra"
@@ -34,15 +35,6 @@ func meInternal(err error, op string) error {
 		Code(codes.MeInternal.String()).
 		Tags("me").
 		Wrapf(err, "%s", op)
-}
-
-// Get 读取当前登录用户的资料（供 PATCH "read-modify-write" 与 GET handler 共用）。
-func (s *MeService) Get(ctx context.Context, userID string) (*ent.User, error) {
-	u, err := s.orm.User.Query().Where(user.IDEQ(userID)).First(ctx)
-	if err != nil {
-		return nil, meInternal(err, "fetching current user")
-	}
-	return u, nil
 }
 
 // Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
@@ -86,6 +78,22 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 		SetEmail(req.Email).
 		Save(ctx)
 	if err != nil {
+		if ent.IsConstraintError(err) {
+			if taken, checkErr := s.orm.User.Query().Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
+				return nil, oops.
+					Code(codes.MeUsernameTaken.String()).
+					With(codes.CtxKeyMetadata, map[string]string{"username": req.Username}).
+					Public(fmt.Sprintf("the username %q is already taken", req.Username)).
+					Errorf("username taken: %s", req.Username)
+			}
+			if taken, checkErr := s.orm.User.Query().Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
+				return nil, oops.
+					Code(codes.MeEmailTaken.String()).
+					With(codes.CtxKeyMetadata, map[string]string{"email": req.Email}).
+					Public(fmt.Sprintf("the email %q is already in use", req.Email)).
+					Errorf("email taken: %s", req.Email)
+			}
+		}
 		return nil, meInternal(err, "replacing user profile")
 	}
 	return u, nil
@@ -95,7 +103,8 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 //
 // 不通过 PUT /me 暴露：密码不出现在 UserInfo 响应中，
 // 且需要校验 old_password 才能轮换，这与"幂等全量替换"语义不兼容。
-func (s *MeService) ChangePassword(ctx context.Context, userID string, req *types.ChangePasswordRequest) error {
+// 修改成功后在同一事务内撤销该用户所有活跃令牌，迫使所有会话使用新密码重新认证。
+func (s *MeService) ChangePassword(ctx context.Context, userID string, req *types.ChangePasswordRequest) (err error) {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
 		First(ctx)
@@ -116,8 +125,29 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, req *type
 		return meInternal(err, "hashing new password")
 	}
 
-	if err := s.orm.User.UpdateOneID(userID).SetPasswordHash(newHash).Exec(ctx); err != nil {
+	tx, err := s.orm.Tx(ctx)
+	if err != nil {
+		return meInternal(err, "beginning password change transaction")
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	if err = tx.User.UpdateOneID(userID).SetPasswordHash(newHash).Exec(ctx); err != nil {
 		return meInternal(err, "updating password")
+	}
+
+	if _, err = tx.Token.Update().
+		Where(token.UserID(userID), token.IsRevoked(false)).
+		SetIsRevoked(true).
+		Save(ctx); err != nil {
+		return meInternal(err, "revoking tokens after password change")
+	}
+
+	if err = tx.Commit(); err != nil {
+		return meInternal(err, "committing password change transaction")
 	}
 
 	return nil

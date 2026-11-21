@@ -18,7 +18,7 @@ Rules and invariants for AI agents working in this repository.
 - Services depend on the **interface** (`<apiname>.API`), never on `*Client` directly.
 - Config goes in `config.ClientsConfig.<ApiName>` (type `ExternalClientConfig`); add a `[clients.<apiname>]` block in `config.toml`.
 - Error codes go in `pkg/codes/<apiname>.go`. Typical set: `<API>_UNAVAILABLE` → `Unavailable`, `<API>_RATE_LIMITED` → `ResourceExhausted`, `<API>_INTERNAL_ERROR` → `Internal`.
-- Use `utils.Retry(ctx, cfg.Retry+1, fn)` for transient retries. Map HTTP 429 → `<api>RateLimited`, 502/503/504 and network errors → `<api>Unavailable`, everything else → `<api>Internal`.
+- Use `utils.Retry(ctx, cfg.Retry+1, fn)` for transient retries (exponential backoff with jitter). Wrap non-retryable errors (4xx, JSON decode errors) in `utils.Permanent(err)`. Map HTTP 429 → `<api>RateLimited`, 502/503/504 and network errors → `<api>Unavailable`, everything else → `utils.Permanent(<api>Internal)`.
 - Register the package in `pkg/clients/package.go` and add it to `cmd/main.go` between `infra.Package` and `services.Package`.
 - **Forbidden**: raw `http.Get` / `http.Post` calls anywhere outside `pkg/clients/`.
 
@@ -31,7 +31,7 @@ All errors must flow through the AIP-193 pipeline. The `error_handler` classifie
 1. `*rpcstatus.Status` — used as-is
 2. `oops.OopsError` with `.Code()` — maps via `codes.Lookup()`
 3. `*validator.FieldViolations` — becomes `BadRequest` detail
-4. `context.DeadlineExceeded / context.Canceled` — `Unavailable`
+4. `context.DeadlineExceeded / context.Canceled` — `DeadlineExceeded` / `Canceled`
 5. `echo.HTTPStatusCoder` — maps HTTP code → RPC code
 6. Everything else — `Internal` (message hidden)
 
@@ -41,13 +41,16 @@ All errors must flow through the AIP-193 pipeline. The `error_handler` classifie
 // internal error — hide details
 oops.Code(codes.DomainInternal.String()).Tags("domain").Wrapf(err, "op: %s", op)
 
-// not found — include AIP-193 ResourceInfo
+// not found — include AIP-193 ResourceInfo & i18n metadata
 oops.Code(codes.DomainNotFound.String()).
- With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
- ResourceType: "Domain", ResourceName: id,
- }).
- Public(fmt.Sprintf("Domain %q not found.", id)).
- Errorf("not found")
+	With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
+		Type:         errdetails.TypeResourceInfo,
+		ResourceType: "Domain",
+		ResourceName: id,
+	}).
+	With(codes.CtxKeyMetadata, map[string]string{"domain_id": id}).
+	Public(fmt.Sprintf("Domain %q not found.", id)).
+	Errorf("not found")
 ```
 
 **Rules:**
@@ -69,18 +72,22 @@ oops.Code(codes.DomainNotFound.String()).
 
 ## Validation
 
-Request structs implement `Validate() error` returning `*validator.FieldViolations`.
+Request structs implement `Validate() error` returning `*validator.FieldViolations` (localized by `error_handler` via `pkg/i18n`).
 
 ```go
 func (r *CreateXxxRequest) Validate() error {
- v := validator.New()
- v.Field("title", r.Title, rules.Required, rules.MaxLen(200))
- return v.Violations()
+	var v validator.FieldViolations
+	if strings.TrimSpace(r.Title) == "" {
+		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
+	} else if len(r.Title) > 200 {
+		v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
+	}
+	return v.Err()
 }
 ```
 
 - Call `Validate()` in the handler before passing to service.
-- Use `validator.FieldViolations` — not `echo.Bind` validator, not direct string errors.
+- Use `validator.FieldViolations` with i18n key constants (`validator.Key*`) — not `echo.Bind` validator, not direct string errors.
 
 ---
 
@@ -184,13 +191,10 @@ func (h *BookHandler) Patch(c *echo.Context) error {
     if err != nil {
         return err
     }
-    patched, err := patch.Apply(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType))
-    if err != nil {
+    var req types.ReplaceBookRequest
+    if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
         return err
     }
-
-    var req types.ReplaceBookRequest
-    _ = json.Unmarshal(patched, &req)
     req.Book = pathReq.Book               // path is authoritative
     if err := req.Validate(); err != nil {
         return err
@@ -237,15 +241,14 @@ Every handler binds via a dedicated struct. **Never call `c.Param` directly.**
 - `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }` — no request body.
 - Return `NOT_FOUND` if resource does not exist. Response is `204 No Content`.
 
-### List methods (AIP-132 style retained for collections)
+### List methods
 
 Every `List` handler accepts `ListXxxsRequest` and returns `ListXxxsResponse`. Request binds query params with `query` struct tags.
 
-- **Pagination**: `page_size int32` (default 50, max 1000; coerce if over max, reject if negative) + `page_token string`. Response includes `next_page_token` (omit when last page) and `total_size`.
-- **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Document supported fields. Default sort must be defined.
-- **Filtering**: `filter string` — call `filter.Parse(req.Filter)` → `Expr` AST, translate with `translateXxxFilter(expr)` in `pkg/services/<domain>_filter.go` using `filter.FilterTranslator[P]`. Return `ValidationInvalid` on errors; never build raw SQL. See `pkg/services/book_filter.go` as reference.
-- Page tokens are opaque base64-encoded JSON; never expose the internal offset to callers.
-- Service returns `([]*ent.Xxx, nextPageToken string, totalSize int32, error)`. Handler assembles `ListXxxsResponse` and maps entities via `toXxxResponse`.
+- **Pagination**: `page int32` (1-based, default 1, reject if negative) + `page_size int32` (default 50, max 1000; coerce if over max, reject if negative). Use `resolvePagination` in `pkg/handlers/pagination.go` to compute `offset`, `limit`, and normalized `page`, then pass `metav1.ListOptions{Offset, Limit, OrderBy, Filter}` to the service. Response includes `page`, `page_size`, and `total_size`.
+- **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Document supported fields. Default sort must be defined. Return `*validator.FieldViolations` (using `validator.KeyInvalidOrderBy*` / `validator.KeyUnknownOrderByField`) on errors.
+- **Filtering**: `filter string` — call `filter.Parse(in.Filter)` → `Expr` AST, translate with `translateXxxFilter(expr)` in `pkg/services/<domain>_filter.go` using `filter.FilterTranslator[P]`. Return `ValidationInvalid` on errors; never build raw SQL. See `pkg/services/book_filter.go` as reference.
+- Service returns `([]*ent.Xxx, totalSize int32, error)`. Handler assembles `ListXxxsResponse` and maps entities via `toXxxResponse`.
 
 ### Custom methods (resource actions)
 

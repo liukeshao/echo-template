@@ -11,7 +11,7 @@ Content-Type: application/json
     client.test("Login successful", function() {
         client.assert(response.status === 200, "Expected status 200");
     });
-    client.global.set("accessToken", response.body.data.access_token);
+    client.global.set("accessToken", response.body.access_token);
 %}
 
 ### 创建书籍（POST）

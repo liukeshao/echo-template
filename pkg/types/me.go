@@ -40,7 +40,7 @@ func (r *ChangePasswordRequest) Validate() error {
 		v.Add("old_password", validator.KeyRequired, map[string]string{"field": "old_password"})
 	}
 	validator.CheckPassword(&v, "new_password", r.NewPassword)
-	if r.OldPassword == r.NewPassword {
+	if r.OldPassword != "" && r.OldPassword == r.NewPassword {
 		v.Add("new_password", validator.KeyMustDiffer, map[string]string{
 			"field": "new_password", "other": "old_password",
 		})

@@ -14,7 +14,7 @@
 | 结构化日志 | log/slog + ContextHandler（自动注入 request_id）|
 | ID 生成 | ULID |
 | 配置管理 | Viper（TOML + 环境变量）|
-| 外部 API 客户端 | 接口隔离 + 共享 HTTP 传输 + 线性退避重试 |
+| 外部 API 客户端 | 接口隔离 + 共享 HTTP 传输 + 指数退避带抖动重试 |
 | API 风格 | Kubernetes 式 REST：POST/GET/PUT/PATCH/DELETE；多协议 PATCH（RFC 6902 / RFC 7386 / Shorthand）；自定义动词以 `/:resource/<verb>` 形式挂在资源下 |
 | API 文档 | Swaggo → OpenAPI YAML → Stoplight Elements |
 
@@ -36,10 +36,12 @@ pkg/
       package.go        do.Package(do.Lazy(NewXxxClient))
   codes/                业务错误码 + RPC 状态码注册表
   filter/               AIP-160 过滤表达式解析器 + 泛型 FilterTranslator[P]
-  handlers/             HTTP handler + router + error_handler
+  handlers/             HTTP handler + router + error_handler + pagination
+  i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商）
   infra/                DB / ORM / 共享 HTTPClient 基础设施（DI 生命周期）
   log/                  slog ContextHandler（日志自动带 request_id）
-  middleware/           RequireAuth、RequestContext
+  meta/v1/              通用查询选项（ListOptions）
+  middleware/           RequireAuth、RequestContext、Locale
   patch/                多协议 PATCH 实现（RFC 6902 / 7386 / Shorthand）
   services/             领域服务（业务逻辑）
     <domain>_filter.go  AIP-160 过滤器 → ent predicate 翻译（每个领域一个文件）
@@ -183,16 +185,17 @@ func (r *ReplaceOrderRequest) Validate() error { ... }
 
 // 列表
 type ListOrdersRequest struct {
-    PageSize  int32  `query:"page_size"`
-    PageToken string `query:"page_token"`
-    OrderBy   string `query:"order_by"`
-    Filter    string `query:"filter"`
+    Page     int32  `query:"page"`
+    PageSize int32  `query:"page_size"`
+    OrderBy  string `query:"order_by"`
+    Filter   string `query:"filter"`
 }
 
 type ListOrdersResponse struct {
-    Orders        []OrderResponse `json:"orders"`
-    NextPageToken string          `json:"next_page_token,omitempty"`
-    TotalSize     int32           `json:"total_size"`
+    Orders    []OrderResponse `json:"orders"`
+    Page      int32           `json:"page"`
+    PageSize  int32           `json:"page_size"`
+    TotalSize int32           `json:"total_size"`
 }
 ```
 

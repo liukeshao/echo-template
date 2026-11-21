@@ -10,7 +10,7 @@ package clients
 import (
 	"github.com/samber/do/v2"
 
-	weather "github.com/liukeshao/echo-template/pkg/clients/weather"
+	"github.com/liukeshao/echo-template/pkg/clients/weather"
 )
 
 // Package registers all third-party API client providers into the DI container.

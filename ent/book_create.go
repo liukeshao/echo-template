@@ -278,7 +278,7 @@ func (_c *BookCreate) createSpec() (*Book, *sqlgraph.CreateSpec) {
 	}
 	if value, ok := _c.mutation.Price(); ok {
 		_spec.SetField(book.FieldPrice, field.TypeFloat64, value)
-		_node.Price = value
+		_node.Price = &value
 	}
 	if value, ok := _c.mutation.PublishedAt(); ok {
 		_spec.SetField(book.FieldPublishedAt, field.TypeTime, value)

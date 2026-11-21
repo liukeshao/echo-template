@@ -67,16 +67,20 @@ func authInvalidCredentials() error {
 
 // --- 私有方法 ---
 
-// parseJWTOfType 解析并验证 JWT 签名、内置时效（exp/iat/nbf 由库负责），
+// parseJWTOfType 解析并验证 JWT 签名、算法、发行者及内置时效（exp/iat/nbf 由库负责），
 // 并确认自定义 TokenType claim 与 expectedType 一致。
 // 这是所有 token 验证的唯一入口，上层无需再重复时间校验。
 func (s *AuthService) parseJWTOfType(ctx context.Context, tokenString string, expectedType token.Type) (*types.JWTClaims, error) {
-	t, err := jwt.ParseWithClaims(tokenString, &types.JWTClaims{}, func(t *jwt.Token) (any, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, oops.Errorf("unexpected signing method")
-		}
+	opts := []jwt.ParserOption{
+		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+	}
+	if s.jwtConfig.Issuer != "" {
+		opts = append(opts, jwt.WithIssuer(s.jwtConfig.Issuer))
+	}
+
+	t, err := jwt.ParseWithClaims(tokenString, &types.JWTClaims{}, func(_ *jwt.Token) (any, error) {
 		return []byte(s.jwtConfig.Secret), nil
-	})
+	}, opts...)
 	if err != nil {
 		return nil, authTokenInvalid("invalid or expired token")
 	}
@@ -91,8 +95,8 @@ func (s *AuthService) parseJWTOfType(ctx context.Context, tokenString string, ex
 	return claims, nil
 }
 
-// generateToken 生成 JWT token。
-func (s *AuthService) generateToken(ctx context.Context, userID string, tokenType token.Type) (string, time.Time, error) {
+// generateToken 生成 JWT token（携带唯一 jti，避免同一秒内重复签发触发数据库唯一约束冲突）。
+func (s *AuthService) generateToken(userID string, tokenType token.Type) (string, time.Time, error) {
 	var expiry time.Duration
 	switch tokenType {
 	case token.TypeAccess:
@@ -110,6 +114,7 @@ func (s *AuthService) generateToken(ctx context.Context, userID string, tokenTyp
 		UserID:    userID,
 		TokenType: string(tokenType),
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        utils.GenerateULID(),
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
@@ -155,47 +160,14 @@ func (s *AuthService) findUserByEmail(ctx context.Context, email string) (*ent.U
 	}
 }
 
-// findUserByID 根据 ID 查找用户。
-func (s *AuthService) findUserByID(ctx context.Context, userID string) (*ent.User, error) {
-	user, err := s.orm.User.Query().
-		Where(userEnt.ID(userID)).
-		Only(ctx)
-	switch {
-	case err == nil:
-		return user, nil
-	case ent.IsNotFound(err):
-		return nil, authTokenInvalid("invalid token: user not found")
-	default:
-		return nil, authInternal(err, "querying user by id")
-	}
-}
-
-// findValidToken 查找数据库中有效的 token 记录。
-func (s *AuthService) findValidToken(ctx context.Context, tokenString string, tokenType token.Type) (*ent.Token, error) {
-	dbToken, err := s.orm.Token.Query().
-		Where(
-			token.Token(tokenString),
-			token.IsRevoked(false),
-			token.TypeEQ(tokenType),
-		).
-		Only(ctx)
-	switch {
-	case err == nil:
-		return dbToken, nil
-	case ent.IsNotFound(err):
-		return nil, authTokenInvalid("token not found or has been revoked")
-	default:
-		return nil, authInternal(err, "querying token")
-	}
-}
-
 // touchLastLogin 异步更新用户最后登录时间（非致命，失败时静默降级）。
-// 使用 context.WithoutCancel 防止请求结束后 context 被取消。
-func (s *AuthService) touchLastLogin(ctx context.Context, user *ent.User) {
+// 使用 context.WithoutCancel 配合短超时，防止请求结束后被提前取消或无限期阻塞。
+func (s *AuthService) touchLastLogin(ctx context.Context, userID string) {
 	go func() {
-		detached := context.WithoutCancel(ctx)
-		if _, err := s.orm.User.UpdateOne(user).SetLastLoginAt(time.Now()).Save(detached); err != nil {
-			slog.WarnContext(detached, "failed to update last login time", "error", err, "user_id", user.ID)
+		detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+		defer cancel()
+		if _, err := s.orm.User.UpdateOneID(userID).SetLastLoginAt(time.Now()).Save(detached); err != nil {
+			slog.WarnContext(detached, "failed to update last login time", "error", err, "user_id", userID)
 		}
 	}()
 }
@@ -203,6 +175,7 @@ func (s *AuthService) touchLastLogin(ctx context.Context, user *ent.User) {
 // saveTokenToDatabase 在事务中持久化 token。
 func (s *AuthService) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userID string, tokenString string, tokenType token.Type, expiresAt time.Time) error {
 	_, err := tx.Token.Create().
+		SetID(utils.GenerateULID()).
 		SetToken(tokenString).
 		SetUserID(userID).
 		SetType(tokenType).
@@ -215,32 +188,14 @@ func (s *AuthService) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userI
 	return nil
 }
 
-// generateTokenPair 在事务中生成 access + refresh token 对。
-// 使用 named return err 配合 defer，保证任意失败路径都触发 Rollback。
-func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *types.AuthResponse, err error) {
-	tx, err := s.orm.Tx(ctx)
-	if err != nil {
-		return nil, authInternal(err, "beginning transaction")
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	var (
-		accessToken   string
-		refreshToken  string
-		accessExpiry  time.Time
-		refreshExpiry time.Time
-	)
-
-	accessToken, accessExpiry, err = s.generateToken(ctx, userID, token.TypeAccess)
+// issueTokenPairTx 在已有事务中签发并持久化 access + refresh token 对。
+func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*types.AuthResponse, error) {
+	accessToken, accessExpiry, err := s.generateToken(userID, token.TypeAccess)
 	if err != nil {
 		return nil, err
 	}
 
-	refreshToken, refreshExpiry, err = s.generateToken(ctx, userID, token.TypeRefresh)
+	refreshToken, refreshExpiry, err := s.generateToken(userID, token.TypeRefresh)
 	if err != nil {
 		return nil, err
 	}
@@ -253,10 +208,6 @@ func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *
 		return nil, err
 	}
 
-	if err = tx.Commit(); err != nil {
-		return nil, authInternal(err, "committing transaction")
-	}
-
 	return &types.AuthResponse{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
@@ -264,22 +215,51 @@ func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *
 	}, nil
 }
 
-// revokeToken 将指定 token 标记为已撤销。
-func (s *AuthService) revokeToken(ctx context.Context, tokenString string, tokenType token.Type) error {
-	_, err := s.orm.Token.Update().
-		Where(
-			token.Token(tokenString),
-			token.TypeEQ(tokenType),
-		).
-		SetIsRevoked(true).
-		Save(ctx)
+// generateTokenPair 在独立事务中生成 access + refresh token 对。
+// 使用 named return err 配合 defer，保证任意失败路径都触发 Rollback。
+func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *types.AuthResponse, err error) {
+	tx, err := s.orm.Tx(ctx)
 	if err != nil {
-		return authInternal(err, "revoking token")
+		return nil, authInternal(err, "beginning transaction")
 	}
-	return nil
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	resp, err := s.issueTokenPairTx(ctx, tx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, authInternal(err, "committing transaction")
+	}
+
+	return resp, nil
 }
 
 // --- 公开方法 ---
+
+// checkUniqueUserConflict 在并发触发唯一约束错误时区分邮箱或用户名冲突。
+func (s *AuthService) checkUniqueUserConflict(ctx context.Context, email, username string) error {
+	if exists, err := s.orm.User.Query().Where(userEnt.Email(email)).Exist(ctx); err == nil && exists {
+		return oops.
+			Code(codes.AuthEmailTaken.String()).
+			With(codes.CtxKeyMetadata, map[string]string{"email": email}).
+			Public(fmt.Sprintf("the email %q is already registered", email)).
+			Errorf("email taken: %s", email)
+	}
+	if exists, err := s.orm.User.Query().Where(userEnt.Username(username)).Exist(ctx); err == nil && exists {
+		return oops.
+			Code(codes.AuthUsernameTaken.String()).
+			With(codes.CtxKeyMetadata, map[string]string{"username": username}).
+			Public(fmt.Sprintf("the username %q is already taken", username)).
+			Errorf("username taken: %s", username)
+	}
+	return nil
+}
 
 // Register 用户注册。
 func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) (*types.AuthResponse, error) {
@@ -325,6 +305,11 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 		SetStatus(userEnt.StatusActive).
 		Save(ctx)
 	if err != nil {
+		if ent.IsConstraintError(err) {
+			if conflictErr := s.checkUniqueUserConflict(ctx, req.Email, req.Username); conflictErr != nil {
+				return nil, conflictErr
+			}
+		}
 		return nil, authInternal(err, "creating user")
 	}
 
@@ -333,7 +318,7 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 		return nil, err
 	}
 
-	s.touchLastLogin(ctx, user)
+	s.touchLastLogin(ctx, user.ID)
 
 	return resp, nil
 }
@@ -345,41 +330,12 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 		return nil, err
 	}
 
-	if err := s.validateUser(user); err != nil {
-		return nil, err
-	}
-
+	// 先校验密码再检查账户状态，防止未认证攻击者枚举已停用账户。
 	if err := utils.VerifyPassword(user.PasswordHash, req.Password); err != nil {
 		slog.WarnContext(ctx, "invalid password attempt", "user_id", user.ID)
 		return nil, authInvalidCredentials()
 	}
 
-	resp, err := s.generateTokenPair(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.touchLastLogin(ctx, user)
-
-	return resp, nil
-}
-
-// RefreshToken 刷新令牌对。
-func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenRequest) (*types.AuthResponse, error) {
-	claims, err := s.parseJWTOfType(ctx, req.RefreshToken, token.TypeRefresh)
-	if err != nil {
-		return nil, err
-	}
-
-	if _, err := s.findValidToken(ctx, req.RefreshToken, token.TypeRefresh); err != nil {
-		return nil, err
-	}
-
-	user, err := s.findUserByID(ctx, claims.UserID)
-	if err != nil {
-		return nil, err
-	}
-
 	if err := s.validateUser(user); err != nil {
 		return nil, err
 	}
@@ -389,49 +345,109 @@ func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenR
 		return nil, err
 	}
 
-	if err := s.revokeToken(ctx, req.RefreshToken, token.TypeRefresh); err != nil {
-		slog.WarnContext(ctx, "failed to revoke old refresh token", "error", err, "user_id", user.ID)
-	}
+	s.touchLastLogin(ctx, user.ID)
 
 	return resp, nil
 }
 
-// Logout 撤销当前 access token 及该用户所有 refresh token。
-// accessToken 与 userID 均由 RequireAuth 中间件验证后存入 context，无需在此重新解析。
-func (s *AuthService) Logout(ctx context.Context, userID, accessToken string) error {
-	if err := s.revokeToken(ctx, accessToken, token.TypeAccess); err != nil {
-		return err
+// RefreshToken 刷新令牌对。
+// 在单个事务中原子地撤销旧 refresh token 并签发新令牌对，防止并发重放。
+func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenRequest) (_ *types.AuthResponse, err error) {
+	claims, err := s.parseJWTOfType(ctx, req.RefreshToken, token.TypeRefresh)
+	if err != nil {
+		return nil, err
 	}
 
-	_, err := s.orm.Token.Update().
+	tx, err := s.orm.Tx(ctx)
+	if err != nil {
+		return nil, authInternal(err, "beginning refresh transaction")
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	revoked, err := tx.Token.Update().
 		Where(
-			token.UserID(userID),
+			token.Token(req.RefreshToken),
+			token.UserID(claims.UserID),
 			token.TypeEQ(token.TypeRefresh),
 			token.IsRevoked(false),
 		).
 		SetIsRevoked(true).
 		Save(ctx)
 	if err != nil {
-		return authInternal(err, "revoking refresh tokens on logout")
+		return nil, authInternal(err, "revoking old refresh token")
+	}
+	if revoked == 0 {
+		return nil, authTokenInvalid("token not found or has been revoked")
 	}
 
+	user, err := tx.User.Query().
+		Where(userEnt.ID(claims.UserID)).
+		Only(ctx)
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, authTokenInvalid("invalid token: user not found")
+		}
+		return nil, authInternal(err, "querying user for refresh")
+	}
+
+	if err = s.validateUser(user); err != nil {
+		return nil, err
+	}
+
+	resp, err := s.issueTokenPairTx(ctx, tx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, authInternal(err, "committing refresh transaction")
+	}
+
+	return resp, nil
+}
+
+// Logout 撤销该用户全部未撤销的令牌（access + refresh），单次原子更新使所有会话同时失效。
+func (s *AuthService) Logout(ctx context.Context, userID string) error {
+	_, err := s.orm.Token.Update().
+		Where(
+			token.UserID(userID),
+			token.IsRevoked(false),
+		).
+		SetIsRevoked(true).
+		Save(ctx)
+	if err != nil {
+		return authInternal(err, "revoking user tokens on logout")
+	}
 	return nil
 }
 
 // AuthenticateUser 验证请求中的 access token，供中间件调用。
+// 通过单次关联查询同时校验 token 有效性与对应活跃用户，减少数据库往返。
 func (s *AuthService) AuthenticateUser(ctx context.Context, tokenString string) (*ent.User, error) {
 	claims, err := s.parseJWTOfType(ctx, tokenString, token.TypeAccess)
 	if err != nil {
 		return nil, err
 	}
 
-	if _, err := s.findValidToken(ctx, tokenString, token.TypeAccess); err != nil {
-		return nil, err
-	}
-
-	user, err := s.findUserByID(ctx, claims.UserID)
-	if err != nil {
-		return nil, err
+	user, err := s.orm.Token.Query().
+		Where(
+			token.Token(tokenString),
+			token.UserID(claims.UserID),
+			token.IsRevoked(false),
+			token.TypeEQ(token.TypeAccess),
+		).
+		QueryUser().
+		Only(ctx)
+	switch {
+	case err == nil:
+	case ent.IsNotFound(err):
+		return nil, authTokenInvalid("token not found or has been revoked")
+	default:
+		return nil, authInternal(err, "authenticating user")
 	}
 
 	if err := s.validateUser(user); err != nil {

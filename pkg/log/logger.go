@@ -17,9 +17,18 @@ func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
 	// 从 Context 中提取 Request ID
 	requestID, ok := appctx.GetRequestIDFromContext(ctx)
 	if ok {
+		r = r.Clone()
 		r.AddAttrs(slog.String("request_id", requestID))
 	}
 	return h.Handler.Handle(ctx, r)
+}
+
+func (h *ContextHandler) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return &ContextHandler{Handler: h.Handler.WithAttrs(attrs)}
+}
+
+func (h *ContextHandler) WithGroup(name string) slog.Handler {
+	return &ContextHandler{Handler: h.Handler.WithGroup(name)}
 }
 
 // NewContextHandler 包装原始 Handler

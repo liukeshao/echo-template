@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"strings"
+	"net/http"
 
 	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
@@ -14,13 +14,15 @@ import (
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	auth *services.AuthService
+	auth   *services.AuthService
+	authMW middleware.AuthMiddleware
 }
 
 // NewAuthHandler 构造 AuthHandler 并注入依赖。
 func NewAuthHandler(i do.Injector) (*AuthHandler, error) {
 	return &AuthHandler{
-		auth: do.MustInvoke[*services.AuthService](i),
+		auth:   do.MustInvoke[*services.AuthService](i),
+		authMW: do.MustInvoke[middleware.AuthMiddleware](i),
 	}, nil
 }
 
@@ -35,7 +37,7 @@ func (h *AuthHandler) Routes(g *echo.Group) {
 
 	// 需要认证的路由
 	protected := g.Group("/api/v1/auth")
-	protected.Use(middleware.RequireAuth(h.auth))
+	protected.Use(echo.MiddlewareFunc(h.authMW))
 	protected.POST("/logout", h.Logout)
 }
 
@@ -65,7 +67,7 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(200, resp)
+	return c.JSON(http.StatusOK, resp)
 }
 
 // Login 用户登录
@@ -95,7 +97,7 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(200, resp)
+	return c.JSON(http.StatusOK, resp)
 }
 
 // RefreshToken 刷新访问令牌
@@ -124,28 +126,25 @@ func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(200, resp)
+	return c.JSON(http.StatusOK, resp)
 }
 
-// Logout 用户登出（撤销令牌）
+// Logout 用户登出（撤销该用户全部活跃令牌）
 //
 //	@Summary	用户登出
 //	@Tags		auth
 //	@Security	BearerAuth
 //	@Produce	json
-//	@Success	200	{object}	map[string]string
+//	@Success	204
 //	@Failure	401	{object}	ErrorResponse
 //	@Router		/api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user := appctx.MustGetUserFromContext(ctx)
-	// RequireAuth 已完成验证，此处仅做字符串截取，不重复密码学运算。
-	// token 不存入 context，防止被日志框架意外序列化后泄露。
-	token := strings.TrimPrefix(c.Request().Header.Get("Authorization"), "Bearer ")
 
-	if err := h.auth.Logout(ctx, user.ID, token); err != nil {
+	if err := h.auth.Logout(ctx, user.ID); err != nil {
 		return err
 	}
 
-	return c.JSON(200, map[string]string{})
+	return c.NoContent(http.StatusNoContent)
 }

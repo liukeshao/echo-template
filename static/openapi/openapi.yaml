@@ -10,7 +10,6 @@ definitions:
           AIP-193 typed detail payloads. The "@type" field discriminates the entry:
             - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
             - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
-            - type.googleapis.com/google.rpc.Help             — documentation links (see errdetails.Help)
             - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
             - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
         items:
@@ -193,12 +192,8 @@ paths:
       produces:
       - application/json
       responses:
-        "200":
-          description: OK
-          schema:
-            additionalProperties:
-              type: string
-            type: object
+        "204":
+          description: No Content
         "401":
           description: Unauthorized
           schema:
@@ -273,7 +268,7 @@ paths:
         in: query
         name: order_by
         type: string
-      - description: '过滤表达式，如 ''title : \'
+      - description: '过滤表达式，如 title : ''Go'' AND price < 50'
         in: query
         name: filter
         type: string

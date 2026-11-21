@@ -23,6 +23,8 @@ issuer = "echo-template"    # Token发行者
 [database]
 driver = "sqlite"
 connection = "dbs/main.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
+# 开发环境自动建表/同步 schema；生产环境建议设为 false 并使用显式迁移（如 Atlas）。
+autoMigrate = true
 
 # Third-party API clients.
 # Each sub-table corresponds to a field in config.ClientsConfig.

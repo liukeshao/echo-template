@@ -83,10 +83,8 @@ func (o Op) String() string {
 type Value interface{ valueNode() }
 
 // StringValue is a double- or single-quoted string, possibly with wildcards.
-// Wildcard is true when the original string contained one or more '*' characters.
 type StringValue struct {
-	V        string
-	Wildcard bool
+	V string
 }
 
 func (*StringValue) valueNode() {}
@@ -161,7 +159,7 @@ const (
 type tok struct {
 	kind tokenKind
 	raw  string // unescaped for strings
-	pos  int    // byte position in original input (for error messages)
+	pos  int    // rune position in original input (for error messages)
 }
 
 // ---- Lexer ------------------------------------------------------------------
@@ -489,7 +487,18 @@ func (p *parser) parseValue() (Value, error) {
 	t := p.consume()
 	switch t.kind {
 	case kString:
-		return &StringValue{V: t.raw, Wildcard: strings.Contains(t.raw, "*")}, nil
+		return &StringValue{V: t.raw}, nil
+
+	case kMinus:
+		next := p.consume()
+		if next.kind != kNumber {
+			return nil, fmt.Errorf("position %d: expected number after '-', got %q", next.pos, next.raw)
+		}
+		v, err := strconv.ParseFloat("-"+next.raw, 64)
+		if err != nil {
+			return nil, fmt.Errorf("position %d: invalid number %q: %w", t.pos, "-"+next.raw, err)
+		}
+		return &NumberValue{V: v}, nil
 
 	case kNumber:
 		v, err := strconv.ParseFloat(t.raw, 64)

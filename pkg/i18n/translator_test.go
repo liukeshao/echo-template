@@ -122,3 +122,32 @@ func TestNewTranslator_UnknownLocaleFile(t *testing.T) {
 	})
 	require.Error(t, err, "unknown locale file should fail-fast at startup")
 }
+
+func TestTranslator_MatchAndTranslate_RegionalVariants(t *testing.T) {
+	tr := newTestTranslator(t)
+
+	// zh-Hans / zh-SG should normalize to supported zh-CN and actually return Chinese text.
+	for _, header := range []string{"zh-Hans", "zh-SG", "zh-CN,zh;q=0.9"} {
+		loc := tr.Match(header, "")
+		text, used, ok := tr.T(loc, "errors.BOOK_NOT_FOUND", map[string]string{"book_id": "01XYZ"})
+		require.True(t, ok, "header=%s", header)
+		assert.Equal(t, "zh-CN", used.String(), "header=%s", header)
+		assert.Equal(t, "未找到 ID 为 01XYZ 的书籍。", text, "header=%s", header)
+	}
+
+	// en-US should normalize to supported en (not en-u-rg-uszzzz).
+	loc := tr.Match("en-US,en;q=0.9", "")
+	assert.Equal(t, "en", loc.String())
+	text, used, ok := tr.T(loc, "errors.VALIDATION_INVALID", nil)
+	require.True(t, ok)
+	assert.Equal(t, "en", used.String())
+	assert.Equal(t, "Request validation failed.", text)
+}
+
+func TestRender_SinglePassNoReexpansion(t *testing.T) {
+	got := render("{a} and {b}", map[string]string{
+		"a": "{b}",
+		"b": "VALUE",
+	})
+	assert.Equal(t, "{b} and VALUE", got)
+}

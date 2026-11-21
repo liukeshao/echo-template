@@ -17,6 +17,7 @@ import (
 	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
 	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
+	"github.com/liukeshao/echo-template/pkg/validator"
 	"github.com/liukeshao/echo-template/transport/rpc/errdetails"
 )
 
@@ -91,11 +92,11 @@ func (s *BookService) Create(ctx context.Context, req *types.CreateBookRequest) 
 		SetTitle(req.Title).
 		SetAuthor(req.Author)
 
-	if req.Description != "" {
+	if strings.TrimSpace(req.Description) != "" {
 		q.SetDescription(req.Description)
 	}
-	if req.Price != 0 {
-		q.SetPrice(req.Price)
+	if req.Price != nil {
+		q.SetPrice(*req.Price)
 	}
 	if req.PublishedAt != nil {
 		q.SetPublishedAt(*req.PublishedAt)
@@ -126,15 +127,12 @@ func (s *BookService) Get(ctx context.Context, id string) (*ent.Book, error) {
 	return b, nil
 }
 
-// List 获取书籍列表，支持分页、排序和过滤（AIP-132）。
-// 返回值依次为：当前页书籍、总数量、错误；分页游标由调用方（handler）负责编解码。
+// List 获取书籍列表，支持分页、排序和过滤。
+// 返回值依次为：当前页书籍、总数量、错误；分页参数由调用方（handler）负责解析。
 func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.Book, int32, error) {
 	orderOpts, err := parseBookOrderBy(in.OrderBy)
 	if err != nil {
-		return nil, 0, oops.
-			Code(codes.ValidationInvalid.String()).
-			Public(err.Error()).
-			Errorf("invalid order_by: %v", err)
+		return nil, 0, err
 	}
 
 	filterExpr, err := filter.Parse(in.Filter)
@@ -159,6 +157,9 @@ func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.B
 	total, err := countQ.Count(ctx)
 	if err != nil {
 		return nil, 0, bookDB(err, "counting books", "")
+	}
+	if total == 0 {
+		return []*ent.Book{}, 0, nil
 	}
 
 	listQ := s.orm.Book.Query()
@@ -187,17 +188,6 @@ func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.B
 // PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
 // 因此 patch 的所有协议（RFC 6902 / 7386 / Shorthand）最终统一落到这一处幂等写入。
 func (s *BookService) Replace(ctx context.Context, id string, req *types.ReplaceBookRequest) (*ent.Book, error) {
-	_, err := s.orm.Book.Query().
-		Where(book.IDEQ(id)).
-		First(ctx)
-	switch {
-	case err == nil:
-	case ent.IsNotFound(err):
-		return nil, bookNotFound(id)
-	default:
-		return nil, bookDB(err, "getting book for replace", id)
-	}
-
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).
 		SetAuthor(req.Author)
@@ -207,8 +197,8 @@ func (s *BookService) Replace(ctx context.Context, id string, req *types.Replace
 	} else {
 		q.ClearDescription()
 	}
-	if req.Price != 0 {
-		q.SetPrice(req.Price)
+	if req.Price != nil {
+		q.SetPrice(*req.Price)
 	} else {
 		q.ClearPrice()
 	}
@@ -220,31 +210,28 @@ func (s *BookService) Replace(ctx context.Context, id string, req *types.Replace
 
 	b, err := q.Save(ctx)
 	if err != nil {
+		if ent.IsNotFound(err) {
+			return nil, bookNotFound(id)
+		}
 		return nil, bookDB(err, "replacing book", id)
 	}
 	return b, nil
 }
 
-// Delete 删除书籍
+// Delete 删除书籍（逻辑删除）。
 func (s *BookService) Delete(ctx context.Context, id string) error {
-	_, err := s.orm.Book.Query().
-		Where(book.IDEQ(id)).
-		First(ctx)
-	switch {
-	case err == nil:
-	case ent.IsNotFound(err):
-		return bookNotFound(id)
-	default:
-		return bookDB(err, "getting book for delete", id)
-	}
-
 	if err := s.orm.Book.DeleteOneID(id).Exec(ctx); err != nil {
+		if ent.IsNotFound(err) {
+			return bookNotFound(id)
+		}
 		return bookDB(err, "deleting book", id)
 	}
 	return nil
 }
 
 // --- 排序辅助 ---
+
+const bookAllowedOrderByFields = "title, author, price, created_at, updated_at, published_at"
 
 // parseBookOrderBy 将 order_by 字符串解析为 ent OrderOption 列表。
 // 格式：逗号分隔的 "field" 或 "field desc"；默认 created_at desc。
@@ -254,7 +241,10 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		return []book.OrderOption{book.ByCreatedAt(sql.OrderDesc())}, nil
 	}
 
-	var opts []book.OrderOption
+	var (
+		opts []book.OrderOption
+		v    validator.FieldViolations
+	)
 	for _, part := range strings.Split(orderBy, ",") {
 		part = strings.TrimSpace(part)
 		if part == "" {
@@ -262,13 +252,20 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		}
 		tokens := strings.Fields(part)
 		if len(tokens) > 2 {
-			return nil, fmt.Errorf("invalid order_by clause %q; expected \"field\" or \"field desc\"", part)
+			v.Add("order_by", validator.KeyInvalidOrderByClause, map[string]string{
+				"clause": part,
+			})
+			continue
 		}
 
 		fieldName := strings.ToLower(tokens[0])
 		desc := len(tokens) == 2 && strings.ToLower(tokens[1]) == "desc"
 		if len(tokens) == 2 && !desc {
-			return nil, fmt.Errorf("invalid order_by direction %q in %q; use \"desc\" or omit for ascending", tokens[1], part)
+			v.Add("order_by", validator.KeyInvalidOrderByDirection, map[string]string{
+				"direction": tokens[1],
+				"clause":    part,
+			})
+			continue
 		}
 
 		dir := sql.OrderAsc()
@@ -290,8 +287,17 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		case "published_at":
 			opts = append(opts, book.ByPublishedAt(dir))
 		default:
-			return nil, fmt.Errorf("unknown order_by field %q; supported: title, author, price, created_at, updated_at, published_at", fieldName)
+			v.Add("order_by", validator.KeyUnknownOrderByField, map[string]string{
+				"field":   fieldName,
+				"allowed": bookAllowedOrderByFields,
+			})
 		}
+	}
+	if err := v.Err(); err != nil {
+		return nil, err
+	}
+	if len(opts) == 0 {
+		return []book.OrderOption{book.ByCreatedAt(sql.OrderDesc())}, nil
 	}
 	return opts, nil
 }

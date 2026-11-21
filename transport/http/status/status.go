@@ -58,6 +58,8 @@ func ToRPCCode(httpCode int) codes.Code {
 		return codes.Unimplemented
 	case http.StatusConflict:
 		return codes.AlreadyExists
+	case http.StatusRequestEntityTooLarge:
+		return codes.ResourceExhausted
 	case http.StatusTooManyRequests:
 		return codes.ResourceExhausted
 	case http.StatusNotImplemented:

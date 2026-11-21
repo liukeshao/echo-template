@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
-	"time"
+	"net/url"
 
 	"github.com/samber/do/v2"
 
@@ -59,8 +60,6 @@ type currentWeatherResponse struct {
 // GetCurrent implements [API].
 // It retries on transient errors up to cfg.Retry additional times.
 func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, error) {
-	const op = "GetCurrent"
-
 	var result *CurrentWeather
 
 	err := utils.Retry(ctx, c.cfg.Retry+1, func() error {
@@ -77,11 +76,11 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather, error) {
 	const op = "GetCurrent"
 
-	url := fmt.Sprintf("%s/current?city=%s", c.cfg.BaseURL, city)
+	reqURL := fmt.Sprintf("%s/current?city=%s", c.cfg.BaseURL, url.QueryEscape(city))
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, weatherInternal(err, op)
+		return nil, utils.Permanent(weatherInternal(err, op))
 	}
 	req.Header.Set("X-API-Key", c.cfg.APIKey)
 	req.Header.Set("Accept", "application/json")
@@ -91,7 +90,10 @@ func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather
 		// Covers network errors, context cancellation and timeouts.
 		return nil, weatherUnavailable(err, op)
 	}
-	defer resp.Body.Close() //nolint:errcheck
+	defer func() {
+		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
+		_ = resp.Body.Close()
+	}()
 
 	switch resp.StatusCode {
 	case http.StatusOK:
@@ -103,14 +105,15 @@ func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather
 			fmt.Errorf("upstream returned %d", resp.StatusCode), op,
 		)
 	default:
-		return nil, weatherInternal(
+		// 4xx and other non-transient upstream statuses should not be retried.
+		return nil, utils.Permanent(weatherInternal(
 			fmt.Errorf("unexpected status %d", resp.StatusCode), op,
-		)
+		))
 	}
 
 	var raw currentWeatherResponse
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, weatherInternal(err, op)
+		return nil, utils.Permanent(weatherInternal(err, op))
 	}
 
 	return &CurrentWeather{
@@ -123,6 +126,3 @@ func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather
 
 // compile-time check that *Client implements API.
 var _ API = (*Client)(nil)
-
-// timeout returns the effective per-request timeout for logging / tracing.
-func (c *Client) timeout() time.Duration { return c.http.Timeout }

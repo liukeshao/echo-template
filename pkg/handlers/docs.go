@@ -1,7 +1,10 @@
 package handlers
 
 import (
+	"io/fs"
 	"net/http"
+	"path"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
@@ -17,9 +20,9 @@ type DocsHandler struct {
 // NewDocsHandler 构造 DocsHandler 并初始化静态文件服务器。
 func NewDocsHandler(_ do.Injector) (*DocsHandler, error) {
 	return &DocsHandler{
-		// /static/* 请求去掉 /static 前缀后直接对应 embed.FS 中的路径
+		// /static/* 请求去掉 /static 前缀后仅暴露 js/ 与 css/ 目录
 		// 例如 /static/js/web-components.min.js → js/web-components.min.js
-		staticServer: http.StripPrefix("/static", http.FileServerFS(static.FS)),
+		staticServer: http.StripPrefix("/static", http.FileServerFS(static.AssetsFS)),
 	}, nil
 }
 
@@ -32,24 +35,21 @@ func (h *DocsHandler) Routes(g *echo.Group) {
 
 // index 返回 API 文档页面（Stoplight Elements）。
 func (h *DocsHandler) index(c *echo.Context) error {
-	content, err := static.FS.ReadFile("index.html")
-	if err != nil {
-		return err
-	}
-	return c.HTMLBlob(http.StatusOK, content)
+	return c.HTMLBlob(http.StatusOK, static.IndexHTML)
 }
 
 // openAPI 返回 OpenAPI YAML 规范文件。
 func (h *DocsHandler) openAPI(c *echo.Context) error {
-	content, err := static.FS.ReadFile("openapi/openapi.yaml")
-	if err != nil {
-		return err
-	}
-	return c.Blob(http.StatusOK, "application/yaml", content)
+	return c.Blob(http.StatusOK, "application/yaml", static.OpenAPIYAML)
 }
 
-// serveStatic 提供嵌入的 JS / CSS 静态资源。
+// serveStatic 提供嵌入的 JS / CSS 静态资源；禁止目录遍历与非资产文件访问。
 func (h *DocsHandler) serveStatic(c *echo.Context) error {
+	name := strings.TrimPrefix(path.Clean(c.Request().URL.Path), "/static/")
+	info, err := fs.Stat(static.AssetsFS, name)
+	if err != nil || info.IsDir() {
+		return echo.ErrNotFound
+	}
 	h.staticServer.ServeHTTP(c.Response(), c.Request())
 	return nil
 }

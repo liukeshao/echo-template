@@ -15,7 +15,7 @@ import (
 
 // Status 表示一个不可变的 RPC 状态，包含状态码、消息和可选的 detail payload 列表。
 // 非 OK 的 Status 同时实现 error 接口。
-// 应通过 New 或 Newf 创建，不应直接使用零值。
+// 应通过 New 创建，不应直接使用零值。
 type Status struct {
 	code    codes.Code
 	message string
@@ -25,11 +25,6 @@ type Status struct {
 // New 创建一个具有给定状态码和消息的 Status。
 func New(c codes.Code, msg string) *Status {
 	return &Status{code: c, message: msg}
-}
-
-// Newf 使用格式化消息创建 Status。
-func Newf(c codes.Code, format string, args ...any) *Status {
-	return New(c, fmt.Sprintf(format, args...))
 }
 
 // WithDetails 返回附加了 detail payload 的新 Status（原 Status 不可变）。

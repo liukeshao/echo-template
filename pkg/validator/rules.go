@@ -10,27 +10,31 @@ import (
 //
 // 与 pkg/i18n/messages/*.toml 中 [validation] section 的键一一对应。
 const (
-	KeyRequired     = "validation.required"
-	KeyMinLength    = "validation.min_length"
-	KeyMaxLength    = "validation.max_length"
-	KeyLengthRange  = "validation.length_range"
-	KeyCharset      = "validation.charset"
-	KeyEmail        = "validation.email"
-	KeyPasswordWeak = "validation.password_weak"
-	KeyNonNegative  = "validation.non_negative"
-	KeyMustDiffer   = "validation.must_differ"
-	KeyULID         = "validation.ulid"
+	KeyRequired                = "validation.required"
+	KeyMinLength               = "validation.min_length"
+	KeyMaxLength               = "validation.max_length"
+	KeyLengthRange             = "validation.length_range"
+	KeyCharset                 = "validation.charset"
+	KeyEmail                   = "validation.email"
+	KeyPasswordWeak            = "validation.password_weak"
+	KeyNonNegative             = "validation.non_negative"
+	KeyMustDiffer              = "validation.must_differ"
+	KeyULID                    = "validation.ulid"
+	KeyInvalidOrderByClause    = "validation.invalid_order_by_clause"
+	KeyInvalidOrderByDirection = "validation.invalid_order_by_direction"
+	KeyUnknownOrderByField     = "validation.unknown_order_by_field"
 )
 
 // --- 原子级规则（供外部直接判断） ---
 
-// IsValidEmail 使用标准库解析邮箱地址，空字符串视为无效。
+// IsValidEmail 使用标准库解析纯邮箱地址（不接受 "Name <addr>" 展示名形式），
+// 同时限制长度不超过数据库列上限（255）。空字符串视为无效。
 func IsValidEmail(email string) bool {
-	if strings.TrimSpace(email) == "" {
+	if strings.TrimSpace(email) == "" || len(email) > 255 {
 		return false
 	}
-	_, err := mail.ParseAddress(email)
-	return err == nil
+	addr, err := mail.ParseAddress(email)
+	return err == nil && addr.Address == email
 }
 
 // IsValidUsername 只允许字母、数字、下划线和连字符。
@@ -86,11 +90,17 @@ func CheckUsername(v *FieldViolations, field, username string) {
 	}
 }
 
-// CheckPassword 校验密码长度与复杂度，失败时写入 v。
+// CheckPassword 校验密码长度（8..72 字节，受 bcrypt 上限约束）与复杂度，失败时写入 v。
 func CheckPassword(v *FieldViolations, field, password string) {
 	if len(password) < 8 {
 		v.Add(field, KeyMinLength, map[string]string{
 			"field": field, "min": "8",
+		})
+		return
+	}
+	if len(password) > 72 {
+		v.Add(field, KeyMaxLength, map[string]string{
+			"field": field, "max": "72",
 		})
 		return
 	}

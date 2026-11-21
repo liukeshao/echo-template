@@ -100,34 +100,14 @@ var (
 				Columns: []*schema.Column{TokensColumns[4], TokensColumns[3]},
 			},
 			{
-				Name:    "token_user_id",
+				Name:    "token_user_id_is_revoked_deleted_at",
 				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[8]},
-			},
-			{
-				Name:    "token_user_id_type",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[8], TokensColumns[5]},
+				Columns: []*schema.Column{TokensColumns[8], TokensColumns[7], TokensColumns[3]},
 			},
 			{
 				Name:    "token_expires_at",
 				Unique:  false,
 				Columns: []*schema.Column{TokensColumns[6]},
-			},
-			{
-				Name:    "token_is_revoked",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[7]},
-			},
-			{
-				Name:    "token_type",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[5]},
-			},
-			{
-				Name:    "token_user_id_deleted_at",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[8], TokensColumns[3]},
 			},
 		},
 	}
@@ -178,16 +158,6 @@ var (
 				Name:    "user_status",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[7]},
-			},
-			{
-				Name:    "user_email",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[5]},
-			},
-			{
-				Name:    "user_username",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[4]},
 			},
 		},
 	}

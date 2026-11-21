@@ -196,7 +196,7 @@ func (f *stringField[P]) translate(op Op, val Value) (P, error) {
 //	"foo*"  → hasPrefix("foo")
 //	"*foo"  → hasSuffix("foo")
 //	"*foo*" → contains("foo")
-//	"fo*o"  → contains("fo")  (middle wildcard falls back to contains)
+//	"fo*o"  → contains("foo") (middle wildcard strips '*' and falls back to contains)
 //	"foo"   → eq("foo")
 func (f *stringField[P]) applyWildcard(v string) P {
 	if !strings.Contains(v, "*") {

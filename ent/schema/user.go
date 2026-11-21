@@ -74,9 +74,7 @@ func (User) Indexes() []ent.Index {
 		index.Fields("username", "deleted_at").
 			Unique(),
 
-		// 查询优化索引
+		// 查询优化索引（email / username 已由上方复合唯一索引最左前缀覆盖，无需重复建单列索引）
 		index.Fields("status"),
-		index.Fields("email"),
-		index.Fields("username"),
 	}
 }

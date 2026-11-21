@@ -101,3 +101,17 @@ func TestApply_ContentTypeWithParameters(t *testing.T) {
 	require.NoError(t, json.Unmarshal(out, &got))
 	assert.Equal(t, "Charset", got["title"])
 }
+
+func TestApplyInto_TypeMismatchReturnsPatchInvalid(t *testing.T) {
+	type target struct {
+		Title string  `json:"title"`
+		Price float64 `json:"price"`
+	}
+	var dst target
+	err := patch.ApplyInto([]byte(sample), []byte(`{"price":"not-a-number"}`), patch.ContentTypeMergePatch, &dst)
+	require.Error(t, err)
+
+	var oe oops.OopsError
+	require.ErrorAs(t, err, &oe)
+	assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
+}

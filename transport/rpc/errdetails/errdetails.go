@@ -9,13 +9,7 @@ package errdetails
 const (
 	TypeErrorInfo        = "type.googleapis.com/google.rpc.ErrorInfo"
 	TypeLocalizedMessage = "type.googleapis.com/google.rpc.LocalizedMessage"
-	TypeHelp             = "type.googleapis.com/google.rpc.Help"
 	TypeBadRequest       = "type.googleapis.com/google.rpc.BadRequest"
-	TypeQuotaFailure     = "type.googleapis.com/google.rpc.QuotaFailure"
-	TypePreconditionFail = "type.googleapis.com/google.rpc.PreconditionFailure"
-	TypeRetryInfo        = "type.googleapis.com/google.rpc.RetryInfo"
-	TypeDebugInfo        = "type.googleapis.com/google.rpc.DebugInfo"
-	TypeRequestInfo      = "type.googleapis.com/google.rpc.RequestInfo"
 	TypeResourceInfo     = "type.googleapis.com/google.rpc.ResourceInfo"
 )
 
@@ -38,19 +32,6 @@ type LocalizedMessage struct {
 	Type    string `json:"@type"`
 	Locale  string `json:"locale"`
 	Message string `json:"message"`
-}
-
-// HelpLink 是 Help payload 中的单个文档链接。
-type HelpLink struct {
-	Description string `json:"description"`
-	URL         string `json:"url"`
-}
-
-// Help 提供补充文档链接。
-// 当 Status.message 或 LocalizedMessage 无法提供足够上下文时使用。
-type Help struct {
-	Type  string     `json:"@type"`
-	Links []HelpLink `json:"links"`
 }
 
 // FieldViolation 描述单个字段的校验失败原因，用于 BadRequest。

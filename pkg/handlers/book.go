@@ -113,7 +113,7 @@ func (h *BookHandler) Create(c *echo.Context) error {
 //	@Param		page		query		int		false	"页码，从 1 开始（默认 1）"
 //	@Param		page_size	query		int		false	"每页数量（默认 50，最大 1000）"
 //	@Param		order_by	query		string	false	"排序，如 'price desc,title'；支持 title/author/price/created_at/updated_at/published_at"
-//	@Param		filter		query		string	false	"过滤表达式，如 'title : \"Go\" AND price < 50'"
+//	@Param		filter		query		string	false	"过滤表达式，如 title : 'Go' AND price < 50"
 //	@Success	200			{object}	types.ListBooksResponse
 //	@Failure	400			{object}	ErrorResponse
 //	@Failure	401			{object}	ErrorResponse
@@ -248,13 +248,8 @@ func (h *BookHandler) Patch(c *echo.Context) error {
 		return err
 	}
 
-	patched, err := patch.Apply(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType))
-	if err != nil {
-		return err
-	}
-
 	var req types.ReplaceBookRequest
-	if err := json.Unmarshal(patched, &req); err != nil {
+	if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
 		return err
 	}
 	// 覆盖 patch 中可能伪造的 path param，路径才是权威。

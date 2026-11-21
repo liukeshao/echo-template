@@ -66,24 +66,14 @@ func (Token) Edges() []ent.Edge {
 // Indexes of the Token.
 func (Token) Indexes() []ent.Index {
 	return []ent.Index{
-		// Token值唯一索引（包含删除状态）
+		// Token值唯一索引（包含删除状态），覆盖 AuthenticateUser / RefreshToken 按 token 查询
 		index.Fields("token", "deleted_at").
 			Unique(),
 
-		// 用户ID索引
-		index.Fields("user_id"),
-
-		// 用户ID + 类型索引（用于查询特定用户的特定类型token）
-		index.Fields("user_id", "type"),
+		// 用户活跃令牌复合索引，覆盖 Logout / ChangePassword 按 user_id + is_revoked + deleted_at 批量撤销
+		index.Fields("user_id", "is_revoked", "deleted_at"),
 
 		// 过期时间索引（用于清理过期token）
 		index.Fields("expires_at"),
-
-		// 查询优化索引
-		index.Fields("is_revoked"),
-		index.Fields("type"),
-
-		// 复合索引（用户ID + 删除状态）
-		index.Fields("user_id", "deleted_at"),
 	}
 }

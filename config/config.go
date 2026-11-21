@@ -1,11 +1,14 @@
 package config
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/spf13/viper"
 )
+
+const defaultInsecureJWTSecret = "your-super-secret-jwt-key-change-this-in-production"
 
 type environment string
 
@@ -86,8 +89,9 @@ type (
 
 	// DatabaseConfig stores the database configuration.
 	DatabaseConfig struct {
-		Driver     string
-		Connection string
+		Driver      string
+		Connection  string
+		AutoMigrate bool
 	}
 
 	// ClientsConfig aggregates configuration for all third-party API clients.
@@ -117,27 +121,51 @@ type (
 // GetConfig loads and returns configuration.
 func GetConfig() (Config, error) {
 	var c Config
+	v := viper.New()
 
 	// Load the config file.
-	viper.SetConfigName("config")
-	viper.SetConfigType("toml")
-	viper.AddConfigPath(".")
-	viper.AddConfigPath("config")
-	viper.AddConfigPath("../config")
-	viper.AddConfigPath("../../config")
+	v.SetConfigName("config")
+	v.SetConfigType("toml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("config")
+	v.AddConfigPath("../config")
+	v.AddConfigPath("../../config")
 
 	// Load env variables.
-	viper.SetEnvPrefix("ECHO_TEMPLATE")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	v.SetEnvPrefix("ECHO_TEMPLATE")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	if err := viper.ReadInConfig(); err != nil {
+	if err := v.ReadInConfig(); err != nil {
 		return c, err
 	}
 
-	if err := viper.Unmarshal(&c); err != nil {
+	if err := v.Unmarshal(&c); err != nil {
+		return c, err
+	}
+
+	if err := c.Validate(); err != nil {
 		return c, err
 	}
 
 	return c, nil
+}
+
+// Validate checks critical configuration invariants at startup (fail-fast).
+func (c *Config) Validate() error {
+	if strings.TrimSpace(c.Database.Driver) == "" || strings.TrimSpace(c.Database.Connection) == "" {
+		return fmt.Errorf("config: database.driver and database.connection are required")
+	}
+	if strings.TrimSpace(c.JWT.Secret) == "" {
+		return fmt.Errorf("config: jwt.secret is required")
+	}
+	if c.App.Environment == EnvProduction {
+		if c.JWT.Secret == defaultInsecureJWTSecret || len(c.JWT.Secret) < 32 {
+			return fmt.Errorf("config: production requires a strong jwt.secret (at least 32 bytes and not the default placeholder)")
+		}
+	}
+	if c.JWT.AccessTokenExpiry <= 0 || c.JWT.RefreshTokenExpiry <= 0 {
+		return fmt.Errorf("config: jwt token expiries must be positive")
+	}
+	return nil
 }

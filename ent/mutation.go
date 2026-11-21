@@ -424,7 +424,7 @@ func (m *BookMutation) Price() (r float64, exists bool) {
 // OldPrice returns the old "price" field's value of the Book entity.
 // If the Book object wasn't provided to the builder, the object is fetched from the database.
 // An error is returned if the mutation operation is not UpdateOne, or the database query fails.
-func (m *BookMutation) OldPrice(ctx context.Context) (v float64, err error) {
+func (m *BookMutation) OldPrice(ctx context.Context) (v *float64, err error) {
 	if !m.op.Is(OpUpdateOne) {
 		return v, errors.New("OldPrice is only allowed on UpdateOne operations")
 	}

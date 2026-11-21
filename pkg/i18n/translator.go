@@ -76,16 +76,16 @@ func (t *translator) Default() language.Tag { return t.defaultTag }
 func (t *translator) Match(acceptLanguage, queryLang string) language.Tag {
 	if q := strings.TrimSpace(queryLang); q != "" {
 		if tag, err := language.Parse(q); err == nil {
-			matched, _, _ := t.matcher.Match(tag)
-			return matched
+			_, idx, _ := t.matcher.Match(tag)
+			return t.supported[idx]
 		}
 	}
 	tags, _, err := language.ParseAcceptLanguage(acceptLanguage)
 	if err != nil || len(tags) == 0 {
 		return t.defaultTag
 	}
-	matched, _, _ := t.matcher.Match(tags...)
-	return matched
+	_, idx, _ := t.matcher.Match(tags...)
+	return t.supported[idx]
 }
 
 func (t *translator) T(loc language.Tag, key string, vars map[string]string) (string, language.Tag, bool) {
@@ -93,8 +93,8 @@ func (t *translator) T(loc language.Tag, key string, vars map[string]string) (st
 	// 而我们的表键为 zh-CN），通过 matcher 归一化到最接近的支持 locale 再查。
 	resolved, ok := t.messages[loc]
 	if !ok {
-		matched, _, _ := t.matcher.Match(loc)
-		loc = matched
+		_, idx, _ := t.matcher.Match(loc)
+		loc = t.supported[idx]
 		resolved = t.messages[loc]
 	}
 	if resolved != nil {
@@ -121,14 +121,15 @@ func (t *translator) lookup(loc language.Tag, key string) (string, bool) {
 }
 
 // render 用 vars 替换模板中的 {name} 占位符。
+// 使用单次扫描的 strings.Replacer，避免多次替换导致的非确定性与占位符二次展开。
 // 缺失变量保留原形 `{name}` 便于 QA 快速发现翻译/代码不一致。
 func render(template string, vars map[string]string) string {
 	if len(vars) == 0 || !strings.ContainsRune(template, '{') {
 		return template
 	}
-	out := template
+	pairs := make([]string, 0, len(vars)*2)
 	for k, v := range vars {
-		out = strings.ReplaceAll(out, "{"+k+"}", v)
+		pairs = append(pairs, "{"+k+"}", v)
 	}
-	return out
+	return strings.NewReplacer(pairs...).Replace(template)
 }

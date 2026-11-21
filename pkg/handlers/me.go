@@ -137,13 +137,8 @@ func (h *MeHandler) Patch(c *echo.Context) error {
 		return err
 	}
 
-	patched, err := patch.Apply(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType))
-	if err != nil {
-		return err
-	}
-
 	var req types.ReplaceMeRequest
-	if err := json.Unmarshal(patched, &req); err != nil {
+	if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
 		return err
 	}
 	if err := req.Validate(); err != nil {

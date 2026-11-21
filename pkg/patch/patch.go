@@ -75,6 +75,23 @@ func Apply(original, body []byte, contentType string) ([]byte, error) {
 	}
 }
 
+// ApplyInto 执行 Apply 并将结果反序列化到 dst（通常为 *types.ReplaceXxxRequest）。
+// 反序列化失败（例如字段类型不匹配）同样包装为 PATCH_INVALID（HTTP 400），避免漏出 500。
+func ApplyInto(original, body []byte, contentType string, dst any) error {
+	patched, err := Apply(original, body, contentType)
+	if err != nil {
+		return err
+	}
+	if err := json.Unmarshal(patched, dst); err != nil {
+		mediaType := parseMediaType(contentType)
+		if mediaType == "" || mediaType == ContentTypeJSON {
+			mediaType = ContentTypeMergePatch
+		}
+		return invalidPatch(mediaType, fmt.Sprintf("patched document does not match target schema: %v", err), err)
+	}
+	return nil
+}
+
 // parseMediaType 提取 Content-Type 的主类型部分（去掉 charset、boundary 等参数），并小写化。
 // 解析失败时回退到原始字符串的 trim+lower 形式，避免 Content-Type 不规范时直接 500。
 func parseMediaType(ct string) string {

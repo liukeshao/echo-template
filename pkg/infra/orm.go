@@ -31,8 +31,10 @@ func NewORM(i do.Injector) (*ORM, error) {
 	drv := entsql.OpenDB(entDialect(cfg.Database.Driver), db.DB)
 	client := ent.NewClient(ent.Driver(drv))
 
-	if err := client.Schema.Create(context.Background()); err != nil {
-		return nil, err
+	if cfg.Database.AutoMigrate {
+		if err := client.Schema.Create(context.Background()); err != nil {
+			return nil, err
+		}
 	}
 	return &ORM{client}, nil
 }

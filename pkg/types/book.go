@@ -19,7 +19,7 @@ type BookResponse struct {
 	Title       string     `json:"title"`
 	Author      string     `json:"author"`
 	Description string     `json:"description,omitempty"`
-	Price       float64    `json:"price,omitempty"`
+	Price       *float64   `json:"price,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 	CreatedAt   time.Time  `json:"created_at"`
 	UpdatedAt   time.Time  `json:"updated_at"`
@@ -36,7 +36,7 @@ type CreateBookRequest struct {
 	Title       string     `json:"title"`
 	Author      string     `json:"author"`
 	Description string     `json:"description,omitempty"`
-	Price       float64    `json:"price,omitempty"`
+	Price       *float64   `json:"price,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
@@ -45,7 +45,7 @@ func (r *CreateBookRequest) Validate() error {
 	if r.BookID != "" && !utils.IsValidULID(r.BookID) {
 		v.Add("book_id", validator.KeyULID, map[string]string{"field": "book_id"})
 	}
-	validateBookWritableFields(&v, r.Title, r.Author, r.Price)
+	validateBookWritableFields(&v, r.Title, r.Author, r.Description, r.Price)
 	return v.Err()
 }
 
@@ -127,19 +127,19 @@ type ReplaceBookRequest struct {
 	Title       string     `json:"title"`
 	Author      string     `json:"author"`
 	Description string     `json:"description,omitempty"`
-	Price       float64    `json:"price,omitempty"`
+	Price       *float64   `json:"price,omitempty"`
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
 func (r *ReplaceBookRequest) Validate() error {
 	var v validator.FieldViolations
-	validateBookWritableFields(&v, r.Title, r.Author, r.Price)
+	validateBookWritableFields(&v, r.Title, r.Author, r.Description, r.Price)
 	return v.Err()
 }
 
-// validateBookWritableFields 集中处理 title / author / price 的字段级校验，
+// validateBookWritableFields 集中处理 title / author / description / price 的字段级校验，
 // 在 Create 与 Replace 两条路径上共享，避免规则发散。
-func validateBookWritableFields(v *validator.FieldViolations, title, author string, price float64) {
+func validateBookWritableFields(v *validator.FieldViolations, title, author, description string, price *float64) {
 	if strings.TrimSpace(title) == "" {
 		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
 	} else if len(title) > 200 {
@@ -150,7 +150,10 @@ func validateBookWritableFields(v *validator.FieldViolations, title, author stri
 	} else if len(author) > 100 {
 		v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
 	}
-	if price < 0 {
+	if len(description) > 1000 {
+		v.Add("description", validator.KeyMaxLength, map[string]string{"field": "description", "max": "1000"})
+	}
+	if price != nil && *price < 0 {
 		v.Add("price", validator.KeyNonNegative, map[string]string{"field": "price"})
 	}
 }

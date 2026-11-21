@@ -38,6 +38,7 @@ func (Book) Fields() []ent.Field {
 
 		field.Float("price").
 			Optional().
+			Nillable().
 			Comment("价格"),
 
 		field.Time("published_at").

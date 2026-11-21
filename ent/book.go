@@ -31,7 +31,7 @@ type Book struct {
 	// 简介
 	Description string `json:"description,omitempty"`
 	// 价格
-	Price float64 `json:"price,omitempty"`
+	Price *float64 `json:"price,omitempty"`
 	// 出版时间
 	PublishedAt  *time.Time `json:"published_at,omitempty"`
 	selectValues sql.SelectValues
@@ -111,7 +111,8 @@ func (_m *Book) assignValues(columns []string, values []any) error {
 			if value, ok := values[i].(*sql.NullFloat64); !ok {
 				return fmt.Errorf("unexpected type %T for field price", values[i])
 			} else if value.Valid {
-				_m.Price = value.Float64
+				_m.Price = new(float64)
+				*_m.Price = value.Float64
 			}
 		case book.FieldPublishedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
@@ -174,8 +175,10 @@ func (_m *Book) String() string {
 	builder.WriteString("description=")
 	builder.WriteString(_m.Description)
 	builder.WriteString(", ")
-	builder.WriteString("price=")
-	builder.WriteString(fmt.Sprintf("%v", _m.Price))
+	if v := _m.Price; v != nil {
+		builder.WriteString("price=")
+		builder.WriteString(fmt.Sprintf("%v", *v))
+	}
 	builder.WriteString(", ")
 	if v := _m.PublishedAt; v != nil {
 		builder.WriteString("published_at=")
