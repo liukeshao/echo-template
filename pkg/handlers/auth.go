@@ -45,6 +45,7 @@ func (h *AuthHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 //	@Param		body	body		types.RegisterRequest	true	"注册信息"
 //	@Success	200		{object}	types.AuthResponse
 //	@Failure	400		{object}	ErrorResponse
+//	@Failure	409		{object}	ErrorResponse	"邮箱或用户名已被占用"
 //	@Router		/api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *echo.Context) error {
 	ctx := c.Request().Context()
@@ -75,6 +76,7 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 //	@Success	200		{object}	types.AuthResponse
 //	@Failure	400		{object}	ErrorResponse
 //	@Failure	401		{object}	ErrorResponse
+//	@Failure	403		{object}	ErrorResponse	"账户已停用"
 //	@Router		/api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *echo.Context) error {
 	ctx := c.Request().Context()
@@ -103,7 +105,9 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 //	@Produce	json
 //	@Param		body	body		types.RefreshTokenRequest	true	"刷新令牌"
 //	@Success	200		{object}	types.AuthResponse
+//	@Failure	400		{object}	ErrorResponse
 //	@Failure	401		{object}	ErrorResponse
+//	@Failure	403		{object}	ErrorResponse	"账户已停用"
 //	@Router		/api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 	ctx := c.Request().Context()

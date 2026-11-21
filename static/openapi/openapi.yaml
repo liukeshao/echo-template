@@ -1,203 +1,224 @@
-definitions:
-  handlers.ErrorBody:
-    properties:
-      code:
-        description: HTTP status code, e.g. 404. Not the google.rpc.Code numeric value.
-        example: 404
-        type: integer
-      details:
-        description: |-
-          AIP-193 typed detail payloads. The "@type" field discriminates the entry:
-            - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
-            - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
-            - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
-            - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
-        items:
-          type: object
-        type: array
-      message:
-        description: Developer-facing English description of the error.
-        example: requested entity was not found
-        type: string
-      status:
-        description: Canonical google.rpc.Code name in UPPER_SNAKE_CASE, e.g. "NOT_FOUND".
-        example: NOT_FOUND
-        type: string
-    type: object
-  handlers.ErrorResponse:
-    properties:
-      error:
-        $ref: '#/definitions/handlers.ErrorBody'
-    type: object
-  types.AuthResponse:
-    properties:
-      access_token:
-        type: string
-      expires_at:
-        type: integer
-      refresh_token:
-        type: string
-    type: object
-  types.BookResponse:
-    properties:
-      author:
-        type: string
-      created_at:
-        type: string
-      description:
-        type: string
-      id:
-        type: string
-      price:
-        type: number
-      published_at:
-        type: string
-      title:
-        type: string
-      updated_at:
-        type: string
-    type: object
-  types.ChangePasswordRequest:
-    properties:
-      new_password:
-        type: string
-      old_password:
-        type: string
-    type: object
-  types.CreateBookRequest:
-    properties:
-      author:
-        type: string
-      book_id:
-        description: |-
-          BookID 用户自定义 ID（可选）。格式：26 位 ULID（大写字母 + 数字）。
-          若省略，服务端自动生成。
-        type: string
-      description:
-        type: string
-      price:
-        type: number
-      published_at:
-        type: string
-      title:
-        type: string
-    type: object
-  types.ListBooksResponse:
-    properties:
-      books:
-        items:
-          $ref: '#/definitions/types.BookResponse'
-        type: array
-      page:
-        type: integer
-      page_size:
-        type: integer
-      total_size:
-        type: integer
-    type: object
-  types.LoginRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-    type: object
-  types.RefreshTokenRequest:
-    properties:
-      refresh_token:
-        type: string
-    type: object
-  types.RegisterRequest:
-    properties:
-      email:
-        type: string
-      password:
-        type: string
-      username:
-        type: string
-    type: object
-  types.ReplaceBookRequest:
-    properties:
-      author:
-        type: string
-      description:
-        type: string
-      price:
-        type: number
-      published_at:
-        type: string
-      title:
-        type: string
-    type: object
-  types.ReplaceMeRequest:
-    properties:
-      email:
-        type: string
-      username:
-        type: string
-    type: object
-  types.UserInfo:
-    properties:
-      created_at:
-        type: string
-      email:
-        type: string
-      id:
-        type: string
-      last_login_at:
-        type: string
-      status:
-        type: string
-      username:
-        type: string
-    type: object
-host: localhost:8000
+components:
+  schemas:
+    handlers.ErrorBody:
+      properties:
+        code:
+          description: HTTP status code, e.g. 404. Not the google.rpc.Code numeric
+            value.
+          example: 404
+          type: integer
+        details:
+          description: |-
+            AIP-193 typed detail payloads. The "@type" field discriminates the entry:
+              - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
+              - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
+              - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
+              - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
+          items: {}
+          type: array
+          uniqueItems: false
+        message:
+          description: Developer-facing English description of the error.
+          example: requested entity was not found
+          type: string
+        status:
+          description: Canonical google.rpc.Code name in UPPER_SNAKE_CASE, e.g. "NOT_FOUND".
+          example: NOT_FOUND
+          type: string
+      type: object
+    handlers.ErrorResponse:
+      properties:
+        error:
+          $ref: '#/components/schemas/handlers.ErrorBody'
+      type: object
+    types.AuthResponse:
+      properties:
+        access_token:
+          type: string
+        expires_at:
+          type: integer
+        refresh_token:
+          type: string
+      type: object
+    types.BookResponse:
+      properties:
+        author:
+          type: string
+        created_at:
+          type: string
+        description:
+          type: string
+        id:
+          type: string
+        price:
+          type: number
+        published_at:
+          type: string
+        title:
+          type: string
+        updated_at:
+          type: string
+      type: object
+    types.ChangePasswordRequest:
+      properties:
+        new_password:
+          type: string
+        old_password:
+          type: string
+      type: object
+    types.CreateBookRequest:
+      properties:
+        author:
+          type: string
+        book_id:
+          description: |-
+            BookID 用户自定义 ID（可选）。格式：26 位 ULID（大写字母 + 数字）。
+            若省略，服务端自动生成。
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        published_at:
+          type: string
+        title:
+          type: string
+      type: object
+    types.ListBooksResponse:
+      properties:
+        books:
+          items:
+            $ref: '#/components/schemas/types.BookResponse'
+          type: array
+          uniqueItems: false
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_size:
+          type: integer
+      type: object
+    types.LoginRequest:
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+      type: object
+    types.RefreshTokenRequest:
+      properties:
+        refresh_token:
+          type: string
+      type: object
+    types.RegisterRequest:
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        username:
+          type: string
+      type: object
+    types.ReplaceBookRequest:
+      properties:
+        author:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        published_at:
+          type: string
+        title:
+          type: string
+      type: object
+    types.ReplaceMeRequest:
+      properties:
+        email:
+          type: string
+        username:
+          type: string
+      type: object
+    types.UserInfo:
+      properties:
+        created_at:
+          type: string
+        email:
+          type: string
+        id:
+          type: string
+        last_login_at:
+          type: string
+        status:
+          type: string
+        username:
+          type: string
+      type: object
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      description: JWT access token
+      scheme: bearer
+      type: http
+externalDocs:
+  description: ""
+  url: ""
 info:
-  contact: {}
   description: Echo Template RESTful API
   title: Echo Template API
   version: "1.0"
+openapi: 3.1.0
 paths:
   /api/v1/auth/login:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: 登录信息
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.LoginRequest'
+              description: 登录信息
+              summary: body
+        description: 登录信息
         required: true
-        schema:
-          $ref: '#/definitions/types.LoginRequest'
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.AuthResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.AuthResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
+          description: 账户已停用
       summary: 用户登录
       tags:
       - auth
   /api/v1/auth/logout:
     post:
-      produces:
-      - application/json
       responses:
         "204":
           description: No Content
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 用户登出
@@ -205,51 +226,73 @@ paths:
       - auth
   /api/v1/auth/refresh:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: 刷新令牌
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.RefreshTokenRequest'
+              description: 刷新令牌
+              summary: body
+        description: 刷新令牌
         required: true
-        schema:
-          $ref: '#/definitions/types.RefreshTokenRequest'
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.AuthResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.AuthResponse'
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
+          description: Bad Request
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
+          description: 账户已停用
       summary: 刷新访问令牌
       tags:
       - auth
   /api/v1/auth/register:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: 注册信息
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.RegisterRequest'
+              description: 注册信息
+              summary: body
+        description: 注册信息
         required: true
-        schema:
-          $ref: '#/definitions/types.RegisterRequest'
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.AuthResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.AuthResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
+          description: 邮箱或用户名已被占用
       summary: 用户注册
       tags:
       - auth
@@ -259,69 +302,83 @@ paths:
       - description: 页码，从 1 开始（默认 1）
         in: query
         name: page
-        type: integer
+        schema:
+          type: integer
       - description: 每页数量（默认 50，最大 1000）
         in: query
         name: page_size
-        type: integer
+        schema:
+          type: integer
       - description: 排序，如 'price desc,title'；支持 title/author/price/created_at/updated_at/published_at
         in: query
         name: order_by
-        type: string
+        schema:
+          type: string
       - description: '过滤表达式，如 title : ''Go'' AND price < 50'
         in: query
         name: filter
-        type: string
-      produces:
-      - application/json
+        schema:
+          type: string
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.ListBooksResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.ListBooksResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取书籍列表
       tags:
       - books
     post:
-      consumes:
-      - application/json
       description: book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回 409。
-      parameters:
-      - description: 书籍信息
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.CreateBookRequest'
+              description: 书籍信息
+              summary: body
+        description: 书籍信息
         required: true
-        schema:
-          $ref: '#/definitions/types.CreateBookRequest'
-      produces:
-      - application/json
       responses:
         "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.BookResponse'
           description: Created
-          schema:
-            $ref: '#/definitions/types.BookResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: book_id 已存在（ALREADY_EXISTS）
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 创建书籍
@@ -335,18 +392,23 @@ paths:
         in: path
         name: book
         required: true
-        type: string
+        schema:
+          type: string
       responses:
         "204":
           description: No Content
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Not Found
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 删除书籍
@@ -358,30 +420,33 @@ paths:
         in: path
         name: book
         required: true
-        type: string
-      produces:
-      - application/json
+        schema:
+          type: string
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.BookResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.BookResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Not Found
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取书籍详情
       tags:
       - books
     patch:
-      consumes:
-      - application/json
       description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
         / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
       parameters:
@@ -389,77 +454,101 @@ paths:
         in: path
         name: book
         required: true
-        type: string
-      - description: application/json-patch+json | application/merge-patch+json |
-          application/merge-patch+shorthand
-        in: header
-        name: Content-Type
-        type: string
-      - description: patch 主体（具体格式由 Content-Type 决定）
-        in: body
-        name: body
-        required: true
         schema:
-          type: object
-      produces:
-      - application/json
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+          application/json-patch+json:
+            schema:
+              type: string
+          application/merge-patch+json:
+            schema:
+              type: string
+          application/merge-patch+shorthand:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              title: body
+              type: object
+        description: patch 主体（具体格式由 Content-Type 决定）
+        required: true
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.BookResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.BookResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Not Found
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 局部更新书籍
       tags:
       - books
     put:
-      consumes:
-      - application/json
       description: 使用请求体中的全部字段替换资源；未提供的可选字段会被清除。响应为更新后的资源。
       parameters:
       - description: 书籍资源名称（书籍 ULID）
         in: path
         name: book
         required: true
-        type: string
-      - description: 完整书籍信息
-        in: body
-        name: body
-        required: true
         schema:
-          $ref: '#/definitions/types.ReplaceBookRequest'
-      produces:
-      - application/json
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.ReplaceBookRequest'
+              description: 完整书籍信息
+              summary: body
+        description: 完整书籍信息
+        required: true
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.BookResponse'
           description: OK
-          schema:
-            $ref: '#/definitions/types.BookResponse'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Not Found
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 替换书籍
@@ -467,93 +556,113 @@ paths:
       - books
   /api/v1/me:
     get:
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.UserInfo'
           description: OK
-          schema:
-            $ref: '#/definitions/types.UserInfo'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 获取当前用户信息
       tags:
       - me
     patch:
-      consumes:
-      - application/json
       description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
         / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
-      parameters:
-      - description: application/json-patch+json | application/merge-patch+json |
-          application/merge-patch+shorthand
-        in: header
-        name: Content-Type
-        type: string
-      - description: patch 主体（具体格式由 Content-Type 决定）
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+          application/json-patch+json:
+            schema:
+              type: string
+          application/merge-patch+json:
+            schema:
+              type: string
+          application/merge-patch+shorthand:
+            schema:
+              type: string
+          text/plain:
+            schema:
+              title: body
+              type: object
+        description: patch 主体（具体格式由 Content-Type 决定）
         required: true
-        schema:
-          type: object
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.UserInfo'
           description: OK
-          schema:
-            $ref: '#/definitions/types.UserInfo'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Conflict
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 局部更新当前用户资料
       tags:
       - me
     put:
-      consumes:
-      - application/json
       description: 使用请求体中的 username 与 email 覆盖现有资料。username / email 各自全局唯一，冲突时返回 409。
-      parameters:
-      - description: 完整资料
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.ReplaceMeRequest'
+              description: 完整资料
+              summary: body
+        description: 完整资料
         required: true
-        schema:
-          $ref: '#/definitions/types.ReplaceMeRequest'
-      produces:
-      - application/json
       responses:
         "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.UserInfo'
           description: OK
-          schema:
-            $ref: '#/definitions/types.UserInfo'
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: username / email 已被占用
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 替换当前用户资料
@@ -561,37 +670,35 @@ paths:
       - me
   /api/v1/me/change-password:
     post:
-      consumes:
-      - application/json
-      parameters:
-      - description: 密码信息
-        in: body
-        name: body
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/types.ChangePasswordRequest'
+              description: 密码信息
+              summary: body
+        description: 密码信息
         required: true
-        schema:
-          $ref: '#/definitions/types.ChangePasswordRequest'
-      produces:
-      - application/json
       responses:
         "204":
           description: No Content
         "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Bad Request
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
         "401":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/handlers.ErrorResponse'
           description: Unauthorized
-          schema:
-            $ref: '#/definitions/handlers.ErrorResponse'
       security:
       - BearerAuth: []
       summary: 修改密码
       tags:
       - me
-securityDefinitions:
-  BearerAuth:
-    description: Bearer {token}
-    in: header
-    name: Authorization
-    type: apiKey
-swagger: "2.0"
+servers:
+- description: Local development server
+  url: http://localhost:8000

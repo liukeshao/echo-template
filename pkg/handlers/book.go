@@ -209,15 +209,14 @@ func (h *BookHandler) Replace(c *echo.Context) error {
 //	@Description	根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902) / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
 //	@Tags			books
 //	@Security		BearerAuth
-//	@Accept			json
+//	@Accept			application/merge-patch+json,application/json-patch+json,application/merge-patch+shorthand,application/json
 //	@Produce		json
-//	@Param			book			path		string	true	"书籍资源名称（书籍 ULID）"
-//	@Param			Content-Type	header		string	false	"application/json-patch+json | application/merge-patch+json | application/merge-patch+shorthand"
-//	@Param			body			body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
-//	@Success		200				{object}	types.BookResponse
-//	@Failure		400				{object}	ErrorResponse
-//	@Failure		401				{object}	ErrorResponse
-//	@Failure		404				{object}	ErrorResponse
+//	@Param			book	path		string	true	"书籍资源名称（书籍 ULID）"
+//	@Param			body	body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
+//	@Success		200		{object}	types.BookResponse
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		404		{object}	ErrorResponse
 //	@Router			/api/v1/books/{book} [patch]
 func (h *BookHandler) Patch(c *echo.Context) error {
 	ctx := c.Request().Context()

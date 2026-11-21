@@ -110,14 +110,13 @@ func (h *MeHandler) Replace(c *echo.Context) error {
 //	@Description	根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902) / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
 //	@Tags			me
 //	@Security		BearerAuth
-//	@Accept			json
+//	@Accept			application/merge-patch+json,application/json-patch+json,application/merge-patch+shorthand,application/json
 //	@Produce		json
-//	@Param			Content-Type	header		string	false	"application/json-patch+json | application/merge-patch+json | application/merge-patch+shorthand"
-//	@Param			body			body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
-//	@Success		200				{object}	types.UserInfo
-//	@Failure		400				{object}	ErrorResponse
-//	@Failure		401				{object}	ErrorResponse
-//	@Failure		409				{object}	ErrorResponse
+//	@Param			body	body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
+//	@Success		200		{object}	types.UserInfo
+//	@Failure		400		{object}	ErrorResponse
+//	@Failure		401		{object}	ErrorResponse
+//	@Failure		409		{object}	ErrorResponse
 //	@Router			/api/v1/me [patch]
 func (h *MeHandler) Patch(c *echo.Context) error {
 	ctx := c.Request().Context()

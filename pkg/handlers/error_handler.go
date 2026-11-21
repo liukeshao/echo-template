@@ -52,7 +52,7 @@ type ErrorBody struct {
 	//   - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
 	//   - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
 	//   - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
-	Details []any `json:"details,omitempty" swaggertype:"array,object"`
+	Details []any `json:"details,omitempty"`
 }
 
 // registerErrorHandler 将 echo HTTPErrorHandler 绑定到使用给定 Translator 的实现上。
