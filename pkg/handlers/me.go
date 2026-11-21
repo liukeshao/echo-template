@@ -10,7 +10,6 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/patch"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
@@ -18,15 +17,13 @@ import (
 
 // MeHandler 当前登录用户的处理器（Kubernetes 风格单例资源）。
 type MeHandler struct {
-	me     *services.MeService
-	authMW middleware.AuthMiddleware
+	me *services.MeService
 }
 
 // NewMeHandler 构造 MeHandler 并注入依赖。
 func NewMeHandler(i do.Injector) (*MeHandler, error) {
 	return &MeHandler{
-		me:     do.MustInvoke[*services.MeService](i),
-		authMW: do.MustInvoke[middleware.AuthMiddleware](i),
+		me: do.MustInvoke[*services.MeService](i),
 	}, nil
 }
 
@@ -37,14 +34,13 @@ func NewMeHandler(i do.Injector) (*MeHandler, error) {
 //
 // change-password 作为子资源动作单独暴露：密码字段不属于资料表示，
 // 也不能用全量替换语义进行轮换（需要校验旧密码）。
-func (h *MeHandler) Routes(g *echo.Group) {
-	protected := g.Group("/api/v1/me")
-	protected.Use(echo.MiddlewareFunc(h.authMW))
+func (h *MeHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
+	r := g.Group("/me", auth)
 
-	protected.GET("", h.Get)
-	protected.PUT("", h.Replace)
-	protected.PATCH("", h.Patch)
-	protected.POST("/change-password", h.ChangePassword)
+	r.GET("", h.Get)
+	r.PUT("", h.Replace)
+	r.PATCH("", h.Patch)
+	r.POST("/change-password", h.ChangePassword)
 }
 
 // toUserInfo 将 *ent.User 映射为对外的资料 DTO（不含密码、删除标记等）。

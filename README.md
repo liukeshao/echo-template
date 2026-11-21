@@ -244,28 +244,30 @@ func translateOrderFilter(expr filter.Expr) (predicate.Order, error) {
 
 ```go
 type OrderHandler struct {
-    order  *services.OrderService
-    authMW middleware.AuthMiddleware
+    order *services.OrderService
 }
 
 func NewOrderHandler(i do.Injector) (*OrderHandler, error) { ... }
 
-func (h *OrderHandler) Routes(g *echo.Group) {
-    protected := g.Group("/api/v1/orders")
-    protected.Use(echo.MiddlewareFunc(h.authMW))
+func (h *OrderHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
+    r := g.Group("/orders", auth)
 
-    protected.POST("",          h.Create)
-    protected.GET("",           h.List)
-    protected.GET("/:order",    h.Get)
-    protected.PUT("/:order",    h.Replace)
-    protected.PATCH("/:order",  h.Patch)
-    protected.DELETE("/:order", h.Delete)
+    r.POST("",          h.Create)
+    r.GET("",           h.List)
+    r.GET("/:order",    h.Get)
+    r.PUT("/:order",    h.Replace)
+    r.PATCH("/:order",  h.Patch)
+    r.DELETE("/:order", h.Delete)
 }
 ```
 
-PATCH handler 直接复用 `pkg/patch` 提供的多协议 dispatch；具体实现见 `pkg/handlers/book.go` 的 `Patch` 方法。
+PATCH handler 直接复用 `pkg/patch` 提供的 `patch.ApplyInto`；具体实现见 `pkg/handlers/book.go` 的 `Patch` 方法。
 
-注册到 `pkg/handlers/package.go` 和 `BuildRouter`。
+注册到 `pkg/handlers/package.go`（`BuildRouter` 会自动挂载，无需修改 `router.go`）：
+
+```go
+provideHandler(NewOrderHandler),
+```
 
 **6. 自定义方法（资源动作）**
 

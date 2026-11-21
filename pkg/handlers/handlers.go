@@ -5,32 +5,41 @@ import (
 	"github.com/samber/do/v2"
 )
 
-// Handler handles one or more HTTP routes.
+// Handler 定义业务路由注册接口。
+// g 为 API 版本前缀组（如 /api/v1），auth 为认证中间件，按需挂在受保护的分组或单条路由上。
 type Handler interface {
-	Routes(g *echo.Group)
+	Routes(g *echo.Group, auth echo.MiddlewareFunc)
 }
 
-// RouteRegistry 收集通过 provideHandler 注册进当前 DI 容器的业务 Handler，
+// routeRegistry 收集通过 provideHandler 注册进当前 DI 容器的业务 Handler，
 // 供 BuildRouter 一次性挂载，避免在 router.go 中逐个手动 do.MustInvoke。
-type RouteRegistry struct {
-	mounts []func(i do.Injector, g *echo.Group)
+type routeRegistry struct {
+	mounts []func(i do.Injector, g *echo.Group, auth echo.MiddlewareFunc)
 }
 
-// MountAll 解析并挂载所有已登记的 Handler 路由。
-func (r *RouteRegistry) MountAll(i do.Injector, g *echo.Group) {
+func getOrCreateRouteRegistry(i do.Injector) *routeRegistry {
+	if reg, err := do.Invoke[*routeRegistry](i); err == nil {
+		return reg
+	}
+	reg := &routeRegistry{}
+	do.ProvideValue(i, reg)
+	return reg
+}
+
+func (r *routeRegistry) mountAll(i do.Injector, g *echo.Group, auth echo.MiddlewareFunc) {
 	for _, mount := range r.mounts {
-		mount(i, g)
+		mount(i, g, auth)
 	}
 }
 
 // provideHandler 将 Handler 的构造函数以 Lazy 方式注册到 DI 容器，
-// 同时登记到当前容器的 RouteRegistry（编译期约束实现 Handler 接口）。
+// 同时登记到当前容器的 routeRegistry（编译期约束实现 Handler 接口，无需关心注册顺序）。
 func provideHandler[T Handler](provider do.Provider[T]) func(do.Injector) {
 	return func(i do.Injector) {
 		do.Lazy(provider)(i)
-		reg := do.MustInvoke[*RouteRegistry](i)
-		reg.mounts = append(reg.mounts, func(inj do.Injector, g *echo.Group) {
-			do.MustInvoke[T](inj).Routes(g)
+		reg := getOrCreateRouteRegistry(i)
+		reg.mounts = append(reg.mounts, func(inj do.Injector, g *echo.Group, auth echo.MiddlewareFunc) {
+			do.MustInvoke[T](inj).Routes(g, auth)
 		})
 	}
 }

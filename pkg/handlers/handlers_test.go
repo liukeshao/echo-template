@@ -162,3 +162,44 @@ func TestRouter_BodyLimitMapsToResourceExhausted(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &errResp))
 	assert.Equal(t, "RESOURCE_EXHAUSTED", errResp.Error.Status)
 }
+
+func TestRouter_AuthBoundary(t *testing.T) {
+	web, _, _ := setupTestEcho(t)
+
+	// Public auth routes must NOT be blocked by RequireAuth (bad payload -> 400 validation, not 401).
+	for _, p := range []string{"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh"} {
+		req := httptest.NewRequest(http.MethodPost, p, bytes.NewBufferString(`{}`))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		rec := httptest.NewRecorder()
+		web.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusBadRequest, rec.Code, "public route %s should reach validation without auth", p)
+	}
+
+	// Unmatched path under /api/v1/auth must return 404 (not 401).
+	rec := httptest.NewRecorder()
+	web.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/auth/does-not-exist", nil))
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	// Protected routes require auth.
+	protectedCases := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/api/v1/auth/logout"},
+		{http.MethodGet, "/api/v1/me"},
+		{http.MethodPut, "/api/v1/me"},
+		{http.MethodPatch, "/api/v1/me"},
+		{http.MethodPost, "/api/v1/me/change-password"},
+		{http.MethodPost, "/api/v1/books"},
+		{http.MethodGet, "/api/v1/books"},
+		{http.MethodGet, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		{http.MethodPut, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		{http.MethodPatch, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		{http.MethodDelete, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+	}
+	for _, tc := range protectedCases {
+		rec := httptest.NewRecorder()
+		web.ServeHTTP(rec, httptest.NewRequest(tc.method, tc.path, nil))
+		assert.Equal(t, http.StatusUnauthorized, rec.Code, "%s %s must require auth", tc.method, tc.path)
+	}
+}

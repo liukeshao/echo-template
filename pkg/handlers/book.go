@@ -10,7 +10,6 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
-	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/patch"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
@@ -18,15 +17,13 @@ import (
 
 // BookHandler 书籍处理器
 type BookHandler struct {
-	book   *services.BookService
-	authMW middleware.AuthMiddleware
+	book *services.BookService
 }
 
 // NewBookHandler 构造 BookHandler 并注入依赖。
 func NewBookHandler(i do.Injector) (*BookHandler, error) {
 	return &BookHandler{
-		book:   do.MustInvoke[*services.BookService](i),
-		authMW: do.MustInvoke[middleware.AuthMiddleware](i),
+		book: do.MustInvoke[*services.BookService](i),
 	}, nil
 }
 
@@ -38,16 +35,15 @@ func NewBookHandler(i do.Injector) (*BookHandler, error) {
 //   - PUT    ：幂等全量替换；可选字段未提供视为清除
 //   - PATCH  ：partial update；根据 Content-Type 分派 RFC 6902 / 7386 / Shorthand
 //   - DELETE ：删除
-func (h *BookHandler) Routes(g *echo.Group) {
-	protected := g.Group("/api/v1/books")
-	protected.Use(echo.MiddlewareFunc(h.authMW))
+func (h *BookHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
+	r := g.Group("/books", auth)
 
-	protected.POST("", h.Create)
-	protected.GET("", h.List)
-	protected.GET("/:book", h.Get)
-	protected.PUT("/:book", h.Replace)
-	protected.PATCH("/:book", h.Patch)
-	protected.DELETE("/:book", h.Delete)
+	r.POST("", h.Create)
+	r.GET("", h.List)
+	r.GET("/:book", h.Get)
+	r.PUT("/:book", h.Replace)
+	r.PATCH("/:book", h.Patch)
+	r.DELETE("/:book", h.Delete)
 }
 
 // toBookResponse maps *ent.Book to types.BookResponse, hiding internal fields such as deleted_at.

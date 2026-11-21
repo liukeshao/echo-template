@@ -7,38 +7,33 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/middleware"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
 
 // AuthHandler 认证处理器
 type AuthHandler struct {
-	auth   *services.AuthService
-	authMW middleware.AuthMiddleware
+	auth *services.AuthService
 }
 
 // NewAuthHandler 构造 AuthHandler 并注入依赖。
 func NewAuthHandler(i do.Injector) (*AuthHandler, error) {
 	return &AuthHandler{
-		auth:   do.MustInvoke[*services.AuthService](i),
-		authMW: do.MustInvoke[middleware.AuthMiddleware](i),
+		auth: do.MustInvoke[*services.AuthService](i),
 	}, nil
 }
 
 // Routes 路由定义
-func (h *AuthHandler) Routes(g *echo.Group) {
-	auth := g.Group("/api/v1/auth")
+func (h *AuthHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
+	r := g.Group("/auth")
 
 	// 公开路由（无需认证）
-	auth.POST("/register", h.Register)
-	auth.POST("/login", h.Login)
-	auth.POST("/refresh", h.RefreshToken)
+	r.POST("/register", h.Register)
+	r.POST("/login", h.Login)
+	r.POST("/refresh", h.RefreshToken)
 
 	// 需要认证的路由
-	protected := g.Group("/api/v1/auth")
-	protected.Use(echo.MiddlewareFunc(h.authMW))
-	protected.POST("/logout", h.Logout)
+	r.POST("/logout", h.Logout, auth)
 }
 
 // Register 用户注册

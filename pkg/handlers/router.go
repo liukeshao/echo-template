@@ -8,6 +8,7 @@ import (
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/pkg/i18n"
 	"github.com/liukeshao/echo-template/pkg/middleware"
+	"github.com/liukeshao/echo-template/pkg/services"
 )
 
 const defaultMaxBodyBytes = 2 << 20 // 2 MiB
@@ -16,6 +17,7 @@ const defaultMaxBodyBytes = 2 << 20 // 2 MiB
 func BuildRouter(i do.Injector, web *echo.Echo) error {
 	cfg := do.MustInvoke[*config.Config](i)
 	translator := do.MustInvoke[i18n.Translator](i)
+	authSvc := do.MustInvoke[*services.AuthService](i)
 
 	registerErrorHandler(web, translator)
 
@@ -30,12 +32,12 @@ func BuildRouter(i do.Injector, web *echo.Echo) error {
 		echomw.RequestLogger(),
 	)
 
-	g := web.Group("")
-	do.MustInvoke[*RouteRegistry](i).MountAll(i, g)
+	v1 := web.Group("/api/v1")
+	getOrCreateRouteRegistry(i).mountAll(i, v1, middleware.RequireAuth(authSvc))
 
 	// API docs are not exposed in production.
 	if cfg.App.Environment != config.EnvProduction {
-		do.MustInvoke[*DocsHandler](i).Routes(g)
+		do.MustInvoke[*DocsHandler](i).Routes(web.Group(""))
 	}
 
 	return nil

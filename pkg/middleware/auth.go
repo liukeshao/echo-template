@@ -5,23 +5,12 @@ import (
 	"strings"
 
 	"github.com/labstack/echo/v5"
-	"github.com/samber/do/v2"
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/pkg/appctx"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
-
-// AuthMiddleware 是注册到 DI 容器的 echo.MiddlewareFunc 命名类型。
-// 使用独立类型而非 echo.MiddlewareFunc 别名，避免与其他 MiddlewareFunc 冲突。
-type AuthMiddleware echo.MiddlewareFunc
-
-// NewAuthMiddleware 从 DI 容器构造 AuthMiddleware，供 BookHandler / MeHandler 注入。
-func NewAuthMiddleware(i do.Injector) (AuthMiddleware, error) {
-	authService := do.MustInvoke[*services.AuthService](i)
-	return AuthMiddleware(RequireAuth(authService)), nil
-}
 
 // extractTokenFromHeader 从 Authorization header 提取 Bearer token。
 // header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误，
