@@ -9,10 +9,11 @@ import (
 // Package registers all HTTP handler providers and the Echo instance
 // into the DI container.
 var Package = do.Package(
+	do.Lazy(func(_ do.Injector) (*RouteRegistry, error) { return &RouteRegistry{}, nil }),
 	do.Lazy(middleware.NewAuthMiddleware),
-	do.Lazy(NewAuthHandler),
-	do.Lazy(NewBookHandler),
-	do.Lazy(NewMeHandler),
+	provideHandler(NewAuthHandler),
+	provideHandler(NewBookHandler),
+	provideHandler(NewMeHandler),
 	do.Lazy(NewDocsHandler),
 	do.Lazy(NewServer),
 )

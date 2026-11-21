@@ -31,14 +31,7 @@ func BuildRouter(i do.Injector, web *echo.Echo) error {
 	)
 
 	g := web.Group("")
-
-	for _, h := range []Handler{
-		do.MustInvoke[*AuthHandler](i),
-		do.MustInvoke[*BookHandler](i),
-		do.MustInvoke[*MeHandler](i),
-	} {
-		h.Routes(g)
-	}
+	do.MustInvoke[*RouteRegistry](i).MountAll(i, g)
 
 	// API docs are not exposed in production.
 	if cfg.App.Environment != config.EnvProduction {
