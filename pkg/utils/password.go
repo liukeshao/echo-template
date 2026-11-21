@@ -1,6 +1,8 @@
 package utils
 
 import (
+	"testing"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -9,9 +11,18 @@ const (
 	DefaultBcryptCost = 12
 )
 
+// bcryptCost 在生产环境使用 DefaultBcryptCost（12），
+// 在 go test 环境下自动降为 bcrypt.MinCost（4）以加速测试执行。
+func bcryptCost() int {
+	if testing.Testing() {
+		return bcrypt.MinCost
+	}
+	return DefaultBcryptCost
+}
+
 // HashPassword 对密码进行哈希加密
 func HashPassword(password string) (string, error) {
-	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), DefaultBcryptCost)
+	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost())
 	if err != nil {
 		return "", err
 	}

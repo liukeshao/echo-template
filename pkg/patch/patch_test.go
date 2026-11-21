@@ -115,3 +115,48 @@ func TestApplyInto_TypeMismatchReturnsPatchInvalid(t *testing.T) {
 	require.ErrorAs(t, err, &oe)
 	assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
 }
+
+func TestApply_AdditionalProtocolsAndErrors(t *testing.T) {
+	t.Parallel()
+
+	// Alt shorthand media type & application/json compatibility.
+	out, err := patch.Apply([]byte(sample), []byte(`title: "Alt"`), patch.ContentTypeShorthandAlt)
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"Alt"`)
+
+	out, err = patch.Apply([]byte(sample), []byte(`{"title":"JSON"}`), patch.ContentTypeJSON)
+	require.NoError(t, err)
+	assert.Contains(t, string(out), `"JSON"`)
+
+	// Malformed Content-Type header falls back safely to unsupported media type.
+	_, err = patch.Apply([]byte(sample), []byte(`{}`), ";;;bad-media-type")
+	require.Error(t, err)
+	var oe oops.OopsError
+	require.ErrorAs(t, err, &oe)
+	assert.Equal(t, codes.PatchUnsupportedMediaType.String(), oe.Code())
+
+	// Invalid merge patch / invalid shorthand patch / invalid JSON patch apply op.
+	for _, tc := range []struct {
+		ct   string
+		body string
+	}{
+		{patch.ContentTypeMergePatch, `{invalid json`},
+		{patch.ContentTypeJSONPatch, `[{"op":"replace","path":"/nonexistent","value":"x"}]`},
+		{patch.ContentTypeShorthandPatch, `{unclosed: "x"`},
+	} {
+		_, err := patch.Apply([]byte(sample), []byte(tc.body), tc.ct)
+		require.Error(t, err, tc.ct)
+		require.ErrorAs(t, err, &oe)
+		assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
+	}
+
+	// ApplyInto happy path with empty content type.
+	type target struct {
+		Title string  `json:"title"`
+		Price float64 `json:"price"`
+	}
+	var dst target
+	require.NoError(t, patch.ApplyInto([]byte(sample), []byte(`{"title":"Into"}`), "", &dst))
+	assert.Equal(t, "Into", dst.Title)
+	assert.InDelta(t, 10.0, dst.Price, 1e-9)
+}

@@ -45,6 +45,7 @@ pkg/
   patch/                多协议 PATCH 实现（RFC 6902 / 7386 / Shorthand）
   services/             领域服务（业务逻辑）
     <domain>_filter.go  AIP-160 过滤器 → ent predicate 翻译（每个领域一个文件）
+  testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
   types/                Request / Response DTO + Validate()
   utils/                password（bcrypt cost=12）、ULID、Retry
   validator/            FieldViolations + 原子校验规则

@@ -108,6 +108,16 @@ func (r *CreateXxxRequest) Validate() error {
 
 ---
 
+## Testing
+
+- Use `pkg/testutil` in external test packages (`package services_test`, `package handlers_test`, `package <api>_test`) instead of re-creating SQLite/Ent/DI setup manually:
+  - `env := testutil.New(t, ...)` builds the full lazy DI container with an isolated in-memory SQLite DB and automatic `t.Cleanup` shutdown (safe for `t.Parallel()`).
+  - Use `testutil.WithConfig(...)`, `testutil.WithOverride[T](mock)`, or `testutil.WithHTTPTransport(rt)` to customize config or inject mocks.
+  - Handler tests use `env.MustAuthUser(...)`, `env.DoRequest(...)`, `testutil.DecodeJSON[T](t, rec)`, and `testutil.AssertAPIError(...)`.
+  - Service/client tests use `testutil.AssertOopsCode(t, err, codes.Xxx)`.
+
+---
+
 ## Code Generation
 
 ```bash

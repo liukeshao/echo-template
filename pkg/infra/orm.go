@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"sync"
 
 	"entgo.io/ent/dialect"
 	entsql "entgo.io/ent/dialect/sql"
@@ -13,6 +14,12 @@ import (
 	_ "github.com/liukeshao/echo-template/ent/runtime"
 	_ "modernc.org/sqlite"
 )
+
+// schemaCreateMu serializes Ent's Schema.Create calls because Ent's generated
+// ent/migrate.Tables slice is package-global and mutated in place during schema
+// setup. Serializing it has no runtime impact in production (runs once at
+// startup) and keeps parallel tests with isolated in-memory databases race-free.
+var schemaCreateMu sync.Mutex
 
 // ORM wraps *ent.Client and implements do.Shutdowner so the DI
 // container closes the client and its underlying connection during
@@ -32,7 +39,11 @@ func NewORM(i do.Injector) (*ORM, error) {
 	client := ent.NewClient(ent.Driver(drv))
 
 	if cfg.Database.AutoMigrate {
-		if err := client.Schema.Create(context.Background()); err != nil {
+		schemaCreateMu.Lock()
+		err := client.Schema.Create(context.Background())
+		schemaCreateMu.Unlock()
+		if err != nil {
+			_ = client.Close()
 			return nil, err
 		}
 	}

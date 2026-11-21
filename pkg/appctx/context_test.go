@@ -6,6 +6,7 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/text/language"
 )
 
 func TestUserContext(t *testing.T) {
@@ -68,4 +69,15 @@ func TestRequestIDContext(t *testing.T) {
 	// 测试从空context获取request ID
 	emptyID := MustGetRequestIDFromContext(context.Background())
 	assert.Empty(t, emptyID, "空context中的request ID应该为空字符串")
+}
+
+func TestLocaleContext(t *testing.T) {
+	// Empty context returns fallback.
+	got := LocaleFromContext(context.Background(), language.English)
+	assert.Equal(t, language.English, got)
+
+	// Set locale is returned instead of fallback.
+	ctx := WithLocale(context.Background(), language.SimplifiedChinese)
+	got = LocaleFromContext(ctx, language.English)
+	assert.Equal(t, language.SimplifiedChinese, got)
 }

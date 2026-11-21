@@ -8,6 +8,8 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/pkg/codes"
+	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
 // newTestTranslator 构造包含默认 en + zh-CN 的 Translator；测试通用。
@@ -150,4 +152,54 @@ func TestRender_SinglePassNoReexpansion(t *testing.T) {
 		"b": "VALUE",
 	})
 	assert.Equal(t, "{b} and VALUE", got)
+}
+
+// TestMessages_LocaleKeyParityAndCompleteCoverage is a template invariant gate:
+// every registered error code and validation key must exist in BOTH en.toml and zh-CN.toml,
+// and both locale files must define the exact same set of keys.
+func TestMessages_LocaleKeyParityAndCompleteCoverage(t *testing.T) {
+	enTable, err := loadLocale(language.English)
+	require.NoError(t, err)
+	zhTable, err := loadLocale(language.MustParse("zh-CN"))
+	require.NoError(t, err)
+
+	for k := range enTable {
+		assert.Contains(t, zhTable, k, "zh-CN.toml missing key %q present in en.toml", k)
+	}
+	for k := range zhTable {
+		assert.Contains(t, enTable, k, "en.toml missing key %q present in zh-CN.toml", k)
+	}
+
+	for _, c := range codes.RegisteredCodes() {
+		key := "errors." + c.String()
+		assert.Contains(t, enTable, key)
+		assert.Contains(t, zhTable, key)
+	}
+
+	validationKeys := []string{
+		validator.KeyRequired,
+		validator.KeyMinLength,
+		validator.KeyMaxLength,
+		validator.KeyLengthRange,
+		validator.KeyCharset,
+		validator.KeyEmail,
+		validator.KeyPasswordWeak,
+		validator.KeyNonNegative,
+		validator.KeyMustDiffer,
+		validator.KeyULID,
+		validator.KeyInvalidOrderByClause,
+		validator.KeyInvalidOrderByDirection,
+		validator.KeyUnknownOrderByField,
+	}
+	for _, key := range validationKeys {
+		assert.Contains(t, enTable, key)
+		assert.Contains(t, zhTable, key)
+	}
+}
+
+func TestAssertCoverage_DetectsMissingCode(t *testing.T) {
+	err := assertCoverage(map[string]string{}, language.English)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "missing translations")
+	assert.Error(t, assertCoverage(nil, language.English))
 }

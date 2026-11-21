@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/pkg/appctx"
 )
 
@@ -28,4 +29,16 @@ func TestContextHandler_PreservesRequestIDAcrossWithAttrsAndWithGroup(t *testing
 	require.True(t, ok)
 	assert.Equal(t, "req-abc-123", sub["request_id"])
 	assert.Equal(t, "v", sub["k"])
+}
+
+func TestSetup_LogLevelsByEnvironment(t *testing.T) {
+	orig := slog.Default()
+	t.Cleanup(func() { slog.SetDefault(orig) })
+
+	Setup(&config.Config{App: config.AppConfig{Environment: config.EnvProduction}})
+	assert.False(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
+	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelInfo))
+
+	Setup(&config.Config{App: config.AppConfig{Environment: config.EnvLocal}})
+	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
 }

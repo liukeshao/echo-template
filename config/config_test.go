@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -44,4 +46,56 @@ func TestConfig_Validate(t *testing.T) {
 	prodStrong.App.Environment = EnvProduction
 	prodStrong.JWT.Secret = strings.Repeat("k", 32)
 	assert.NoError(t, prodStrong.Validate())
+
+	// Missing database fields.
+	noDB := validBaseConfig()
+	noDB.Database.Driver = ""
+	assert.Error(t, noDB.Validate())
+
+	// Missing JWT secret.
+	noSecret := validBaseConfig()
+	noSecret.JWT.Secret = "   "
+	assert.Error(t, noSecret.Validate())
+
+	// Non-positive token expiry.
+	badExpiry := validBaseConfig()
+	badExpiry.JWT.AccessTokenExpiry = 0
+	assert.Error(t, badExpiry.Validate())
+}
+
+func TestGetConfig_LoadsTOMLAndEnvOverrides(t *testing.T) {
+	dir := t.TempDir()
+	tomlContent := `
+[http]
+port = 9000
+
+[app]
+name = "custom-app"
+environment = "local"
+
+[database]
+driver = "sqlite"
+connection = ":memory:"
+autoMigrate = true
+
+[jwt]
+secret = "local-secret"
+accessTokenExpiry = "1h"
+refreshTokenExpiry = "24h"
+issuer = "custom-issuer"
+
+[i18n]
+defaultLocale = "en"
+supportedLocales = ["en", "zh-CN"]
+`
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0644))
+	t.Chdir(dir)
+	t.Setenv("ECHO_TEMPLATE_JWT_SECRET", "env-overridden-secret")
+
+	cfg, err := GetConfig()
+	require.NoError(t, err)
+	assert.Equal(t, uint16(9000), cfg.HTTP.Port)
+	assert.Equal(t, "custom-app", cfg.App.Name)
+	assert.Equal(t, "env-overridden-secret", cfg.JWT.Secret)
+	assert.True(t, cfg.Database.AutoMigrate)
 }

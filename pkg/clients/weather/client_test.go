@@ -1,4 +1,4 @@
-package weather
+package weather_test
 
 import (
 	"bytes"
@@ -6,16 +6,15 @@ import (
 	"io"
 	"net/http"
 	"testing"
-	"time"
 
 	"github.com/samber/do/v2"
-	"github.com/samber/oops"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/pkg/clients/weather"
 	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/infra"
+	"github.com/liukeshao/echo-template/pkg/testutil"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -23,6 +22,7 @@ type roundTripFunc func(*http.Request) (*http.Response, error)
 func (f roundTripFunc) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
 
 func TestClient_GetCurrent_EscapesCityAndParsesResponse(t *testing.T) {
+	t.Parallel()
 	var gotRawQuery string
 	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
 		gotRawQuery = r.URL.RawQuery
@@ -34,20 +34,14 @@ func TestClient_GetCurrent_EscapesCityAndParsesResponse(t *testing.T) {
 		}, nil
 	})
 
-	inj := do.New(Package)
-	do.ProvideValue(inj, &config.Config{
-		Clients: config.ClientsConfig{
-			Weather: config.ExternalClientConfig{
-				BaseURL: "https://weather.example.com/v1",
-				APIKey:  "secret-key",
-				Timeout: 2 * time.Second,
-				Retry:   0,
-			},
-		},
-	})
-	do.ProvideValue(inj, &infra.HTTPClient{Client: &http.Client{Transport: rt}})
+	env := testutil.New(t,
+		testutil.WithConfig(func(cfg *config.Config) {
+			cfg.Clients.Weather.APIKey = "secret-key"
+		}),
+		testutil.WithHTTPTransport(rt),
+	)
 
-	c := do.MustInvoke[*Client](inj)
+	c := do.MustInvoke[*weather.Client](env.Injector)
 	res, err := c.GetCurrent(context.Background(), "New York&evil=1")
 	require.NoError(t, err)
 	assert.Equal(t, "city=New+York%26evil%3D1", gotRawQuery)
@@ -56,6 +50,7 @@ func TestClient_GetCurrent_EscapesCityAndParsesResponse(t *testing.T) {
 }
 
 func TestClient_GetCurrent_RateLimited(t *testing.T) {
+	t.Parallel()
 	rt := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 		return &http.Response{
 			StatusCode: http.StatusTooManyRequests,
@@ -64,26 +59,14 @@ func TestClient_GetCurrent_RateLimited(t *testing.T) {
 		}, nil
 	})
 
-	inj := do.New(Package)
-	do.ProvideValue(inj, &config.Config{
-		Clients: config.ClientsConfig{
-			Weather: config.ExternalClientConfig{
-				BaseURL: "https://weather.example.com/v1",
-				Retry:   0,
-			},
-		},
-	})
-	do.ProvideValue(inj, &infra.HTTPClient{Client: &http.Client{Transport: rt}})
-
-	c := do.MustInvoke[*Client](inj)
+	env := testutil.New(t, testutil.WithHTTPTransport(rt))
+	c := do.MustInvoke[*weather.Client](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "Tokyo")
-	require.Error(t, err)
-	var oe oops.OopsError
-	require.ErrorAs(t, err, &oe)
-	assert.Equal(t, codes.WeatherRateLimited.String(), oe.Code())
+	testutil.AssertOopsCode(t, err, codes.WeatherRateLimited)
 }
 
 func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	rt := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 		calls++
@@ -94,28 +77,19 @@ func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {
 		}, nil
 	})
 
-	inj := do.New(Package)
-	do.ProvideValue(inj, &config.Config{
-		Clients: config.ClientsConfig{
-			Weather: config.ExternalClientConfig{
-				BaseURL: "https://weather.example.com/v1",
-				Retry:   3,
-			},
-		},
-	})
-	do.ProvideValue(inj, &infra.HTTPClient{Client: &http.Client{Transport: rt}})
+	env := testutil.New(t,
+		testutil.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 3 }),
+		testutil.WithHTTPTransport(rt),
+	)
 
-	c := do.MustInvoke[*Client](inj)
+	c := do.MustInvoke[*weather.Client](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "bad")
-	require.Error(t, err)
 	assert.Equal(t, 1, calls, "4xx permanent errors must not be retried")
-
-	var oe oops.OopsError
-	require.ErrorAs(t, err, &oe)
-	assert.Equal(t, codes.WeatherInternal.String(), oe.Code())
+	testutil.AssertOopsCode(t, err, codes.WeatherInternal)
 }
 
 func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {
+	t.Parallel()
 	calls := 0
 	rt := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
 		calls++
@@ -133,18 +107,12 @@ func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {
 		}, nil
 	})
 
-	inj := do.New(Package)
-	do.ProvideValue(inj, &config.Config{
-		Clients: config.ClientsConfig{
-			Weather: config.ExternalClientConfig{
-				BaseURL: "https://weather.example.com/v1",
-				Retry:   2,
-			},
-		},
-	})
-	do.ProvideValue(inj, &infra.HTTPClient{Client: &http.Client{Transport: rt}})
+	env := testutil.New(t,
+		testutil.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 2 }),
+		testutil.WithHTTPTransport(rt),
+	)
 
-	c := do.MustInvoke[*Client](inj)
+	c := do.MustInvoke[*weather.Client](env.Injector)
 	res, err := c.GetCurrent(context.Background(), "Tokyo")
 	require.NoError(t, err)
 	assert.Equal(t, 2, calls)
