@@ -53,7 +53,7 @@ transport/
   rpc/codes             google.rpc.Code 定义
   rpc/status            不可变 Status（code + message + details）
   rpc/errdetails        AIP-193 detail payload 类型
-  http/status           rpc.Code ↔ HTTP 状态码双向映射
+  http/status           rpc.Code ↔ HTTP 状态码映射 + AIP-193 ErrorResponse/ErrorDetails 契约
 static/                 Stoplight Elements + OpenAPI YAML（embed.FS）
 .apitest/               IDE HTTP Client 测试文件
 ```
@@ -157,47 +157,40 @@ func init() {
 **3. DTO**（`pkg/types/order.go`）
 
 ```go
+// 可写字段的单一事实来源，供 Order / CreateOrderRequest / ReplaceOrderRequest 共享
+type OrderSpec struct {
+    Title  string  `json:"title"`
+    Amount float64 `json:"amount,omitempty"`
+}
+func (s *OrderSpec) validate(v *validator.FieldViolations) { ... }
+
+// 资源对外表示（嵌入 ObjectMeta + OrderSpec），不含 deleted_at / 内部字段；
+// 同时作为 PATCH "read-modify-write" 流程中的 JSON 中间表示
+type Order struct {
+    ObjectMeta
+    OrderSpec
+}
+
 // 创建：order_id 可选；提供则用作资源 ID（ULID），省略则自动生成
 type CreateOrderRequest struct {
     OrderID string `json:"order_id,omitempty"`
-    // ...
+    OrderSpec
 }
 func (r *CreateOrderRequest) Validate() error { ... }
 
-// 响应 DTO，不含 deleted_at / 密码 / 内部状态等字段；
-// 同时作为 PATCH "read-modify-write" 流程中的 JSON 中间表示
-type OrderResponse struct { ... }
-
-// 单资源读 / 删
+// 单资源读 / 删 / PATCH 路径参数
 type GetOrderRequest    struct { Order string `param:"order"` }
 type DeleteOrderRequest struct { Order string `param:"order"` }
-
-// 仅用作 PATCH handler 的路径参数容器（不绑定 body）
 type PatchOrderRequest  struct { Order string `param:"order"` }
 
-// PUT：全量替换（所有可写字段；可选字段未提供视为清除）
+// PUT：全量替换（所有可写字段；可选字段未提供视为清除；天然丢弃 ObjectMeta 只读字段）
 type ReplaceOrderRequest struct {
-    Order  string `param:"order" json:"-"`
-    Title  string `json:"title"`
-    Amount float64 `json:"amount,omitempty"`
-    // ...
+    Order string `param:"order" json:"-"`
+    OrderSpec
 }
 func (r *ReplaceOrderRequest) Validate() error { ... }
 
-// 列表
-type ListOrdersRequest struct {
-    Page     int32  `query:"page"`
-    PageSize int32  `query:"page_size"`
-    OrderBy  string `query:"order_by"`
-    Filter   string `query:"filter"`
-}
-
-type ListOrdersResponse struct {
-    Orders    []OrderResponse `json:"orders"`
-    Page      int32           `json:"page"`
-    PageSize  int32           `json:"page_size"`
-    TotalSize int32           `json:"total_size"`
-}
+// 列表直接复用通用 types.ListRequest 与泛型 types.ListResponse[types.Order]（无需额外定义）
 ```
 
 **4. Service**（`pkg/services/order.go`）

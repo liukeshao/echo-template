@@ -1,6 +1,6 @@
 components:
   schemas:
-    handlers.ErrorBody:
+    status.ErrorBody:
       properties:
         code:
           description: HTTP status code, e.g. 404. Not the google.rpc.Code numeric
@@ -14,6 +14,7 @@ components:
               - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
               - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
               - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
+              - type.googleapis.com/google.rpc.RequestInfo      — request identifier for log correlation (see errdetails.RequestInfo)
           items: {}
           type: array
           uniqueItems: false
@@ -26,10 +27,10 @@ components:
           example: NOT_FOUND
           type: string
       type: object
-    handlers.ErrorResponse:
+    status.ErrorResponse:
       properties:
         error:
-          $ref: '#/components/schemas/handlers.ErrorBody'
+          $ref: '#/components/schemas/status.ErrorBody'
       type: object
     types.AuthResponse:
       properties:
@@ -40,7 +41,7 @@ components:
         refresh_token:
           type: string
       type: object
-    types.BookResponse:
+    types.Book:
       properties:
         author:
           type: string
@@ -84,11 +85,11 @@ components:
         title:
           type: string
       type: object
-    types.ListBooksResponse:
+    types.ListResponse-types_Book:
       properties:
-        books:
+        items:
           items:
-            $ref: '#/components/schemas/types.BookResponse'
+            $ref: '#/components/schemas/types.Book'
           type: array
           uniqueItems: false
         page:
@@ -139,7 +140,7 @@ components:
         username:
           type: string
       type: object
-    types.UserInfo:
+    types.User:
       properties:
         created_at:
           type: string
@@ -150,6 +151,8 @@ components:
         last_login_at:
           type: string
         status:
+          type: string
+        updated_at:
           type: string
         username:
           type: string
@@ -191,19 +194,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: 账户已停用
       summary: 用户登录
       tags:
@@ -217,7 +220,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -246,19 +249,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: 账户已停用
       summary: 刷新访问令牌
       tags:
@@ -285,13 +288,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: 邮箱或用户名已被占用
       summary: 用户注册
       tags:
@@ -324,19 +327,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.ListBooksResponse'
+                $ref: '#/components/schemas/types.ListResponse-types_Book'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -359,25 +362,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.BookResponse'
+                $ref: '#/components/schemas/types.Book'
           description: Created
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: book_id 已存在（ALREADY_EXISTS）
       security:
       - BearerAuth: []
@@ -401,13 +404,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Not Found
       security:
       - BearerAuth: []
@@ -427,19 +430,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.BookResponse'
+                $ref: '#/components/schemas/types.Book'
           description: OK
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Not Found
       security:
       - BearerAuth: []
@@ -481,25 +484,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.BookResponse'
+                $ref: '#/components/schemas/types.Book'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Not Found
       security:
       - BearerAuth: []
@@ -529,25 +532,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.BookResponse'
+                $ref: '#/components/schemas/types.Book'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Not Found
       security:
       - BearerAuth: []
@@ -561,13 +564,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.UserInfo'
+                $ref: '#/components/schemas/types.User'
           description: OK
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -602,25 +605,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.UserInfo'
+                $ref: '#/components/schemas/types.User'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Conflict
       security:
       - BearerAuth: []
@@ -643,25 +646,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.UserInfo'
+                $ref: '#/components/schemas/types.User'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: username / email 已被占用
       security:
       - BearerAuth: []
@@ -686,13 +689,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/handlers.ErrorResponse'
+                $ref: '#/components/schemas/status.ErrorResponse'
           description: Unauthorized
       security:
       - BearerAuth: []

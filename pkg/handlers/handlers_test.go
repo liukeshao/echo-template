@@ -51,7 +51,7 @@ func TestBookHandler_PatchTypeMismatchReturns400(t *testing.T) {
 		testutil.WithBearer(authResp.AccessToken),
 	)
 	require.Equal(t, http.StatusCreated, createRec.Code)
-	created := testutil.DecodeJSON[types.BookResponse](t, createRec)
+	created := testutil.DecodeJSON[types.Book](t, createRec)
 
 	// Send PATCH with wrong type for price ("not-a-number") -> must return 400 PATCH_INVALID, not 500.
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
@@ -181,18 +181,20 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusCreated, rec.Code)
-	b := testutil.DecodeJSON[types.BookResponse](t, rec)
+	b := testutil.DecodeJSON[types.Book](t, rec)
 
 	// Get
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books/"+b.ID, auth)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "Go", testutil.DecodeJSON[types.BookResponse](t, rec).Title)
+	assert.Equal(t, "Go", testutil.DecodeJSON[types.Book](t, rec).Title)
 
 	// List
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&filter=price%20%3E%2010", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
-	list := testutil.DecodeJSON[types.ListBooksResponse](t, rec)
+	list := testutil.DecodeJSON[types.ListResponse[types.Book]](t, rec)
 	assert.Equal(t, int32(1), list.TotalSize)
+	require.Len(t, list.Items, 1)
+	assert.Equal(t, b.ID, list.Items[0].ID)
 
 	// Replace (PUT)
 	rec = env.DoRequest(http.MethodPut, "/api/v1/books/"+b.ID,
@@ -200,7 +202,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	got := testutil.DecodeJSON[types.BookResponse](t, rec)
+	got := testutil.DecodeJSON[types.Book](t, rec)
 	assert.Equal(t, "Go 2", got.Title)
 	assert.Empty(t, got.Description)
 
@@ -210,7 +212,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	got = testutil.DecodeJSON[types.BookResponse](t, rec)
+	got = testutil.DecodeJSON[types.Book](t, rec)
 	assert.Equal(t, b.ID, got.ID)
 	assert.Equal(t, "Merged", got.Title)
 	assert.Nil(t, got.Price)
@@ -221,7 +223,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "JSONPatched", testutil.DecodeJSON[types.BookResponse](t, rec).Title)
+	assert.Equal(t, "JSONPatched", testutil.DecodeJSON[types.Book](t, rec).Title)
 
 	// PATCH Shorthand
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
@@ -229,7 +231,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	got = testutil.DecodeJSON[types.BookResponse](t, rec)
+	got = testutil.DecodeJSON[types.Book](t, rec)
 	assert.Equal(t, "Shorthand", got.Title)
 	require.NotNil(t, got.Price)
 	assert.InDelta(t, 15.5, *got.Price, 1e-9)
@@ -248,7 +250,7 @@ func TestMeHandler_HTTPMethods(t *testing.T) {
 	// GET /me
 	rec := env.DoRequest(http.MethodGet, "/api/v1/me", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "meuser", testutil.DecodeJSON[types.UserInfo](t, rec).Username)
+	assert.Equal(t, "meuser", testutil.DecodeJSON[types.User](t, rec).Username)
 
 	// PUT /me
 	rec = env.DoRequest(http.MethodPut, "/api/v1/me",
@@ -256,7 +258,7 @@ func TestMeHandler_HTTPMethods(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "meuser2", testutil.DecodeJSON[types.UserInfo](t, rec).Username)
+	assert.Equal(t, "meuser2", testutil.DecodeJSON[types.User](t, rec).Username)
 
 	// PATCH /me
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/me",
@@ -264,7 +266,7 @@ func TestMeHandler_HTTPMethods(t *testing.T) {
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "meuser3@example.com", testutil.DecodeJSON[types.UserInfo](t, rec).Email)
+	assert.Equal(t, "meuser3@example.com", testutil.DecodeJSON[types.User](t, rec).Email)
 
 	// POST /me/change-password -> 204
 	rec = env.DoRequest(http.MethodPost, "/api/v1/me/change-password",

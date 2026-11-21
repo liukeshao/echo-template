@@ -1,16 +1,12 @@
 package handlers
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/ent"
-	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
-	"github.com/liukeshao/echo-template/pkg/patch"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
@@ -46,27 +42,22 @@ func (h *BookHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 	r.DELETE("/:book", h.Delete)
 }
 
-// toBookResponse maps *ent.Book to types.BookResponse, hiding internal fields such as deleted_at.
-func toBookResponse(b *ent.Book) types.BookResponse {
-	return types.BookResponse{
-		ID:          b.ID,
-		Title:       b.Title,
-		Author:      b.Author,
-		Description: b.Description,
-		Price:       b.Price,
-		PublishedAt: b.PublishedAt,
-		CreatedAt:   b.CreatedAt,
-		UpdatedAt:   b.UpdatedAt,
+// toBook 将 *ent.Book 映射为对外资源视图 types.Book，隐藏 deleted_at 等内部字段。
+func toBook(b *ent.Book) types.Book {
+	return types.Book{
+		ObjectMeta: types.ObjectMeta{
+			ID:        b.ID,
+			CreatedAt: b.CreatedAt,
+			UpdatedAt: b.UpdatedAt,
+		},
+		BookSpec: types.BookSpec{
+			Title:       b.Title,
+			Author:      b.Author,
+			Description: b.Description,
+			Price:       b.Price,
+			PublishedAt: b.PublishedAt,
+		},
 	}
-}
-
-// toBookResponses maps a slice of *ent.Book to []types.BookResponse.
-func toBookResponses(books []*ent.Book) []types.BookResponse {
-	out := make([]types.BookResponse, len(books))
-	for i, b := range books {
-		out[i] = toBookResponse(b)
-	}
-	return out
 }
 
 // Create 创建书籍
@@ -78,17 +69,14 @@ func toBookResponses(books []*ent.Book) []types.BookResponse {
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		types.CreateBookRequest	true	"书籍信息"
-//	@Success		201		{object}	types.BookResponse
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		409		{object}	ErrorResponse	"book_id 已存在（ALREADY_EXISTS）"
+//	@Success		201		{object}	types.Book
+//	@Failure		400		{object}	status.ErrorResponse
+//	@Failure		401		{object}	status.ErrorResponse
+//	@Failure		409		{object}	status.ErrorResponse	"book_id 已存在（ALREADY_EXISTS）"
 //	@Router			/api/v1/books [post]
 func (h *BookHandler) Create(c *echo.Context) error {
-	var req types.CreateBookRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.CreateBookRequest](c)
+	if err != nil {
 		return err
 	}
 
@@ -97,7 +85,7 @@ func (h *BookHandler) Create(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusCreated, toBookResponse(b))
+	return c.JSON(http.StatusCreated, toBook(b))
 }
 
 // List 获取书籍列表
@@ -110,37 +98,23 @@ func (h *BookHandler) Create(c *echo.Context) error {
 //	@Param		page_size	query		int		false	"每页数量（默认 50，最大 1000）"
 //	@Param		order_by	query		string	false	"排序，如 'price desc,title'；支持 title/author/price/created_at/updated_at/published_at"
 //	@Param		filter		query		string	false	"过滤表达式，如 title : 'Go' AND price < 50"
-//	@Success	200			{object}	types.ListBooksResponse
-//	@Failure	400			{object}	ErrorResponse
-//	@Failure	401			{object}	ErrorResponse
+//	@Success	200			{object}	types.ListResponse[types.Book]
+//	@Failure	400			{object}	status.ErrorResponse
+//	@Failure	401			{object}	status.ErrorResponse
 //	@Router		/api/v1/books [get]
 func (h *BookHandler) List(c *echo.Context) error {
-	var req types.ListBooksRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
-		return err
-	}
-
-	offset, limit, page := resolvePagination(req.Page, req.PageSize, defaultPageSize, maxPageSize)
-
-	books, total, err := h.book.List(c.Request().Context(), metav1.ListOptions{
-		Offset:  offset,
-		Limit:   limit,
-		OrderBy: req.OrderBy,
-		Filter:  req.Filter,
-	})
+	req, err := bindAndValidate[types.ListRequest](c)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, types.ListBooksResponse{
-		Books:     toBookResponses(books),
-		Page:      page,
-		PageSize:  limit,
-		TotalSize: total,
-	})
+	opts, page := resolveListOptions(req, defaultPageSize, maxPageSize)
+	books, total, err := h.book.List(c.Request().Context(), opts)
+	if err != nil {
+		return err
+	}
+
+	return c.JSON(http.StatusOK, types.NewListResponse(mapSlice(books, toBook), page, opts.Limit, total))
 }
 
 // Get 获取书籍详情
@@ -150,9 +124,9 @@ func (h *BookHandler) List(c *echo.Context) error {
 //	@Security	BearerAuth
 //	@Produce	json
 //	@Param		book	path		string	true	"书籍资源名称（书籍 ULID）"
-//	@Success	200		{object}	types.BookResponse
-//	@Failure	401		{object}	ErrorResponse
-//	@Failure	404		{object}	ErrorResponse
+//	@Success	200		{object}	types.Book
+//	@Failure	401		{object}	status.ErrorResponse
+//	@Failure	404		{object}	status.ErrorResponse
 //	@Router		/api/v1/books/{book} [get]
 func (h *BookHandler) Get(c *echo.Context) error {
 	var req types.GetBookRequest
@@ -165,7 +139,7 @@ func (h *BookHandler) Get(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, toBookResponse(b))
+	return c.JSON(http.StatusOK, toBook(b))
 }
 
 // Replace 替换书籍（幂等全量更新，Kubernetes 风格 PUT）。
@@ -178,17 +152,14 @@ func (h *BookHandler) Get(c *echo.Context) error {
 //	@Produce		json
 //	@Param			book	path		string						true	"书籍资源名称（书籍 ULID）"
 //	@Param			body	body		types.ReplaceBookRequest	true	"完整书籍信息"
-//	@Success		200		{object}	types.BookResponse
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		404		{object}	ErrorResponse
+//	@Success		200		{object}	types.Book
+//	@Failure		400		{object}	status.ErrorResponse
+//	@Failure		401		{object}	status.ErrorResponse
+//	@Failure		404		{object}	status.ErrorResponse
 //	@Router			/api/v1/books/{book} [put]
 func (h *BookHandler) Replace(c *echo.Context) error {
-	var req types.ReplaceBookRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.ReplaceBookRequest](c)
+	if err != nil {
 		return err
 	}
 
@@ -197,7 +168,7 @@ func (h *BookHandler) Replace(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, toBookResponse(b))
+	return c.JSON(http.StatusOK, toBook(b))
 }
 
 // Patch 局部更新书籍（多协议 PATCH）。
@@ -213,16 +184,16 @@ func (h *BookHandler) Replace(c *echo.Context) error {
 //	@Produce		json
 //	@Param			book	path		string	true	"书籍资源名称（书籍 ULID）"
 //	@Param			body	body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
-//	@Success		200		{object}	types.BookResponse
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		404		{object}	ErrorResponse
+//	@Success		200		{object}	types.Book
+//	@Failure		400		{object}	status.ErrorResponse
+//	@Failure		401		{object}	status.ErrorResponse
+//	@Failure		404		{object}	status.ErrorResponse
 //	@Router			/api/v1/books/{book} [patch]
 func (h *BookHandler) Patch(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	// PATCH 不能直接 c.Bind：body 可能是 JSON Patch 数组而不是任何 struct。
-	// 仅绑定路径参数，body 留给 patch.Apply 独占处理。
+	// 仅绑定路径参数，body 留给 decodePatch 独占处理。
 	var pathReq types.PatchBookRequest
 	if err := echo.BindPathValues(c, &pathReq); err != nil {
 		return err
@@ -233,18 +204,8 @@ func (h *BookHandler) Patch(c *echo.Context) error {
 		return err
 	}
 
-	currentJSON, err := json.Marshal(toBookResponse(current))
+	req, err := decodePatch[types.ReplaceBookRequest](c, toBook(current))
 	if err != nil {
-		return err
-	}
-
-	body, err := io.ReadAll(c.Request().Body)
-	if err != nil {
-		return err
-	}
-
-	var req types.ReplaceBookRequest
-	if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
 		return err
 	}
 	// 覆盖 patch 中可能伪造的 path param，路径才是权威。
@@ -258,7 +219,7 @@ func (h *BookHandler) Patch(c *echo.Context) error {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, toBookResponse(b))
+	return c.JSON(http.StatusOK, toBook(b))
 }
 
 // Delete 删除书籍
@@ -269,8 +230,8 @@ func (h *BookHandler) Patch(c *echo.Context) error {
 //	@Security		BearerAuth
 //	@Param			book	path	string	true	"书籍资源名称（书籍 ULID）"
 //	@Success		204
-//	@Failure		401	{object}	ErrorResponse
-//	@Failure		404	{object}	ErrorResponse
+//	@Failure		401	{object}	status.ErrorResponse
+//	@Failure		404	{object}	status.ErrorResponse
 //	@Router			/api/v1/books/{book} [delete]
 func (h *BookHandler) Delete(c *echo.Context) error {
 	var req types.DeleteBookRequest

@@ -1,6 +1,7 @@
 package types_test
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -28,8 +29,8 @@ func TestValidate_AuthRequests(t *testing.T) {
 func TestValidate_MeRequests(t *testing.T) {
 	t.Parallel()
 
-	assert.NoError(t, (&types.ReplaceMeRequest{Username: "alice", Email: "alice@example.com"}).Validate())
-	assert.Error(t, (&types.ReplaceMeRequest{Username: "a", Email: "bad"}).Validate())
+	assert.NoError(t, (&types.ReplaceMeRequest{UserSpec: types.UserSpec{Username: "alice", Email: "alice@example.com"}}).Validate())
+	assert.Error(t, (&types.ReplaceMeRequest{UserSpec: types.UserSpec{Username: "a", Email: "bad"}}).Validate())
 
 	assert.NoError(t, (&types.ChangePasswordRequest{OldPassword: "oldpassword1", NewPassword: "newpassword1"}).Validate())
 
@@ -45,19 +46,38 @@ func TestValidate_MeRequests(t *testing.T) {
 	assert.Equal(t, validator.KeyMustDiffer, fv.Items()[0].Key)
 }
 
-func TestValidate_BookRequests(t *testing.T) {
+func TestValidate_BookAndListRequests(t *testing.T) {
 	t.Parallel()
 
 	neg := -1.0
 	pos := 10.0
 
-	assert.NoError(t, (&types.CreateBookRequest{BookID: utils.GenerateULID(), Title: "Go", Author: "Alan", Price: &pos}).Validate())
-	assert.Error(t, (&types.CreateBookRequest{BookID: "bad-id", Title: "Go", Author: "Alan"}).Validate())
-	assert.Error(t, (&types.CreateBookRequest{Title: strings.Repeat("t", 201), Author: strings.Repeat("a", 101), Description: strings.Repeat("x", 1001), Price: &neg}).Validate())
+	assert.NoError(t, (&types.CreateBookRequest{
+		BookID:   utils.GenerateULID(),
+		BookSpec: types.BookSpec{Title: "Go", Author: "Alan", Price: &pos},
+	}).Validate())
+	assert.Error(t, (&types.CreateBookRequest{
+		BookID:   "bad-id",
+		BookSpec: types.BookSpec{Title: "Go", Author: "Alan"},
+	}).Validate())
+	assert.Error(t, (&types.CreateBookRequest{
+		BookSpec: types.BookSpec{
+			Title:       strings.Repeat("t", 201),
+			Author:      strings.Repeat("a", 101),
+			Description: strings.Repeat("x", 1001),
+			Price:       &neg,
+		},
+	}).Validate())
 
-	assert.NoError(t, (&types.ReplaceBookRequest{Title: "Go", Author: "Alan"}).Validate())
+	assert.NoError(t, (&types.ReplaceBookRequest{BookSpec: types.BookSpec{Title: "Go", Author: "Alan"}}).Validate())
 	assert.Error(t, (&types.ReplaceBookRequest{}).Validate())
 
-	assert.NoError(t, (&types.ListBooksRequest{Page: 1, PageSize: 20}).Validate())
-	assert.Error(t, (&types.ListBooksRequest{Page: -1, PageSize: -5}).Validate())
+	assert.NoError(t, (&types.ListRequest{Page: 1, PageSize: 20}).Validate())
+	assert.Error(t, (&types.ListRequest{Page: -1, PageSize: -5}).Validate())
+
+	// NewListResponse ensures nil slice serializes as [] instead of null.
+	empty := types.NewListResponse[types.Book](nil, 1, 50, 0)
+	b, err := json.Marshal(empty)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"items":[],"page":1,"page_size":50,"total_size":0}`, string(b))
 }

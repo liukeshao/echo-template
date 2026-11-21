@@ -11,6 +11,7 @@ const (
 	TypeLocalizedMessage = "type.googleapis.com/google.rpc.LocalizedMessage"
 	TypeBadRequest       = "type.googleapis.com/google.rpc.BadRequest"
 	TypeResourceInfo     = "type.googleapis.com/google.rpc.ResourceInfo"
+	TypeRequestInfo      = "type.googleapis.com/google.rpc.RequestInfo"
 )
 
 // ErrorInfo 是所有错误响应中必须携带的机器可读标识符。
@@ -53,4 +54,11 @@ type ResourceInfo struct {
 	ResourceName string `json:"resourceName"`
 	Owner        string `json:"owner,omitempty"`
 	Description  string `json:"description,omitempty"`
+}
+
+// RequestInfo 描述触发错误的请求标识，便于客户端与服务端日志关联排障。
+type RequestInfo struct {
+	Type        string `json:"@type"`
+	RequestID   string `json:"requestId"`
+	ServingData string `json:"servingData,omitempty"`
 }

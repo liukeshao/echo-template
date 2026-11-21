@@ -2,7 +2,6 @@ package handlers_test
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/handlers"
 	"github.com/liukeshao/echo-template/pkg/testutil"
 	"github.com/liukeshao/echo-template/pkg/validator"
 	rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
@@ -63,23 +61,36 @@ func TestErrorHandler_AllClassificationPaths(t *testing.T) {
 		return errors.New("late error")
 	})
 
-	// 1. *rpcstatus.Status
+	// 1. *rpcstatus.Status — includes fallback ErrorInfo and RequestInfo
 	rec := env.DoRequest(http.MethodGet, "/test/rpc")
-	testutil.AssertAPIError(t, rec, http.StatusForbidden, "PERMISSION_DENIED")
+	resp := testutil.AssertAPIError(t, rec, http.StatusForbidden, "PERMISSION_DENIED")
+	ei, ok := resp.Error.ErrorInfo()
+	require.True(t, ok)
+	assert.Equal(t, "PERMISSION_DENIED", ei.Reason)
+	reqInfo, ok := resp.Error.RequestInfo()
+	require.True(t, ok)
+	assert.Equal(t, rec.Header().Get(echo.HeaderXRequestID), reqInfo.RequestID)
 
 	// 2. oops with ResourceInfo omitting Type -> Type defaulted + Chinese LocalizedMessage
 	rec = env.DoRequest(http.MethodGet, "/test/oops-resource", testutil.WithHeader("Accept-Language", "zh-CN"))
-	resp := testutil.AssertAPIError(t, rec, http.StatusNotFound, "NOT_FOUND")
-	rawDetails, _ := json.Marshal(resp.Error.Details)
-	assert.Contains(t, string(rawDetails), errdetails.TypeResourceInfo)
-	assert.Contains(t, string(rawDetails), "未找到 ID 为 01TEST 的书籍。")
+	resp = testutil.AssertAPIError(t, rec, http.StatusNotFound, "NOT_FOUND")
+	ri, ok := resp.Error.ResourceInfo()
+	require.True(t, ok)
+	assert.Equal(t, errdetails.TypeResourceInfo, ri.Type)
+	assert.Equal(t, "Book", ri.ResourceType)
+	assert.Equal(t, "01TEST", ri.ResourceName)
+	lm, ok := resp.Error.LocalizedMessage()
+	require.True(t, ok)
+	assert.Equal(t, "未找到 ID 为 01TEST 的书籍。", lm.Message)
 
 	// 3. *validator.FieldViolations -> localized BadRequest + LocalizedMessage
 	rec = env.DoRequest(http.MethodGet, "/test/validation", testutil.WithHeader("Accept-Language", "zh-CN"))
 	resp = testutil.AssertAPIError(t, rec, http.StatusBadRequest, "INVALID_ARGUMENT")
-	rawDetails, _ = json.Marshal(resp.Error.Details)
-	assert.Contains(t, string(rawDetails), errdetails.TypeBadRequest)
-	assert.Contains(t, string(rawDetails), "title 不能为空。")
+	br, ok := resp.Error.BadRequest()
+	require.True(t, ok)
+	require.Len(t, br.FieldViolations, 1)
+	assert.Equal(t, "title", br.FieldViolations[0].Field)
+	assert.Equal(t, "title 不能为空。", br.FieldViolations[0].Description)
 
 	// 4. context.DeadlineExceeded / context.Canceled
 	rec = env.DoRequest(http.MethodGet, "/test/deadline")
@@ -103,6 +114,4 @@ func TestErrorHandler_AllClassificationPaths(t *testing.T) {
 	web.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/test/committed", nil))
 	require.Equal(t, http.StatusAccepted, rec.Code)
 	assert.Equal(t, "already sent", rec.Body.String())
-
-	_ = handlers.ErrorResponse{}
 }

@@ -101,7 +101,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 
 // ChangePassword 修改已登录用户的密码（自定义子资源动作）。
 //
-// 不通过 PUT /me 暴露：密码不出现在 UserInfo 响应中，
+// 不通过 PUT /me 暴露：密码不出现在 User 响应中，
 // 且需要校验 old_password 才能轮换，这与"幂等全量替换"语义不兼容。
 // 修改成功后在同一事务内撤销该用户所有活跃令牌，迫使所有会话使用新密码重新认证。
 func (s *MeService) ChangePassword(ctx context.Context, userID string, req *types.ChangePasswordRequest) (err error) {

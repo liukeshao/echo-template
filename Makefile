@@ -2,7 +2,7 @@
 
 swag: ## 格式化注解并生成 OpenAPI 3.1 规范 static/openapi/openapi.yaml
 	go tool swag fmt
-	go tool swag init --v3.1 -g cmd/main.go --output static/openapi --outputTypes yaml
+	GOFLAGS=-buildvcs=false go tool swag init --v3.1 -d cmd,pkg/handlers,pkg/types,transport/http/status -g main.go --output static/openapi --outputTypes yaml
 	mv static/openapi/swagger.yaml static/openapi/openapi.yaml
 
 ent: ## 重新生成 ent ORM 代码（修改 ent/schema/*.go 后执行）

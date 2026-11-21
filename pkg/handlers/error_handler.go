@@ -20,41 +20,6 @@ import (
 	rpcstatus "github.com/liukeshao/echo-template/transport/rpc/status"
 )
 
-// ErrorResponse is the top-level AIP-193 HTTP/JSON error envelope.
-//
-// All error responses from this API share this structure:
-//
-//	{
-//	  "error": {
-//	    "code": 429,
-//	    "message": "...",
-//	    "status": "RESOURCE_EXHAUSTED",
-//	    "details": [
-//	      { "@type": "type.googleapis.com/google.rpc.ErrorInfo", ... },
-//	      { "@type": "type.googleapis.com/google.rpc.LocalizedMessage", ... }
-//	    ]
-//	  }
-//	}
-type ErrorResponse struct {
-	Error ErrorBody `json:"error"`
-}
-
-// ErrorBody is the AIP-193 Status payload embedded under the "error" key.
-type ErrorBody struct {
-	// HTTP status code, e.g. 404. Not the google.rpc.Code numeric value.
-	Code int `json:"code" example:"404"`
-	// Developer-facing English description of the error.
-	Message string `json:"message" example:"requested entity was not found"`
-	// Canonical google.rpc.Code name in UPPER_SNAKE_CASE, e.g. "NOT_FOUND".
-	Status string `json:"status" example:"NOT_FOUND"`
-	// AIP-193 typed detail payloads. The "@type" field discriminates the entry:
-	//   - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
-	//   - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
-	//   - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
-	//   - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
-	Details []any `json:"details,omitempty"`
-}
-
 // registerErrorHandler 将 echo HTTPErrorHandler 绑定到使用给定 Translator 的实现上。
 // Translator 以闭包方式注入，避免扩大 errorHandler 的参数面，同时保留对 DI 的依赖。
 func registerErrorHandler(web *echo.Echo, t i18n.Translator) {
@@ -83,20 +48,13 @@ func handleError(c *echo.Context, err error, t i18n.Translator) {
 	s := classify(err, t, loc)
 	s = ensureErrorInfo(s)
 	s = ensureLocalizedMessage(s, t, loc)
+	s = ensureRequestInfo(s, ctx)
 
 	if s.Code() == codes.Internal || s.Code() == codes.Unknown {
 		slog.ErrorContext(ctx, "unhandled error", "error", err)
 	}
 
-	httpCode := httpstatus.FromRPCCode(s.Code())
-	resp := ErrorResponse{
-		Error: ErrorBody{
-			Code:    httpCode,
-			Message: s.Message(),
-			Status:  s.Code().Name(),
-			Details: s.Details(),
-		},
-	}
+	httpCode, resp := httpstatus.FromRPCStatus(s)
 
 	if r, unwrapErr := echo.UnwrapResponse(c.Response()); unwrapErr == nil && r.Committed {
 		return
@@ -277,5 +235,23 @@ func ensureLocalizedMessage(s *rpcstatus.Status, t i18n.Translator, loc language
 		Type:    errdetails.TypeLocalizedMessage,
 		Locale:  used.String(),
 		Message: text,
+	})
+}
+
+// ensureRequestInfo 在上下文存在 request_id 时自动附加 AIP-193 RequestInfo，
+// 便于客户端直接将错误响应体与服务端结构化日志关联排障。
+func ensureRequestInfo(s *rpcstatus.Status, ctx context.Context) *rpcstatus.Status {
+	rid, ok := appctx.GetRequestIDFromContext(ctx)
+	if !ok || rid == "" {
+		return s
+	}
+	for _, d := range s.Details() {
+		if ri, ok := d.(errdetails.RequestInfo); ok && ri.Type == errdetails.TypeRequestInfo {
+			return s
+		}
+	}
+	return s.WithDetails(errdetails.RequestInfo{
+		Type:      errdetails.TypeRequestInfo,
+		RequestID: rid,
 	})
 }

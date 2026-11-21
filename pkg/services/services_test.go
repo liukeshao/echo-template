@@ -123,11 +123,13 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	customID := utils.GenerateULID()
 	initialPrice := 49.99
 	created, err := bookSvc.Create(ctx, &types.CreateBookRequest{
-		BookID:      customID,
-		Title:       "Go Programming",
-		Author:      "Alan Donovan",
-		Description: "Classic",
-		Price:       &initialPrice,
+		BookID: customID,
+		BookSpec: types.BookSpec{
+			Title:       "Go Programming",
+			Author:      "Alan Donovan",
+			Description: "Classic",
+			Price:       &initialPrice,
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, customID, created.ID)
@@ -137,18 +139,19 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	// Free book (price = 0) must be distinct from unset (nil).
 	zeroPrice := 0.0
 	freeBook, err := bookSvc.Create(ctx, &types.CreateBookRequest{
-		Title:  "Free Go Book",
-		Author: "Community",
-		Price:  &zeroPrice,
+		BookSpec: types.BookSpec{
+			Title:  "Free Go Book",
+			Author: "Community",
+			Price:  &zeroPrice,
+		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, freeBook.Price)
 	assert.Equal(t, 0.0, *freeBook.Price)
 
 	_, err = bookSvc.Create(ctx, &types.CreateBookRequest{
-		BookID: customID,
-		Title:  "Duplicate",
-		Author: "Someone",
+		BookID:   customID,
+		BookSpec: types.BookSpec{Title: "Duplicate", Author: "Someone"},
 	})
 	testutil.AssertOopsCode(t, err, codes.BookAlreadyExists)
 
@@ -167,9 +170,8 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 
 	// Replace clears omitted optional fields (including nullable price → nil).
 	replaced, err := bookSvc.Replace(ctx, customID, &types.ReplaceBookRequest{
-		Book:   customID,
-		Title:  "Go Programming 2nd",
-		Author: "Alan Donovan",
+		Book:     customID,
+		BookSpec: types.BookSpec{Title: "Go Programming 2nd", Author: "Alan Donovan"},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "Go Programming 2nd", replaced.Title)
@@ -184,9 +186,8 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	testutil.AssertOopsCode(t, err, codes.BookNotFound)
 
 	_, err = bookSvc.Replace(ctx, customID, &types.ReplaceBookRequest{
-		Book:   customID,
-		Title:  "Ghost",
-		Author: "Ghost",
+		Book:     customID,
+		BookSpec: types.BookSpec{Title: "Ghost", Author: "Ghost"},
 	})
 	testutil.AssertOopsCode(t, err, codes.BookNotFound)
 
@@ -205,9 +206,9 @@ func TestBookService_ListFilterAndOrderBy(t *testing.T) {
 	bookSvc := do.MustInvoke[*services.BookService](env.Injector)
 
 	p1, p2 := 10.0, 50.0
-	_, err := bookSvc.Create(ctx, &types.CreateBookRequest{Title: "Alpha Go", Author: "Alice", Price: &p1})
+	_, err := bookSvc.Create(ctx, &types.CreateBookRequest{BookSpec: types.BookSpec{Title: "Alpha Go", Author: "Alice", Price: &p1}})
 	require.NoError(t, err)
-	_, err = bookSvc.Create(ctx, &types.CreateBookRequest{Title: "Beta Rust", Author: "Bob", Price: &p2})
+	_, err = bookSvc.Create(ctx, &types.CreateBookRequest{BookSpec: types.BookSpec{Title: "Beta Rust", Author: "Bob", Price: &p2}})
 	require.NoError(t, err)
 
 	// Filter by title contains and price range.
@@ -276,8 +277,10 @@ func TestMeService_ReplaceAndChangePassword(t *testing.T) {
 	require.NoError(t, err)
 
 	updated, err := meSvc.Replace(ctx, u.ID, &types.ReplaceMeRequest{
-		Username: "bob_new",
-		Email:    "bob_new@example.com",
+		UserSpec: types.UserSpec{
+			Username: "bob_new",
+			Email:    "bob_new@example.com",
+		},
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "bob_new", updated.Username)

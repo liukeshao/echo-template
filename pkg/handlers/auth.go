@@ -44,21 +44,16 @@ func (h *AuthHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 //	@Produce	json
 //	@Param		body	body		types.RegisterRequest	true	"注册信息"
 //	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	ErrorResponse
-//	@Failure	409		{object}	ErrorResponse	"邮箱或用户名已被占用"
+//	@Failure	400		{object}	status.ErrorResponse
+//	@Failure	409		{object}	status.ErrorResponse	"邮箱或用户名已被占用"
 //	@Router		/api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *echo.Context) error {
-	ctx := c.Request().Context()
-
-	var req types.RegisterRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.RegisterRequest](c)
+	if err != nil {
 		return err
 	}
 
-	resp, err := h.auth.Register(ctx, &req)
+	resp, err := h.auth.Register(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
@@ -74,22 +69,17 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 //	@Produce	json
 //	@Param		body	body		types.LoginRequest	true	"登录信息"
 //	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	ErrorResponse
-//	@Failure	401		{object}	ErrorResponse
-//	@Failure	403		{object}	ErrorResponse	"账户已停用"
+//	@Failure	400		{object}	status.ErrorResponse
+//	@Failure	401		{object}	status.ErrorResponse
+//	@Failure	403		{object}	status.ErrorResponse	"账户已停用"
 //	@Router		/api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *echo.Context) error {
-	ctx := c.Request().Context()
-
-	var req types.LoginRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.LoginRequest](c)
+	if err != nil {
 		return err
 	}
 
-	resp, err := h.auth.Login(ctx, &req)
+	resp, err := h.auth.Login(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
@@ -105,22 +95,17 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 //	@Produce	json
 //	@Param		body	body		types.RefreshTokenRequest	true	"刷新令牌"
 //	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	ErrorResponse
-//	@Failure	401		{object}	ErrorResponse
-//	@Failure	403		{object}	ErrorResponse	"账户已停用"
+//	@Failure	400		{object}	status.ErrorResponse
+//	@Failure	401		{object}	status.ErrorResponse
+//	@Failure	403		{object}	status.ErrorResponse	"账户已停用"
 //	@Router		/api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *echo.Context) error {
-	ctx := c.Request().Context()
-
-	var req types.RefreshTokenRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.RefreshTokenRequest](c)
+	if err != nil {
 		return err
 	}
 
-	resp, err := h.auth.RefreshToken(ctx, &req)
+	resp, err := h.auth.RefreshToken(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
@@ -135,7 +120,7 @@ func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 //	@Security	BearerAuth
 //	@Produce	json
 //	@Success	204
-//	@Failure	401	{object}	ErrorResponse
+//	@Failure	401	{object}	status.ErrorResponse
 //	@Router		/api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *echo.Context) error {
 	ctx := c.Request().Context()

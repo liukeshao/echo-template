@@ -63,10 +63,15 @@ oops.Code(codes.DomainNotFound.String()).
 ## Entity & DTO
 
 - Ent schema files live in `ent/schema/`. Always use `DefaultMixin` (ULID primary key + soft delete + timestamps).
-- **Never return `*ent.Xxx` from handlers.** Always map to a `types.XxxResponse` DTO.
-- Response DTOs must not expose `password_hash`, `deleted_at`, or other internal fields.
-- Response DTO doubles as the JSON view used by PATCH (read-modify-write); read-only fields visible there are simply absent from `ReplaceXxxRequest`, so patches that mutate them are silently dropped during unmarshalling.
-- Mapping functions (`toXxxResponse`) belong in `pkg/handlers/<domain>.go`, not in services.
+- **Never return `*ent.Xxx` from handlers.** Always map to a resource DTO (`types.Xxx`, e.g. `types.Book`, `types.User`) or action response (`types.AuthResponse`).
+- Shared DTO building blocks live in `pkg/types/common.go`:
+  - `types.ObjectMeta` (`id`, `created_at`, `updated_at`) — embedded in resource DTOs only, never in Create/Replace requests.
+  - `types.XxxSpec` — single source of truth for writable fields and field validation, anonymously embedded in `types.Xxx`, `CreateXxxRequest`, and `ReplaceXxxRequest` (flattened automatically in JSON & OpenAPI).
+  - `types.ListRequest` & `types.ListResponse[T]` (`items` + `PageMeta`) — reused across all standard collections.
+- Error envelope (`status.ErrorResponse`, `status.ErrorBody`, `status.ErrorDetails`) lives in `transport/http/status`, decoupled from `pkg/handlers`.
+- Resource DTOs must not expose `password_hash`, `deleted_at`, or other internal fields.
+- Resource DTO doubles as the JSON view used by PATCH (read-modify-write); read-only fields (`ObjectMeta`, etc.) are absent from `ReplaceXxxRequest`, so patches that mutate them are silently dropped during unmarshalling.
+- Mapping functions (`toXxx`) belong in `pkg/handlers/<domain>.go`, not in services. Use `mapSlice(items, toXxx)` instead of per-domain slice mappers.
 
 ---
 
@@ -181,7 +186,7 @@ The `PATCH` handler dispatches on `Content-Type`. Supported values:
 | `application/merge-patch+shorthand`       | Shorthand DSL (Daniel G. Taylor) overlaid on the original |
 | `application/json` / empty                | Compatibility: treated as Merge Patch            |
 
-The implementation lives in `pkg/patch`. Every domain's PATCH handler follows the same flow:
+The implementation lives in `pkg/patch` (wrapped by `decodePatch` in `pkg/handlers/helpers.go`). Every domain's PATCH handler follows the same flow:
 
 ```go
 func (h *BookHandler) Patch(c *echo.Context) error {
@@ -195,14 +200,9 @@ func (h *BookHandler) Patch(c *echo.Context) error {
     if err != nil {
         return err
     }
-    currentJSON, _ := json.Marshal(toBookResponse(current))
 
-    body, err := io.ReadAll(c.Request().Body)
+    req, err := decodePatch[types.ReplaceBookRequest](c, toBook(current))
     if err != nil {
-        return err
-    }
-    var req types.ReplaceBookRequest
-    if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
         return err
     }
     req.Book = pathReq.Book               // path is authoritative
@@ -213,7 +213,7 @@ func (h *BookHandler) Patch(c *echo.Context) error {
     if err != nil {
         return err
     }
-    return c.JSON(http.StatusOK, toBookResponse(b))
+    return c.JSON(http.StatusOK, toBook(b))
 }
 ```
 
@@ -229,12 +229,12 @@ Every handler binds via a dedicated struct. **Never call `c.Param` directly.**
 
 | Method   | Struct                                                                 | Notes                                                                       |
 |----------|------------------------------------------------------------------------|-----------------------------------------------------------------------------|
-| POST     | `CreateXxxRequest{ XxxID string \`json:"xxx_id,omitempty"\` ... }`     | Optional `xxx_id` (ULID); generate via `utils.GenerateULID()` when empty.   |
+| POST     | `CreateXxxRequest{ XxxID string \`json:"xxx_id,omitempty"\`; XxxSpec }` | Optional `xxx_id` (ULID); generate via `utils.GenerateULID()` when empty.   |
 | GET (1)  | `GetXxxRequest{ Xxx string \`param:"xxx"\` }`                          |                                                                             |
-| PUT      | `ReplaceXxxRequest{ Xxx string \`param:"xxx" json:"-"\` ...writable }` | All writable fields required; absent optional fields are cleared.           |
-| PATCH    | `PatchXxxRequest{ Xxx string \`param:"xxx"\` }`                        | Only path-param holder; body is consumed by `patch.Apply`.                  |
+| PUT      | `ReplaceXxxRequest{ Xxx string \`param:"xxx" json:"-"\`; XxxSpec }`    | All writable fields via `XxxSpec`; absent optional fields are cleared.      |
+| PATCH    | `PatchXxxRequest{ Xxx string \`param:"xxx"\` }`                        | Only path-param holder; body is consumed by `decodePatch` / `patch.Apply`.  |
 | DELETE   | `DeleteXxxRequest{ Xxx string \`param:"xxx"\` }`                       | No body. Returns 204.                                                       |
-| LIST     | `ListXxxsRequest{ Page, PageSize int32; OrderBy, Filter string }`      | See LIST section below.                                                     |
+| LIST     | `types.ListRequest` (or domain struct embedding `ListRequest`)         | Returns `types.ListResponse[types.Xxx]`. See LIST section below.            |
 
 ### Create methods
 
@@ -253,12 +253,12 @@ Every handler binds via a dedicated struct. **Never call `c.Param` directly.**
 
 ### List methods
 
-Every `List` handler accepts `ListXxxsRequest` and returns `ListXxxsResponse`. Request binds query params with `query` struct tags.
+Every `List` handler binds `types.ListRequest` (or a resource-specific struct embedding `types.ListRequest`) via `bindAndValidate` and returns `types.ListResponse[types.Xxx]` (`{"items": [...], "page", "page_size", "total_size"}`).
 
-- **Pagination**: `page int32` (1-based, default 1, reject if negative) + `page_size int32` (default 50, max 1000; coerce if over max, reject if negative). Use `resolvePagination` in `pkg/handlers/pagination.go` to compute `offset`, `limit`, and normalized `page`, then pass `metav1.ListOptions{Offset, Limit, OrderBy, Filter}` to the service. Response includes `page`, `page_size`, and `total_size`.
+- **Pagination**: `page int32` (1-based, default 1, reject if negative) + `page_size int32` (default 50, max 1000; coerce if over max, reject if negative). Use `resolveListOptions` in `pkg/handlers/pagination.go` to compute `metav1.ListOptions{Offset, Limit, OrderBy, Filter}` and normalized `page`.
 - **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Document supported fields. Default sort must be defined. Return `*validator.FieldViolations` (using `validator.KeyInvalidOrderBy*` / `validator.KeyUnknownOrderByField`) on errors.
 - **Filtering**: `filter string` — call `filter.Parse(in.Filter)` → `Expr` AST, translate with `translateXxxFilter(expr)` in `pkg/services/<domain>_filter.go` using `filter.FilterTranslator[P]`. Return `ValidationInvalid` on errors; never build raw SQL. See `pkg/services/book_filter.go` as reference.
-- Service returns `([]*ent.Xxx, totalSize int32, error)`. Handler assembles `ListXxxsResponse` and maps entities via `toXxxResponse`.
+- Service returns `([]*ent.Xxx, totalSize int32, error)`. Handler assembles `types.NewListResponse(mapSlice(items, toXxx), page, opts.Limit, total)`.
 
 ### Custom methods (resource actions)
 

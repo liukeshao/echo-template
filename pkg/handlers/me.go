@@ -1,8 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
-	"io"
 	"net/http"
 
 	"github.com/labstack/echo/v5"
@@ -10,7 +8,6 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/patch"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/types"
 )
@@ -43,15 +40,20 @@ func (h *MeHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 	r.POST("/change-password", h.ChangePassword)
 }
 
-// toUserInfo 将 *ent.User 映射为对外的资料 DTO（不含密码、删除标记等）。
-func toUserInfo(u *ent.User) types.UserInfo {
-	return types.UserInfo{
-		ID:          u.ID,
-		Username:    u.Username,
-		Email:       u.Email,
+// toUser 将 *ent.User 映射为对外的资源视图 types.User（不含密码、删除标记等）。
+func toUser(u *ent.User) types.User {
+	return types.User{
+		ObjectMeta: types.ObjectMeta{
+			ID:        u.ID,
+			CreatedAt: u.CreatedAt,
+			UpdatedAt: u.UpdatedAt,
+		},
+		UserSpec: types.UserSpec{
+			Username: u.Username,
+			Email:    u.Email,
+		},
 		Status:      string(u.Status),
 		LastLoginAt: u.LastLoginAt,
-		CreatedAt:   u.CreatedAt,
 	}
 }
 
@@ -61,12 +63,12 @@ func toUserInfo(u *ent.User) types.UserInfo {
 //	@Tags		me
 //	@Security	BearerAuth
 //	@Produce	json
-//	@Success	200	{object}	types.UserInfo
-//	@Failure	401	{object}	ErrorResponse
+//	@Success	200	{object}	types.User
+//	@Failure	401	{object}	status.ErrorResponse
 //	@Router		/api/v1/me [get]
 func (h *MeHandler) Get(c *echo.Context) error {
 	user := appctx.MustGetUserFromContext(c.Request().Context())
-	return c.JSON(http.StatusOK, toUserInfo(user))
+	return c.JSON(http.StatusOK, toUser(user))
 }
 
 // Replace 替换当前用户资料（幂等全量更新，Kubernetes 风格 PUT）。
@@ -78,20 +80,17 @@ func (h *MeHandler) Get(c *echo.Context) error {
 //	@Accept			json
 //	@Produce		json
 //	@Param			body	body		types.ReplaceMeRequest	true	"完整资料"
-//	@Success		200		{object}	types.UserInfo
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		409		{object}	ErrorResponse	"username / email 已被占用"
+//	@Success		200		{object}	types.User
+//	@Failure		400		{object}	status.ErrorResponse
+//	@Failure		401		{object}	status.ErrorResponse
+//	@Failure		409		{object}	status.ErrorResponse	"username / email 已被占用"
 //	@Router			/api/v1/me [put]
 func (h *MeHandler) Replace(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user := appctx.MustGetUserFromContext(ctx)
 
-	var req types.ReplaceMeRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.ReplaceMeRequest](c)
+	if err != nil {
 		return err
 	}
 
@@ -99,7 +98,7 @@ func (h *MeHandler) Replace(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, toUserInfo(u))
+	return c.JSON(http.StatusOK, toUser(u))
 }
 
 // Patch 局部更新当前用户资料（多协议 PATCH）。
@@ -113,27 +112,17 @@ func (h *MeHandler) Replace(c *echo.Context) error {
 //	@Accept			application/merge-patch+json,application/json-patch+json,application/merge-patch+shorthand,application/json
 //	@Produce		json
 //	@Param			body	body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
-//	@Success		200		{object}	types.UserInfo
-//	@Failure		400		{object}	ErrorResponse
-//	@Failure		401		{object}	ErrorResponse
-//	@Failure		409		{object}	ErrorResponse
+//	@Success		200		{object}	types.User
+//	@Failure		400		{object}	status.ErrorResponse
+//	@Failure		401		{object}	status.ErrorResponse
+//	@Failure		409		{object}	status.ErrorResponse
 //	@Router			/api/v1/me [patch]
 func (h *MeHandler) Patch(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user := appctx.MustGetUserFromContext(ctx)
 
-	currentJSON, err := json.Marshal(toUserInfo(user))
+	req, err := decodePatch[types.ReplaceMeRequest](c, toUser(user))
 	if err != nil {
-		return err
-	}
-
-	body, err := io.ReadAll(c.Request().Body)
-	if err != nil {
-		return err
-	}
-
-	var req types.ReplaceMeRequest
-	if err := patch.ApplyInto(currentJSON, body, c.Request().Header.Get(echo.HeaderContentType), &req); err != nil {
 		return err
 	}
 	if err := req.Validate(); err != nil {
@@ -144,7 +133,7 @@ func (h *MeHandler) Patch(c *echo.Context) error {
 	if err != nil {
 		return err
 	}
-	return c.JSON(http.StatusOK, toUserInfo(u))
+	return c.JSON(http.StatusOK, toUser(u))
 }
 
 // ChangePassword 修改当前用户密码（自定义子资源动作）。
@@ -156,18 +145,15 @@ func (h *MeHandler) Patch(c *echo.Context) error {
 //	@Produce	json
 //	@Param		body	body	types.ChangePasswordRequest	true	"密码信息"
 //	@Success	204
-//	@Failure	400	{object}	ErrorResponse
-//	@Failure	401	{object}	ErrorResponse
+//	@Failure	400	{object}	status.ErrorResponse
+//	@Failure	401	{object}	status.ErrorResponse
 //	@Router		/api/v1/me/change-password [post]
 func (h *MeHandler) ChangePassword(c *echo.Context) error {
 	ctx := c.Request().Context()
 	user := appctx.MustGetUserFromContext(ctx)
 
-	var req types.ChangePasswordRequest
-	if err := c.Bind(&req); err != nil {
-		return err
-	}
-	if err := req.Validate(); err != nil {
+	req, err := bindAndValidate[types.ChangePasswordRequest](c)
+	if err != nil {
 		return err
 	}
 

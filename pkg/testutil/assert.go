@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/handlers"
+	httpstatus "github.com/liukeshao/echo-template/transport/http/status"
 )
 
 // AssertOopsCode 断言 err 包含指定的业务错误码（oops.OopsError）。
@@ -32,10 +32,10 @@ func DecodeJSON[T any](t testing.TB, rec *httptest.ResponseRecorder) T {
 }
 
 // AssertAPIError 断言响应符合 AIP-193 错误信封格式并返回解析后的 ErrorResponse 供进一步断言。
-func AssertAPIError(t testing.TB, rec *httptest.ResponseRecorder, wantHTTP int, wantStatus string) handlers.ErrorResponse {
+func AssertAPIError(t testing.TB, rec *httptest.ResponseRecorder, wantHTTP int, wantStatus string) httpstatus.ErrorResponse {
 	t.Helper()
 	assert.Equal(t, wantHTTP, rec.Code, "body: %s", rec.Body.String())
-	resp := DecodeJSON[handlers.ErrorResponse](t, rec)
+	resp := DecodeJSON[httpstatus.ErrorResponse](t, rec)
 	assert.Equal(t, wantHTTP, resp.Error.Code)
 	assert.Equal(t, wantStatus, resp.Error.Status)
 	return resp
