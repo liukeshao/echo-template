@@ -1,738 +1,889 @@
-components:
-  schemas:
-    types.Book:
-      properties:
-        author:
-          type: string
-        created_at:
-          type: string
-        description:
-          type: string
-        id:
-          type: string
-        price:
-          type: number
-        published_at:
-          type: string
-        title:
-          type: string
-        updated_at:
-          type: string
-      type: object
-    types.BookList:
-      properties:
-        items:
-          items:
-            $ref: '#/components/schemas/types.Book'
-          type: array
-          uniqueItems: false
-        page:
-          type: integer
-        page_size:
-          type: integer
-        total_size:
-          type: integer
-      type: object
-    types.ChangePasswordRequest:
-      properties:
-        new_password:
-          type: string
-        old_password:
-          type: string
-      type: object
-    types.CreateBookRequest:
-      properties:
-        author:
-          type: string
-        book_id:
-          description: |-
-            BookID 用户自定义 ID（可选）。格式：26 位 ULID（大写字母 + 数字）。
-            若省略，服务端自动生成。
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        published_at:
-          type: string
-        title:
-          type: string
-      type: object
-    types.FieldError:
-      properties:
-        field:
-          example: title
-          type: string
-        message:
-          example: title is required.
-          type: string
-      type: object
-    types.LoginRequest:
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-      type: object
-    types.Problem:
-      properties:
-        code:
-          description: Code 机器可读的业务错误码（UPPER_SNAKE_CASE），例如 "BOOK_NOT_FOUND"。
-          example: BOOK_NOT_FOUND
-          type: string
-        detail:
-          description: Detail 面向本次请求的具体错误说明（已按 Accept-Language 本地化）。
-          example: Book 01ARZ3NDEKTSV4RRFFQ69G5FAV was not found.
-          type: string
-        errors:
-          description: Errors 字段级校验失败明细，仅在请求参数校验不通过时返回。
-          items:
-            $ref: '#/components/schemas/types.FieldError'
-          type: array
-          uniqueItems: false
-        instance:
-          description: Instance 触发本次错误的请求路径，例如 "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"。
-          example: /api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV
-          type: string
-        params:
-          additionalProperties:
-            type: string
-          description: Params 与本次错误相关的结构化上下文参数（例如 book_id / email）。
-          type: object
-        request_id:
-          description: RequestID 与响应头 X-Request-ID 及服务端结构化日志一致的追踪 ID。
-          example: 01ARZ3NDEKTSV4RRFFQ69G5FAV
-          type: string
-        status:
-          description: Status HTTP 状态码，例如 400 / 404 / 409 / 500。
-          example: 404
-          type: integer
-        title:
-          description: Title 与 HTTP 状态码对应的简短英文摘要（不随单次错误实例变化）。
-          example: Not Found
-          type: string
-        type:
-          description: Type 标识问题类型的 URI 引用；缺省使用 "about:blank"。
-          example: about:blank
-          type: string
-      type: object
-    types.RefreshTokenRequest:
-      properties:
-        refresh_token:
-          type: string
-      type: object
-    types.RegisterRequest:
-      properties:
-        email:
-          type: string
-        password:
-          type: string
-        username:
-          type: string
-      type: object
-    types.ReplaceBookRequest:
-      properties:
-        author:
-          type: string
-        description:
-          type: string
-        price:
-          type: number
-        published_at:
-          type: string
-        title:
-          type: string
-      type: object
-    types.ReplaceMeRequest:
-      properties:
-        email:
-          type: string
-        username:
-          type: string
-      type: object
-    types.TokenPair:
-      properties:
-        access_token:
-          type: string
-        expires_at:
-          type: integer
-        refresh_token:
-          type: string
-      type: object
-    types.User:
-      properties:
-        created_at:
-          type: string
-        email:
-          type: string
-        id:
-          type: string
-        last_login_at:
-          type: string
-        status:
-          type: string
-        updated_at:
-          type: string
-        username:
-          type: string
-      type: object
-  securitySchemes:
-    BearerAuth:
-      bearerFormat: JWT
-      description: JWT access token
-      scheme: bearer
-      type: http
-externalDocs:
-  description: ""
-  url: ""
-info:
-  description: Echo Template RESTful API
-  title: Echo Template API
-  version: "1.0"
 openapi: 3.1.0
+info:
+  title: Echo Template API
+  version: 0.0.0
+tags:
+  - name: auth
+  - name: me
+  - name: books
 paths:
   /api/v1/auth/login:
     post:
+      operationId: Auth_login
+      description: 用户登录
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Access is forbidden.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/types.LoginRequest'
-              description: 登录信息
-              summary: body
-        description: 登录信息
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.TokenPair'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: 账户已停用
-      summary: 用户登录
-      tags:
-      - auth
+              $ref: '#/components/schemas/LoginRequest'
   /api/v1/auth/logout:
     post:
+      operationId: Auth_logout
+      description: 用户登出（撤销该用户全部活跃令牌）
+      parameters: []
       responses:
-        "204":
-          description: No Content
-        "401":
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '401':
+          description: Access is unauthorized.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-      security:
-      - BearerAuth: []
-      summary: 用户登出
+                $ref: '#/components/schemas/Problem'
       tags:
-      - auth
+        - auth
+      security:
+        - BearerAuth: []
   /api/v1/auth/refresh:
     post:
+      operationId: Auth_refreshToken
+      description: 刷新访问令牌
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '403':
+          description: Access is forbidden.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/types.RefreshTokenRequest'
-              description: 刷新令牌
-              summary: body
-        description: 刷新令牌
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.TokenPair'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "403":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: 账户已停用
-      summary: 刷新访问令牌
-      tags:
-      - auth
+              $ref: '#/components/schemas/RefreshTokenRequest'
   /api/v1/auth/register:
     post:
+      operationId: Auth_register
+      description: 用户注册
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenPair'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - auth
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/types.RegisterRequest'
-              description: 注册信息
-              summary: body
-        description: 注册信息
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.TokenPair'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: 邮箱或用户名已被占用
-      summary: 用户注册
-      tags:
-      - auth
+              $ref: '#/components/schemas/RegisterRequest'
   /api/v1/books:
-    get:
-      parameters:
-      - description: 页码，从 1 开始（默认 1）
-        in: query
-        name: page
-        schema:
-          type: integer
-      - description: 每页数量（默认 50，最大 1000）
-        in: query
-        name: page_size
-        schema:
-          type: integer
-      - description: 排序，如 'price desc,title'；支持 title/author/price/created_at/updated_at/published_at
-        in: query
-        name: order_by
-        schema:
-          type: string
-      - description: '过滤表达式，如 title : ''Go'' AND price < 50'
-        in: query
-        name: filter
-        schema:
-          type: string
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.BookList'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-      security:
-      - BearerAuth: []
-      summary: 获取书籍列表
-      tags:
-      - books
     post:
-      description: book_id 可选，若指定则用作资源 ID（ULID 格式）；若省略则服务端自动生成。book_id 重复时返回 409。
+      operationId: Books_create
+      description: 创建书籍
+      parameters: []
+      responses:
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - books
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/types.CreateBookRequest'
-              description: 书籍信息
-              summary: body
-        description: 书籍信息
-        required: true
-      responses:
-        "201":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Book'
-          description: Created
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: book_id 已存在（BOOK_ALREADY_EXISTS）
+              $ref: '#/components/schemas/CreateBookRequest'
       security:
-      - BearerAuth: []
-      summary: 创建书籍
-      tags:
-      - books
-  /api/v1/books/{book}:
-    delete:
-      description: 资源不存在时返回 404（BOOK_NOT_FOUND）；删除成功返回 204（无响应体）。
-      parameters:
-      - description: 书籍资源 ID（ULID）
-        in: path
-        name: book
-        required: true
-        schema:
-          type: string
-      responses:
-        "204":
-          description: No Content
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Not Found
-      security:
-      - BearerAuth: []
-      summary: 删除书籍
-      tags:
-      - books
+        - BearerAuth: []
     get:
+      operationId: Books_list
+      description: 获取书籍列表
       parameters:
-      - description: 书籍资源 ID（ULID）
-        in: path
-        name: book
-        required: true
-        schema:
-          type: string
+        - $ref: '#/components/parameters/ListQuery.page'
+        - $ref: '#/components/parameters/ListQuery.page_size'
+        - $ref: '#/components/parameters/ListQuery.order_by'
+        - $ref: '#/components/parameters/ListQuery.filter'
       responses:
-        "200":
+        '200':
+          description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.Book'
-          description: OK
-        "401":
+                $ref: '#/components/schemas/BookList'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "404":
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Not Found
-      security:
-      - BearerAuth: []
-      summary: 获取书籍详情
+                $ref: '#/components/schemas/Problem'
       tags:
-      - books
-    patch:
-      description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
-        / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
+        - books
+      security:
+        - BearerAuth: []
+  /api/v1/books/{book}:
+    get:
+      operationId: Books_get
+      description: 获取书籍详情
       parameters:
-      - description: 书籍资源 ID（ULID）
-        in: path
-        name: book
-        required: true
-        schema:
-          type: string
+        - name: book
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ULID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - books
+      security:
+        - BearerAuth: []
+    put:
+      operationId: Books_replace
+      description: 全量替换书籍（幂等 PUT）
+      parameters:
+        - name: book
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ULID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - books
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-          application/json-patch+json:
-            schema:
-              type: string
+              $ref: '#/components/schemas/ReplaceBookRequest'
+      security:
+        - BearerAuth: []
+    patch:
+      operationId: Books_patch
+      description: 局部更新书籍（支持 RFC 7386 Merge Patch / RFC 6902 JSON Patch / Shorthand）
+      parameters:
+        - name: book
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ULID'
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Book'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '415':
+          description: Client error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - books
+      requestBody:
+        required: true
+        content:
           application/merge-patch+json:
             schema:
-              type: string
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
+          application/json-patch+json:
+            schema:
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
           application/merge-patch+shorthand:
             schema:
-              type: string
-          text/plain:
-            schema:
-              title: body
-              type: object
-        description: patch 主体（具体格式由 Content-Type 决定）
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Book'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Not Found
-        "415":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: 不支持的 PATCH Content-Type
-      security:
-      - BearerAuth: []
-      summary: 局部更新书籍
-      tags:
-      - books
-    put:
-      description: 使用请求体中的全部字段替换资源；未提供的可选字段会被清除。响应为更新后的资源。
-      parameters:
-      - description: 书籍资源 ID（ULID）
-        in: path
-        name: book
-        required: true
-        schema:
-          type: string
-      requestBody:
-        content:
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
           application/json:
             schema:
-              $ref: '#/components/schemas/types.ReplaceBookRequest'
-              description: 完整书籍信息
-              summary: body
-        description: 完整书籍信息
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Book'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "404":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Not Found
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
       security:
-      - BearerAuth: []
-      summary: 替换书籍
+        - BearerAuth: []
+    delete:
+      operationId: Books_delete
+      description: 删除书籍
+      parameters:
+        - name: book
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ULID'
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '404':
+          description: The server cannot find the requested resource.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
       tags:
-      - books
+        - books
+      security:
+        - BearerAuth: []
   /api/v1/me:
     get:
+      operationId: Me_get
+      description: 获取当前用户信息
+      parameters: []
       responses:
-        "200":
+        '200':
+          description: The request has succeeded.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.User'
-          description: OK
-        "401":
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Access is unauthorized.
           content:
-            application/json:
+            application/problem+json:
               schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-      security:
-      - BearerAuth: []
-      summary: 获取当前用户信息
+                $ref: '#/components/schemas/Problem'
       tags:
-      - me
-    patch:
-      description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
-        / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
+        - me
+      security:
+        - BearerAuth: []
+    put:
+      operationId: Me_replace
+      description: 替换当前用户资料（幂等全量更新）
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - me
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-          application/json-patch+json:
-            schema:
-              type: string
+              $ref: '#/components/schemas/ReplaceMeRequest'
+      security:
+        - BearerAuth: []
+    patch:
+      operationId: Me_patch
+      description: 局部更新当前用户资料（支持 RFC 7386 Merge Patch / RFC 6902 JSON Patch / Shorthand）
+      parameters: []
+      responses:
+        '200':
+          description: The request has succeeded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '409':
+          description: The request conflicts with the current state of the server.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '415':
+          description: Client error
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - me
+      requestBody:
+        required: true
+        content:
           application/merge-patch+json:
             schema:
-              type: string
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
+          application/json-patch+json:
+            schema:
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
           application/merge-patch+shorthand:
             schema:
-              type: string
-          text/plain:
-            schema:
-              title: body
-              type: object
-        description: patch 主体（具体格式由 Content-Type 决定）
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.User'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Conflict
-        "415":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: 不支持的 PATCH Content-Type
-      security:
-      - BearerAuth: []
-      summary: 局部更新当前用户资料
-      tags:
-      - me
-    put:
-      description: 使用请求体中的 username 与 email 覆盖现有资料。username / email 各自全局唯一，冲突时返回 409。
-      requestBody:
-        content:
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
           application/json:
             schema:
-              $ref: '#/components/schemas/types.ReplaceMeRequest'
-              description: 完整资料
-              summary: body
-        description: 完整资料
-        required: true
-      responses:
-        "200":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.User'
-          description: OK
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
-        "409":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: username / email 已被占用
+              anyOf:
+                - type: object
+                  additionalProperties: {}
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/JsonPatchOperation'
+                - type: string
       security:
-      - BearerAuth: []
-      summary: 替换当前用户资料
-      tags:
-      - me
+        - BearerAuth: []
   /api/v1/me/change-password:
     post:
+      operationId: Me_changePassword
+      description: 修改当前用户密码
+      parameters: []
+      responses:
+        '204':
+          description: 'There is no content to send for this request, but the headers may be useful. '
+        '400':
+          description: The server could not understand the request due to invalid syntax.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+        '401':
+          description: Access is unauthorized.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+      tags:
+        - me
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/types.ChangePasswordRequest'
-              description: 密码信息
-              summary: body
-        description: 密码信息
-        required: true
-      responses:
-        "204":
-          description: No Content
-        "400":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Bad Request
-        "401":
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/types.Problem'
-          description: Unauthorized
+              $ref: '#/components/schemas/ChangePasswordRequest'
       security:
-      - BearerAuth: []
-      summary: 修改密码
-      tags:
-      - me
+        - BearerAuth: []
+components:
+  parameters:
+    ListQuery.filter:
+      name: filter
+      in: query
+      required: false
+      schema:
+        type: string
+      explode: false
+    ListQuery.order_by:
+      name: order_by
+      in: query
+      required: false
+      schema:
+        type: string
+      explode: false
+    ListQuery.page:
+      name: page
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        default: 1
+      explode: false
+    ListQuery.page_size:
+      name: page_size
+      in: query
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 0
+        maximum: 1000
+        default: 50
+      explode: false
+  schemas:
+    Book:
+      type: object
+      required:
+        - id
+        - title
+        - author
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: '#/components/schemas/ULID'
+        title:
+          type: string
+        author:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+          format: double
+        published_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    BookList:
+      type: object
+      required:
+        - items
+        - page
+        - page_size
+        - total_size
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Book'
+        page:
+          type: integer
+          format: int32
+        page_size:
+          type: integer
+          format: int32
+        total_size:
+          type: integer
+          format: int32
+    ChangePasswordRequest:
+      type: object
+      required:
+        - old_password
+        - new_password
+      properties:
+        old_password:
+          type: string
+          minLength: 1
+        new_password:
+          $ref: '#/components/schemas/Password'
+    CreateBookRequest:
+      type: object
+      required:
+        - title
+        - author
+      properties:
+        book_id:
+          $ref: '#/components/schemas/ULID'
+          description: Optional custom ULID. Auto-generated when omitted.
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        author:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        price:
+          type: number
+          format: double
+          minimum: 0
+        published_at:
+          type: string
+          format: date-time
+    Email:
+      type: string
+      format: email
+      description: RFC 5322 email address
+    FieldError:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    JsonPatchOperation:
+      type: object
+      required:
+        - op
+        - path
+      properties:
+        op:
+          type: string
+          enum:
+            - add
+            - remove
+            - replace
+            - move
+            - copy
+            - test
+        path:
+          type: string
+        from:
+          type: string
+        value: {}
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          type: string
+          minLength: 1
+    Password:
+      type: string
+      minLength: 8
+      maxLength: 128
+      description: Password (8-128 chars, must include at least one letter and one digit)
+    Problem:
+      type: object
+      required:
+        - type
+        - title
+        - status
+        - detail
+        - code
+      properties:
+        type:
+          type: string
+          default: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+        code:
+          type: string
+        request_id:
+          type: string
+        params:
+          type: object
+          additionalProperties:
+            type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/FieldError'
+      description: RFC 9457 Problem Details
+    RefreshTokenRequest:
+      type: object
+      required:
+        - refresh_token
+      properties:
+        refresh_token:
+          type: string
+          minLength: 1
+    RegisterRequest:
+      type: object
+      required:
+        - username
+        - email
+        - password
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        email:
+          $ref: '#/components/schemas/Email'
+        password:
+          $ref: '#/components/schemas/Password'
+    ReplaceBookRequest:
+      type: object
+      required:
+        - title
+        - author
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        author:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: string
+          maxLength: 1000
+        price:
+          type: number
+          format: double
+          minimum: 0
+        published_at:
+          type: string
+          format: date-time
+    ReplaceMeRequest:
+      type: object
+      required:
+        - username
+        - email
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        email:
+          $ref: '#/components/schemas/Email'
+    TokenPair:
+      type: object
+      required:
+        - access_token
+        - refresh_token
+        - expires_at
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        expires_at:
+          type: integer
+          format: int64
+    ULID:
+      type: string
+      minLength: 26
+      maxLength: 26
+      pattern: ^[0-9A-HJKMNP-TV-Z]{26}$
+      description: 26-character ULID identifier
+    User:
+      type: object
+      required:
+        - id
+        - username
+        - email
+        - status
+        - created_at
+        - updated_at
+      properties:
+        id:
+          $ref: '#/components/schemas/ULID'
+        username:
+          type: string
+        email:
+          type: string
+        status:
+          type: string
+        last_login_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    Username:
+      type: string
+      minLength: 3
+      maxLength: 50
+      pattern: ^[a-zA-Z0-9_-]+$
+      description: Username (3-50 chars, letters/digits/underscore/hyphen)
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: Bearer
 servers:
-- description: Local development server
-  url: http://localhost:8000
+  - url: http://localhost:8000
+    description: Local development server
+    variables: {}

@@ -1,9 +1,8 @@
-.PHONY: swag ent build test cover
+.PHONY: api ent build test cover
 
-swag: ## 格式化注解并生成 OpenAPI 3.1 规范 static/openapi/openapi.yaml
-	go tool swag fmt
-	GOFLAGS=-buildvcs=false go tool swag init --v3.1 -d cmd,pkg/handlers,pkg/types -g main.go --output static/openapi --outputTypes yaml
-	mv static/openapi/swagger.yaml static/openapi/openapi.yaml
+api: ## 编译 TypeSpec 生成 OpenAPI 3.1 (static/openapi/openapi.yaml) 与 Go 协议代码 (pkg/api/*.gen.go)
+	cd api && ./node_modules/.bin/tsp compile spec/main.tsp
+	gofmt -w pkg/api/
 
 ent: ## 重新生成 ent ORM 代码（修改 ent/schema/*.go 后执行）
 	cd ent && go generate

@@ -1,17 +1,6 @@
 // Package main is the entry point of the application.
 //
-//	@title							Echo Template API
-//	@version						1.0
-//	@description					Echo Template RESTful API
-//
-//	@servers.url					http://localhost:8000
-//	@servers.description			Local development server
-//
-//	@securityDefinitions.bearerauth	BearerAuth
-//	@bearerFormat					JWT
-//	@description					JWT access token
-//
-//go:generate make -C .. swag
+//go:generate make -C .. api
 package main
 
 import (

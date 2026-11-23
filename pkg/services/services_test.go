@@ -10,11 +10,11 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/testutil"
-	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
@@ -26,7 +26,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	authSvc := do.MustInvoke[*services.AuthService](env.Injector)
 
 	// Register creates user and persists both tokens with ULID IDs.
-	regResp, err := authSvc.Register(ctx, &types.RegisterRequest{
+	regResp, err := authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice",
 		Email:    "alice@example.com",
 		Password: "password123",
@@ -36,14 +36,14 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	assert.NotEmpty(t, regResp.RefreshToken)
 
 	// Duplicate email / username rejected.
-	_, err = authSvc.Register(ctx, &types.RegisterRequest{
+	_, err = authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice2",
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
 	testutil.AssertOopsCode(t, err, codes.AuthEmailTaken)
 
-	_, err = authSvc.Register(ctx, &types.RegisterRequest{
+	_, err = authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice",
 		Email:    "alice2@example.com",
 		Password: "password123",
@@ -51,12 +51,12 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	testutil.AssertOopsCode(t, err, codes.AuthUsernameTaken)
 
 	// Two logins within the same second must not collide (jti uniqueness).
-	login1, err := authSvc.Login(ctx, &types.LoginRequest{
+	login1, err := authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
 	require.NoError(t, err)
-	login2, err := authSvc.Login(ctx, &types.LoginRequest{
+	login2, err := authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
@@ -69,13 +69,13 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	assert.Equal(t, "alice", u.Username)
 
 	// RefreshToken rotates atomically and rejects replay of the old refresh token.
-	refreshed, err := authSvc.RefreshToken(ctx, &types.RefreshTokenRequest{
+	refreshed, err := authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login1.RefreshToken,
 	})
 	require.NoError(t, err)
 	assert.NotEqual(t, login1.RefreshToken, refreshed.RefreshToken)
 
-	_, err = authSvc.RefreshToken(ctx, &types.RefreshTokenRequest{
+	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login1.RefreshToken,
 	})
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
@@ -86,7 +86,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
 	_, err = authSvc.AuthenticateUser(ctx, login2.AccessToken)
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
-	_, err = authSvc.RefreshToken(ctx, &types.RefreshTokenRequest{
+	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: refreshed.RefreshToken,
 	})
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
@@ -94,13 +94,13 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	// Disabled account: wrong password must still return invalid credentials (no account enumeration),
 	// while right password returns account disabled.
 	require.NoError(t, env.ORM().User.UpdateOneID(u.ID).SetStatus(userEnt.StatusSuspended).Exec(ctx))
-	_, err = authSvc.Login(ctx, &types.LoginRequest{
+	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "wrongpassword1",
 	})
 	testutil.AssertOopsCode(t, err, codes.AuthInvalidCredentials)
 
-	_, err = authSvc.Login(ctx, &types.LoginRequest{
+	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
@@ -122,7 +122,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	// Create with custom ULID and verify duplicate returns BOOK_ALREADY_EXISTS.
 	customID := utils.GenerateULID()
 	initialPrice := 49.99
-	created, err := bookSvc.Create(ctx, &types.CreateBookRequest{
+	created, err := bookSvc.Create(ctx, &api.CreateBookRequest{
 		BookID:      customID,
 		Title:       "Go Programming",
 		Author:      "Alan Donovan",
@@ -136,7 +136,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 
 	// Free book (price = 0) must be distinct from unset (nil).
 	zeroPrice := 0.0
-	freeBook, err := bookSvc.Create(ctx, &types.CreateBookRequest{
+	freeBook, err := bookSvc.Create(ctx, &api.CreateBookRequest{
 		Title:  "Free Go Book",
 		Author: "Community",
 		Price:  &zeroPrice,
@@ -145,7 +145,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	require.NotNil(t, freeBook.Price)
 	assert.Equal(t, 0.0, *freeBook.Price)
 
-	_, err = bookSvc.Create(ctx, &types.CreateBookRequest{
+	_, err = bookSvc.Create(ctx, &api.CreateBookRequest{
 		BookID: customID,
 		Title:  "Duplicate",
 		Author: "Someone",
@@ -166,7 +166,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	assert.Len(t, items, 2)
 
 	// Replace clears omitted optional fields (including nullable price → nil).
-	replaced, err := bookSvc.Replace(ctx, customID, &types.ReplaceBookRequest{
+	replaced, err := bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
 		Book:   customID,
 		Title:  "Go Programming 2nd",
 		Author: "Alan Donovan",
@@ -183,7 +183,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	_, err = bookSvc.Get(ctx, customID)
 	testutil.AssertOopsCode(t, err, codes.BookNotFound)
 
-	_, err = bookSvc.Replace(ctx, customID, &types.ReplaceBookRequest{
+	_, err = bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
 		Book:   customID,
 		Title:  "Ghost",
 		Author: "Ghost",
@@ -205,9 +205,9 @@ func TestBookService_ListFilterAndOrderBy(t *testing.T) {
 	bookSvc := do.MustInvoke[*services.BookService](env.Injector)
 
 	p1, p2 := 10.0, 50.0
-	_, err := bookSvc.Create(ctx, &types.CreateBookRequest{Title: "Alpha Go", Author: "Alice", Price: &p1})
+	_, err := bookSvc.Create(ctx, &api.CreateBookRequest{Title: "Alpha Go", Author: "Alice", Price: &p1})
 	require.NoError(t, err)
-	_, err = bookSvc.Create(ctx, &types.CreateBookRequest{Title: "Beta Rust", Author: "Bob", Price: &p2})
+	_, err = bookSvc.Create(ctx, &api.CreateBookRequest{Title: "Beta Rust", Author: "Bob", Price: &p2})
 	require.NoError(t, err)
 
 	// Filter by title contains and price range.
@@ -256,11 +256,11 @@ func TestAuthService_TokenTypeMismatchAndErrors(t *testing.T) {
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
 
 	// Passing access token to RefreshToken must be rejected.
-	_, err = authSvc.RefreshToken(ctx, &types.RefreshTokenRequest{RefreshToken: tok.AccessToken})
+	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{RefreshToken: tok.AccessToken})
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
 
 	// Unknown email login returns AuthInvalidCredentials.
-	_, err = authSvc.Login(ctx, &types.LoginRequest{Email: "nobody@example.com", Password: "password123"})
+	_, err = authSvc.Login(ctx, &api.LoginRequest{Email: "nobody@example.com", Password: "password123"})
 	testutil.AssertOopsCode(t, err, codes.AuthInvalidCredentials)
 }
 
@@ -275,20 +275,20 @@ func TestMeService_ReplaceAndChangePassword(t *testing.T) {
 	u, err := authSvc.AuthenticateUser(ctx, reg.AccessToken)
 	require.NoError(t, err)
 
-	updated, err := meSvc.Replace(ctx, u.ID, &types.ReplaceMeRequest{
+	updated, err := meSvc.Replace(ctx, u.ID, &api.ReplaceMeRequest{
 		Username: "bob_new",
 		Email:    "bob_new@example.com",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "bob_new", updated.Username)
 
-	err = meSvc.ChangePassword(ctx, u.ID, &types.ChangePasswordRequest{
+	err = meSvc.ChangePassword(ctx, u.ID, &api.ChangePasswordRequest{
 		OldPassword: "wrongpassword1",
 		NewPassword: "newpassword123",
 	})
 	testutil.AssertOopsCode(t, err, codes.MeInvalidPassword)
 
-	require.NoError(t, meSvc.ChangePassword(ctx, u.ID, &types.ChangePasswordRequest{
+	require.NoError(t, meSvc.ChangePassword(ctx, u.ID, &api.ChangePasswordRequest{
 		OldPassword: "password123",
 		NewPassword: "newpassword123",
 	}))
@@ -296,7 +296,7 @@ func TestMeService_ReplaceAndChangePassword(t *testing.T) {
 	// Changing password must revoke all active tokens.
 	_, err = authSvc.AuthenticateUser(ctx, reg.AccessToken)
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
-	_, err = authSvc.RefreshToken(ctx, &types.RefreshTokenRequest{
+	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: reg.RefreshToken,
 	})
 	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)

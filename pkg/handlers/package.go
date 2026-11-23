@@ -1,10 +1,14 @@
 package handlers
 
-import "github.com/samber/do/v2"
+import (
+	"github.com/samber/do/v2"
 
-// Package registers all HTTP handler providers and the Echo instance
-// into the DI container.
+	"github.com/liukeshao/echo-template/pkg/httpruntime"
+)
+
+// Package 注册 HTTP 运行时、业务 Handler、文档处理器与 Server 到 DI 容器。
 var Package = do.Package(
+	do.Lazy(httpruntime.NewFromInjector),
 	provideHandler(NewAuthHandler),
 	provideHandler(NewBookHandler),
 	provideHandler(NewMeHandler),

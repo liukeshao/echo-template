@@ -1,0 +1,14 @@
+{
+  "name": "echo-template-api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "tsp compile spec/main.tsp"
+  },
+  "devDependencies": {
+    "@typespec/compiler": "^1.0.0",
+    "@typespec/http": "^1.0.0",
+    "@typespec/openapi3": "^1.0.0",
+    "tsp-emitter-go-rest": "link:./emitters/go-rest"
+  }
+}

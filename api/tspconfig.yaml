@@ -1,0 +1,15 @@
+emit:
+  - "@typespec/openapi3"
+  - "tsp-emitter-go-rest"
+options:
+  "@typespec/openapi3":
+    openapi-versions:
+      - "3.1.0"
+    emitter-output-dir: "{project-root}/../static/openapi"
+    output-file: "openapi.yaml"
+  "tsp-emitter-go-rest":
+    emitter-output-dir: "{project-root}/../pkg/api"
+    package-name: "api"
+    runtime-import: "github.com/liukeshao/echo-template/pkg/httpruntime"
+    validator-import: "github.com/liukeshao/echo-template/pkg/validator"
+    utils-import: "github.com/liukeshao/echo-template/pkg/utils"

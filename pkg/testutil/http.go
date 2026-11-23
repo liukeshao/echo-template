@@ -9,13 +9,14 @@ import (
 	"net/http/httptest"
 	"strings"
 
-	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
 
+	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/services"
-	"github.com/liukeshao/echo-template/pkg/types"
 )
+
+const mimeApplicationJSON = "application/json"
 
 type reqConfig struct {
 	body        io.Reader
@@ -35,7 +36,7 @@ func WithJSON(v any) ReqOption {
 			t.Fatalf("testutil.WithJSON marshal failed: %v", err)
 		}
 		cfg.body = bytes.NewReader(b)
-		cfg.contentType = echo.MIMEApplicationJSON
+		cfg.contentType = mimeApplicationJSON
 	}
 }
 
@@ -70,7 +71,7 @@ func WithHeader(key, value string) ReqOption {
 	}
 }
 
-// DoRequest 向测试 Echo 实例发起一次内存 HTTP 请求并返回响应记录器。
+// DoRequest 向测试 HTTP Handler 发起一次内存 HTTP 请求并返回响应记录器。
 func (e *Env) DoRequest(method, target string, opts ...ReqOption) *httptest.ResponseRecorder {
 	e.t.Helper()
 
@@ -81,7 +82,7 @@ func (e *Env) DoRequest(method, target string, opts ...ReqOption) *httptest.Resp
 
 	req := httptest.NewRequest(method, target, cfg.body)
 	if cfg.contentType != "" {
-		req.Header.Set(echo.HeaderContentType, cfg.contentType)
+		req.Header.Set("Content-Type", cfg.contentType)
 	}
 	for k, vals := range cfg.headers {
 		for _, v := range vals {
@@ -90,15 +91,15 @@ func (e *Env) DoRequest(method, target string, opts ...ReqOption) *httptest.Resp
 	}
 
 	rec := httptest.NewRecorder()
-	e.Echo().ServeHTTP(rec, req)
+	e.Handler().ServeHTTP(rec, req)
 	return rec
 }
 
 // MustAuthUser 注册一个测试用户并返回其认证令牌，用于快速构造需要登录态的测试用例。
-func (e *Env) MustAuthUser(username, email, password string) *types.TokenPair {
+func (e *Env) MustAuthUser(username, email, password string) *api.TokenPair {
 	e.t.Helper()
 	authSvc := do.MustInvoke[*services.AuthService](e.Injector)
-	resp, err := authSvc.Register(context.Background(), &types.RegisterRequest{
+	resp, err := authSvc.Register(context.Background(), &api.RegisterRequest{
 		Username: username,
 		Email:    email,
 		Password: password,

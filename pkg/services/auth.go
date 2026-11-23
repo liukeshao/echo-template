@@ -14,9 +14,9 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
@@ -196,7 +196,7 @@ func (s *AuthService) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userI
 }
 
 // issueTokenPairTx 在已有事务中签发并持久化 access + refresh token 对。
-func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*types.TokenPair, error) {
+func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*api.TokenPair, error) {
 	accessToken, accessExpiry, err := s.generateToken(userID, token.TypeAccess)
 	if err != nil {
 		return nil, err
@@ -215,7 +215,7 @@ func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID s
 		return nil, err
 	}
 
-	return &types.TokenPair{
+	return &api.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresAt:    accessExpiry.Unix(),
@@ -224,7 +224,7 @@ func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID s
 
 // generateTokenPair 在独立事务中生成 access + refresh token 对。
 // 使用 named return err 配合 defer，保证任意失败路径都触发 Rollback。
-func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *types.TokenPair, err error) {
+func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *api.TokenPair, err error) {
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
 		return nil, authInternal(err, "beginning transaction")
@@ -269,7 +269,7 @@ func (s *AuthService) checkUniqueUserConflict(ctx context.Context, email, userna
 }
 
 // Register 用户注册。
-func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) (*types.TokenPair, error) {
+func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (*api.TokenPair, error) {
 	emailExists, err := s.orm.User.Query().
 		Where(userEnt.Email(req.Email)).
 		Exist(ctx)
@@ -331,7 +331,7 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 }
 
 // Login 用户登录。
-func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.TokenPair, error) {
+func (s *AuthService) Login(ctx context.Context, req *api.LoginRequest) (*api.TokenPair, error) {
 	user, err := s.findUserByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
@@ -359,7 +359,7 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 
 // RefreshToken 刷新令牌对。
 // 在单个事务中原子地撤销旧 refresh token 并签发新令牌对，防止并发重放。
-func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenRequest) (_ *types.TokenPair, err error) {
+func (s *AuthService) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (_ *api.TokenPair, err error) {
 	claims, err := s.parseJWTOfType(ctx, req.RefreshToken, token.TypeRefresh)
 	if err != nil {
 		return nil, err

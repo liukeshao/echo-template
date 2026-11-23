@@ -24,7 +24,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
 
@@ -45,8 +44,8 @@ type Env struct {
 	Injector *do.RootScope
 	Config   *config.Config
 
-	echoOnce sync.Once
-	echo     *echo.Echo
+	handlerOnce sync.Once
+	handler     http.Handler
 }
 
 type options struct {
@@ -178,13 +177,13 @@ func (e *Env) ORM() *ent.Client {
 	return do.MustInvoke[*infra.ORM](e.Injector).Client
 }
 
-// Echo 按需构建并返回已挂载全部路由、中间件与 RFC 9457 错误处理器的 *echo.Echo 实例。
-func (e *Env) Echo() *echo.Echo {
+// Handler 按需构建并返回已挂载全部路由、中间件与 RFC 9457 错误处理器的根 http.Handler。
+func (e *Env) Handler() http.Handler {
 	e.t.Helper()
-	e.echoOnce.Do(func() {
-		web := echo.New()
-		require.NoError(e.t, handlers.BuildRouter(e.Injector, web))
-		e.echo = web
+	e.handlerOnce.Do(func() {
+		h, err := handlers.BuildRouter(e.Injector)
+		require.NoError(e.t, err)
+		e.handler = h
 	})
-	return e.echo
+	return e.handler
 }

@@ -2,21 +2,21 @@ package middleware
 
 import (
 	"log/slog"
+	"net/http"
 	"strings"
 
-	"github.com/labstack/echo/v5"
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/pkg/appctx"
 	"github.com/liukeshao/echo-template/pkg/codes"
+	"github.com/liukeshao/echo-template/pkg/httpruntime"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
 // extractTokenFromHeader 从 Authorization header 提取 Bearer token。
-// header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误，
-// 由 error_handler 统一映射为 401 Unauthenticated。
-func extractTokenFromHeader(c *echo.Context) (string, error) {
-	authHeader := c.Request().Header.Get("Authorization")
+// header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误（→ HTTP 401）。
+func extractTokenFromHeader(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
 		return "", oops.
 			Code(codes.AuthTokenInvalid.String()).
@@ -35,27 +35,27 @@ func extractTokenFromHeader(c *echo.Context) (string, error) {
 	return token, nil
 }
 
-// RequireAuth 验证 Bearer token，将已认证用户写入 context 后放行。
+// RequireAuth 返回标准 net/http 鉴权中间件：验证 Bearer token，将已认证 *ent.User 写入 context 后放行。
 // token 不写入 context，防止被日志框架意外序列化后泄露。
-// token 缺失/无效直接返回 AUTH_TOKEN_INVALID（→ 401）。
-func RequireAuth(authService *services.AuthService) echo.MiddlewareFunc {
-	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c *echo.Context) error {
-			ctx := c.Request().Context()
+func RequireAuth(authService *services.AuthService, rt *httpruntime.Runtime) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
 
-			tokenString, err := extractTokenFromHeader(c)
+			tokenString, err := extractTokenFromHeader(r)
 			if err != nil {
 				slog.WarnContext(ctx, "auth failed: extract token", "error", err)
-				return err
+				rt.WriteProblem(w, r, err)
+				return
 			}
 
 			user, err := authService.AuthenticateUser(ctx, tokenString)
 			if err != nil {
-				return err
+				rt.WriteProblem(w, r, err)
+				return
 			}
 
-			c.SetRequest(c.Request().WithContext(appctx.WithUser(ctx, user)))
-			return next(c)
-		}
+			next.ServeHTTP(w, r.WithContext(appctx.WithUser(ctx, user)))
+		})
 	}
 }

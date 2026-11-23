@@ -1,20 +1,23 @@
 package handlers
 
 import (
-	"github.com/labstack/echo/v5"
+	"net/http"
+
 	"github.com/samber/do/v2"
+
+	"github.com/liukeshao/echo-template/pkg/httpruntime"
 )
 
-// Handler 定义业务路由注册接口。
-// g 为 API 版本前缀组（如 /api/v1），auth 为认证中间件，按需挂在受保护的分组或单条路由上。
+// Handler 定义业务路由挂载接口。
+// 每个业务 Handler 实现对应的 TypeSpec 生成接口（api.XxxHandler），并在 Mount 中调用 api.MountXxxHandler。
 type Handler interface {
-	Routes(g *echo.Group, auth echo.MiddlewareFunc)
+	Mount(mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler)
 }
 
 // routeRegistry 收集通过 provideHandler 注册进当前 DI 容器的业务 Handler，
 // 供 BuildRouter 一次性挂载，避免在 router.go 中逐个手动 do.MustInvoke。
 type routeRegistry struct {
-	mounts []func(i do.Injector, g *echo.Group, auth echo.MiddlewareFunc)
+	mounts []func(i do.Injector, mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler)
 }
 
 func getOrCreateRouteRegistry(i do.Injector) *routeRegistry {
@@ -26,9 +29,9 @@ func getOrCreateRouteRegistry(i do.Injector) *routeRegistry {
 	return reg
 }
 
-func (r *routeRegistry) mountAll(i do.Injector, g *echo.Group, auth echo.MiddlewareFunc) {
+func (r *routeRegistry) mountAll(i do.Injector, mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler) {
 	for _, mount := range r.mounts {
-		mount(i, g, auth)
+		mount(i, mux, rt, auth)
 	}
 }
 
@@ -38,8 +41,17 @@ func provideHandler[T Handler](provider do.Provider[T]) func(do.Injector) {
 	return func(i do.Injector) {
 		do.Lazy(provider)(i)
 		reg := getOrCreateRouteRegistry(i)
-		reg.mounts = append(reg.mounts, func(inj do.Injector, g *echo.Group, auth echo.MiddlewareFunc) {
-			do.MustInvoke[T](inj).Routes(g, auth)
+		reg.mounts = append(reg.mounts, func(inj do.Injector, mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler) {
+			do.MustInvoke[T](inj).Mount(mux, rt, auth)
 		})
 	}
+}
+
+// mapSlice 将源切片逐元素映射为目标切片，保证返回值永不为 nil（空切片 JSON 序列化为 []）。
+func mapSlice[In, Out any](in []In, fn func(In) Out) []Out {
+	out := make([]Out, len(in))
+	for i, v := range in {
+		out[i] = fn(v)
+	}
+	return out
 }

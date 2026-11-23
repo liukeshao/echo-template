@@ -11,9 +11,9 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
@@ -44,7 +44,7 @@ func meInternal(err error, op string) error {
 //
 // PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
 // 故 RFC 6902 / 7386 / Shorthand 三种 patch 协议共享同一份服务端校验逻辑。
-func (s *MeService) Replace(ctx context.Context, userID string, req *types.ReplaceMeRequest) (*ent.User, error) {
+func (s *MeService) Replace(ctx context.Context, userID string, req *api.ReplaceMeRequest) (*ent.User, error) {
 	usernameTaken, err := s.orm.User.Query().
 		Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).
 		Exist(ctx)
@@ -104,7 +104,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 // 不通过 PUT /me 暴露：密码不出现在 User 响应中，
 // 且需要校验 old_password 才能轮换，这与"幂等全量替换"语义不兼容。
 // 修改成功后在同一事务内撤销该用户所有活跃令牌，迫使所有会话使用新密码重新认证。
-func (s *MeService) ChangePassword(ctx context.Context, userID string, req *types.ChangePasswordRequest) (err error) {
+func (s *MeService) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) (err error) {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
 		First(ctx)

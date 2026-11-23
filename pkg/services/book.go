@@ -11,11 +11,11 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/book"
+	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/filter"
 	"github.com/liukeshao/echo-template/pkg/infra"
 	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
-	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
@@ -64,7 +64,7 @@ func bookDB(err error, op, id string) error {
 //
 // 若 req.BookID 非空则使用该值作为资源 ID；否则自动生成 ULID。
 // 若指定的 ID 已存在，返回 BOOK_ALREADY_EXISTS 错误。
-func (s *BookService) Create(ctx context.Context, req *types.CreateBookRequest) (*ent.Book, error) {
+func (s *BookService) Create(ctx context.Context, req *api.CreateBookRequest) (*ent.Book, error) {
 	id := req.BookID
 	if id == "" {
 		id = utils.GenerateULID()
@@ -170,7 +170,7 @@ func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.B
 //
 // PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
 // 因此 patch 的所有协议（RFC 6902 / 7386 / Shorthand）最终统一落到这一处幂等写入。
-func (s *BookService) Replace(ctx context.Context, id string, req *types.ReplaceBookRequest) (*ent.Book, error) {
+func (s *BookService) Replace(ctx context.Context, id string, req *api.ReplaceBookRequest) (*ent.Book, error) {
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).
 		SetAuthor(req.Author)

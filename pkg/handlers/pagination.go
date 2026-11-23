@@ -1,9 +1,6 @@
 package handlers
 
-import (
-	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
-	"github.com/liukeshao/echo-template/pkg/types"
-)
+import metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
 
 // defaultPageSize 和 maxPageSize 是分页的全局默认值。
 // 若某资源需要不同的分页上限，在对应 handler 文件中单独声明常量并覆盖即可。
@@ -35,13 +32,13 @@ func resolvePagination(rawPage, rawSize int32, defaultSize, maxSize int32) (offs
 	return offset, limit, page
 }
 
-// resolveListOptions 将通用列表请求解析为业务层 metav1.ListOptions 以及规范化后的页码。
-func resolveListOptions(req types.ListRequest, defaultSize, maxSize int32) (metav1.ListOptions, int32) {
-	offset, limit, page := resolvePagination(req.Page, req.PageSize, defaultSize, maxSize)
+// resolveListOptions 将分页、排序、过滤参数组装为业务层 metav1.ListOptions 以及规范化后的页码。
+func resolveListOptions(rawPage, rawSize int32, orderBy, filter string, defaultSize, maxSize int32) (metav1.ListOptions, int32) {
+	offset, limit, page := resolvePagination(rawPage, rawSize, defaultSize, maxSize)
 	return metav1.ListOptions{
 		Offset:  offset,
 		Limit:   limit,
-		OrderBy: req.OrderBy,
-		Filter:  req.Filter,
+		OrderBy: orderBy,
+		Filter:  filter,
 	}, page
 }

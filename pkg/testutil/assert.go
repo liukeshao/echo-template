@@ -6,13 +6,12 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/labstack/echo/v5"
 	"github.com/samber/oops"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/types"
+	"github.com/liukeshao/echo-template/pkg/httpruntime"
 )
 
 // AssertOopsCode 断言 err 包含指定的业务错误码（oops.OopsError）。
@@ -33,12 +32,12 @@ func DecodeJSON[T any](t testing.TB, rec *httptest.ResponseRecorder) T {
 }
 
 // AssertProblem 断言响应符合 RFC 9457 Problem Details 格式（application/problem+json），
-// 并返回解析后的 types.Problem 供调用方进一步断言。
-func AssertProblem(t testing.TB, rec *httptest.ResponseRecorder, wantStatus int, wantCode string) types.Problem {
+// 并返回解析后的 httpruntime.Problem 供调用方进一步断言。
+func AssertProblem(t testing.TB, rec *httptest.ResponseRecorder, wantStatus int, wantCode string) httpruntime.Problem {
 	t.Helper()
 	assert.Equal(t, wantStatus, rec.Code, "body: %s", rec.Body.String())
-	assert.Contains(t, rec.Header().Get(echo.HeaderContentType), types.ContentTypeProblemJSON)
-	p := DecodeJSON[types.Problem](t, rec)
+	assert.Contains(t, rec.Header().Get("Content-Type"), httpruntime.ContentTypeProblemJSON)
+	p := DecodeJSON[httpruntime.Problem](t, rec)
 	assert.Equal(t, wantStatus, p.Status)
 	assert.Equal(t, wantCode, p.Code)
 	assert.NotEmpty(t, p.Title)

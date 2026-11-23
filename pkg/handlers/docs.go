@@ -6,13 +6,13 @@ import (
 	"path"
 	"strings"
 
-	"github.com/labstack/echo/v5"
 	"github.com/samber/do/v2"
 
+	"github.com/liukeshao/echo-template/pkg/httpruntime"
 	"github.com/liukeshao/echo-template/static"
 )
 
-// DocsHandler 提供 API 文档 UI 及相关静态资源。
+// DocsHandler 提供 API 文档 UI（Stoplight Elements）及相关静态资源（纯标准库 net/http）。
 type DocsHandler struct {
 	staticServer http.Handler
 }
@@ -26,30 +26,29 @@ func NewDocsHandler(_ do.Injector) (*DocsHandler, error) {
 	}, nil
 }
 
-// Routes 注册文档相关路由。
-func (h *DocsHandler) Routes(g *echo.Group) {
-	g.GET("/docs", h.index)
-	g.GET("/openapi.yaml", h.openAPI)
-	g.GET("/static/*", h.serveStatic)
-}
-
-// index 返回 API 文档页面（Stoplight Elements）。
-func (h *DocsHandler) index(c *echo.Context) error {
-	return c.HTMLBlob(http.StatusOK, static.IndexHTML)
-}
-
-// openAPI 返回 OpenAPI YAML 规范文件。
-func (h *DocsHandler) openAPI(c *echo.Context) error {
-	return c.Blob(http.StatusOK, "application/yaml", static.OpenAPIYAML)
-}
-
-// serveStatic 提供嵌入的 JS / CSS 静态资源；禁止目录遍历与非资产文件访问。
-func (h *DocsHandler) serveStatic(c *echo.Context) error {
-	name := strings.TrimPrefix(path.Clean(c.Request().URL.Path), "/static/")
-	info, err := fs.Stat(static.AssetsFS, name)
-	if err != nil || info.IsDir() {
-		return echo.ErrNotFound
-	}
-	h.staticServer.ServeHTTP(c.Response(), c.Request())
-	return nil
+// Mount 注册文档相关路由。
+func (h *DocsHandler) Mount(mux *http.ServeMux, rt *httpruntime.Runtime) {
+	mux.HandleFunc("GET /docs", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(static.IndexHTML)
+	})
+	mux.HandleFunc("GET /openapi.yaml", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/yaml")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(static.OpenAPIYAML)
+	})
+	mux.HandleFunc("GET /static/", func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(path.Clean(r.URL.Path), "/static/")
+		info, err := fs.Stat(static.AssetsFS, name)
+		if err != nil || info.IsDir() {
+			rt.WriteProblem(w, r, httpruntime.Problem{
+				Status: http.StatusNotFound,
+				Code:   "NOT_FOUND",
+				Detail: http.StatusText(http.StatusNotFound),
+			})
+			return
+		}
+		h.staticServer.ServeHTTP(w, r)
+	})
 }

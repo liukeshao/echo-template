@@ -1,0 +1,11 @@
+{
+  "name": "tsp-emitter-go-rest",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.mjs",
+  "tspMain": "./lib/main.tsp",
+  "exports": {
+    ".": "./src/index.mjs"
+  }
+}
