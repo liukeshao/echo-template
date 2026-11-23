@@ -54,7 +54,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 	if usernameTaken {
 		return nil, oops.
 			Code(codes.MeUsernameTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"username": req.Username}).
+			With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
 			Public(fmt.Sprintf("the username %q is already taken", req.Username)).
 			Errorf("username taken: %s", req.Username)
 	}
@@ -68,7 +68,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 	if emailTaken {
 		return nil, oops.
 			Code(codes.MeEmailTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"email": req.Email}).
+			With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
 			Public(fmt.Sprintf("the email %q is already in use", req.Email)).
 			Errorf("email taken: %s", req.Email)
 	}
@@ -82,14 +82,14 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *types.Repla
 			if taken, checkErr := s.orm.User.Query().Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
 				return nil, oops.
 					Code(codes.MeUsernameTaken.String()).
-					With(codes.CtxKeyMetadata, map[string]string{"username": req.Username}).
+					With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
 					Public(fmt.Sprintf("the username %q is already taken", req.Username)).
 					Errorf("username taken: %s", req.Username)
 			}
 			if taken, checkErr := s.orm.User.Query().Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
 				return nil, oops.
 					Code(codes.MeEmailTaken.String()).
-					With(codes.CtxKeyMetadata, map[string]string{"email": req.Email}).
+					With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
 					Public(fmt.Sprintf("the email %q is already in use", req.Email)).
 					Errorf("email taken: %s", req.Email)
 			}

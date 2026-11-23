@@ -1,6 +1,6 @@
 package codes
 
-import rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
+import "net/http"
 
 // Weather 领域错误码（第三方天气 API 客户端）。
 //
@@ -18,7 +18,7 @@ const (
 )
 
 func init() {
-	Register(WeatherUnavailable, rpccodes.Unavailable)
-	Register(WeatherRateLimited, rpccodes.ResourceExhausted)
-	Register(WeatherInternal, rpccodes.Internal)
+	Register(WeatherUnavailable, http.StatusServiceUnavailable)
+	Register(WeatherRateLimited, http.StatusTooManyRequests)
+	Register(WeatherInternal, http.StatusInternalServerError)
 }

@@ -43,9 +43,9 @@ func (h *AuthHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		types.RegisterRequest	true	"注册信息"
-//	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	status.ErrorResponse
-//	@Failure	409		{object}	status.ErrorResponse	"邮箱或用户名已被占用"
+//	@Success	200		{object}	types.TokenPair
+//	@Failure	400		{object}	types.Problem
+//	@Failure	409		{object}	types.Problem	"邮箱或用户名已被占用"
 //	@Router		/api/v1/auth/register [post]
 func (h *AuthHandler) Register(c *echo.Context) error {
 	req, err := bindAndValidate[types.RegisterRequest](c)
@@ -53,12 +53,12 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 		return err
 	}
 
-	resp, err := h.auth.Register(c.Request().Context(), &req)
+	tokens, err := h.auth.Register(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, tokens)
 }
 
 // Login 用户登录
@@ -68,10 +68,10 @@ func (h *AuthHandler) Register(c *echo.Context) error {
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		types.LoginRequest	true	"登录信息"
-//	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	status.ErrorResponse
-//	@Failure	401		{object}	status.ErrorResponse
-//	@Failure	403		{object}	status.ErrorResponse	"账户已停用"
+//	@Success	200		{object}	types.TokenPair
+//	@Failure	400		{object}	types.Problem
+//	@Failure	401		{object}	types.Problem
+//	@Failure	403		{object}	types.Problem	"账户已停用"
 //	@Router		/api/v1/auth/login [post]
 func (h *AuthHandler) Login(c *echo.Context) error {
 	req, err := bindAndValidate[types.LoginRequest](c)
@@ -79,12 +79,12 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 		return err
 	}
 
-	resp, err := h.auth.Login(c.Request().Context(), &req)
+	tokens, err := h.auth.Login(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, tokens)
 }
 
 // RefreshToken 刷新访问令牌
@@ -94,10 +94,10 @@ func (h *AuthHandler) Login(c *echo.Context) error {
 //	@Accept		json
 //	@Produce	json
 //	@Param		body	body		types.RefreshTokenRequest	true	"刷新令牌"
-//	@Success	200		{object}	types.AuthResponse
-//	@Failure	400		{object}	status.ErrorResponse
-//	@Failure	401		{object}	status.ErrorResponse
-//	@Failure	403		{object}	status.ErrorResponse	"账户已停用"
+//	@Success	200		{object}	types.TokenPair
+//	@Failure	400		{object}	types.Problem
+//	@Failure	401		{object}	types.Problem
+//	@Failure	403		{object}	types.Problem	"账户已停用"
 //	@Router		/api/v1/auth/refresh [post]
 func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 	req, err := bindAndValidate[types.RefreshTokenRequest](c)
@@ -105,12 +105,12 @@ func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 		return err
 	}
 
-	resp, err := h.auth.RefreshToken(c.Request().Context(), &req)
+	tokens, err := h.auth.RefreshToken(c.Request().Context(), &req)
 	if err != nil {
 		return err
 	}
 
-	return c.JSON(http.StatusOK, resp)
+	return c.JSON(http.StatusOK, tokens)
 }
 
 // Logout 用户登出（撤销该用户全部活跃令牌）
@@ -120,7 +120,7 @@ func (h *AuthHandler) RefreshToken(c *echo.Context) error {
 //	@Security	BearerAuth
 //	@Produce	json
 //	@Success	204
-//	@Failure	401	{object}	status.ErrorResponse
+//	@Failure	401	{object}	types.Problem
 //	@Router		/api/v1/auth/logout [post]
 func (h *AuthHandler) Logout(c *echo.Context) error {
 	ctx := c.Request().Context()

@@ -7,7 +7,7 @@ import (
 )
 
 // weatherUnavailable wraps a low-level transport/timeout error into an oops
-// error classified as WEATHER_UNAVAILABLE (→ Unavailable RPC code).
+// error classified as WEATHER_UNAVAILABLE (→ HTTP 503 Service Unavailable).
 // op should be a low-cardinality operation name (e.g. "GetCurrent").
 func weatherUnavailable(err error, op string) error {
 	return oops.

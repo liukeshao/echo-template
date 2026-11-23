@@ -3,12 +3,10 @@ package types
 import (
 	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
-
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// RegisterRequest 用户注册输入
+// RegisterRequest 用户注册输入。
 type RegisterRequest struct {
 	Username string `json:"username"`
 	Email    string `json:"email"`
@@ -25,7 +23,7 @@ func (r *RegisterRequest) Validate() error {
 	return v.Err()
 }
 
-// LoginRequest 用户登录输入
+// LoginRequest 用户登录输入。
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
@@ -42,7 +40,7 @@ func (r *LoginRequest) Validate() error {
 	return v.Err()
 }
 
-// RefreshTokenRequest 刷新令牌输入
+// RefreshTokenRequest 刷新令牌输入。
 type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
@@ -55,16 +53,9 @@ func (r *RefreshTokenRequest) Validate() error {
 	return v.Err()
 }
 
-// AuthResponse 认证输出
-type AuthResponse struct {
+// TokenPair 是认证成功（注册 / 登录 / 刷新）后签发的令牌对。
+type TokenPair struct {
 	AccessToken  string `json:"access_token"`
 	RefreshToken string `json:"refresh_token"`
 	ExpiresAt    int64  `json:"expires_at"`
-}
-
-// JWTClaims JWT声明结构
-type JWTClaims struct {
-	UserID    string `json:"user_id"`
-	TokenType string `json:"token_type"`
-	jwt.RegisteredClaims
 }

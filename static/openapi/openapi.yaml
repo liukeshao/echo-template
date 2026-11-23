@@ -1,46 +1,5 @@
 components:
   schemas:
-    status.ErrorBody:
-      properties:
-        code:
-          description: HTTP status code, e.g. 404. Not the google.rpc.Code numeric
-            value.
-          example: 404
-          type: integer
-        details:
-          description: |-
-            AIP-193 typed detail payloads. The "@type" field discriminates the entry:
-              - type.googleapis.com/google.rpc.ErrorInfo        — always present (see errdetails.ErrorInfo)
-              - type.googleapis.com/google.rpc.LocalizedMessage — user-facing localized message (see errdetails.LocalizedMessage)
-              - type.googleapis.com/google.rpc.BadRequest       — field-level validation errors (see errdetails.BadRequest)
-              - type.googleapis.com/google.rpc.ResourceInfo     — resource context for NOT_FOUND / ALREADY_EXISTS (see errdetails.ResourceInfo)
-              - type.googleapis.com/google.rpc.RequestInfo      — request identifier for log correlation (see errdetails.RequestInfo)
-          items: {}
-          type: array
-          uniqueItems: false
-        message:
-          description: Developer-facing English description of the error.
-          example: requested entity was not found
-          type: string
-        status:
-          description: Canonical google.rpc.Code name in UPPER_SNAKE_CASE, e.g. "NOT_FOUND".
-          example: NOT_FOUND
-          type: string
-      type: object
-    status.ErrorResponse:
-      properties:
-        error:
-          $ref: '#/components/schemas/status.ErrorBody'
-      type: object
-    types.AuthResponse:
-      properties:
-        access_token:
-          type: string
-        expires_at:
-          type: integer
-        refresh_token:
-          type: string
-      type: object
     types.Book:
       properties:
         author:
@@ -59,6 +18,20 @@ components:
           type: string
         updated_at:
           type: string
+      type: object
+    types.BookList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/types.Book'
+          type: array
+          uniqueItems: false
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_size:
+          type: integer
       type: object
     types.ChangePasswordRequest:
       properties:
@@ -85,25 +58,62 @@ components:
         title:
           type: string
       type: object
-    types.ListResponse-types_Book:
+    types.FieldError:
       properties:
-        items:
-          items:
-            $ref: '#/components/schemas/types.Book'
-          type: array
-          uniqueItems: false
-        page:
-          type: integer
-        page_size:
-          type: integer
-        total_size:
-          type: integer
+        field:
+          example: title
+          type: string
+        message:
+          example: title is required.
+          type: string
       type: object
     types.LoginRequest:
       properties:
         email:
           type: string
         password:
+          type: string
+      type: object
+    types.Problem:
+      properties:
+        code:
+          description: Code 机器可读的业务错误码（UPPER_SNAKE_CASE），例如 "BOOK_NOT_FOUND"。
+          example: BOOK_NOT_FOUND
+          type: string
+        detail:
+          description: Detail 面向本次请求的具体错误说明（已按 Accept-Language 本地化）。
+          example: Book 01ARZ3NDEKTSV4RRFFQ69G5FAV was not found.
+          type: string
+        errors:
+          description: Errors 字段级校验失败明细，仅在请求参数校验不通过时返回。
+          items:
+            $ref: '#/components/schemas/types.FieldError'
+          type: array
+          uniqueItems: false
+        instance:
+          description: Instance 触发本次错误的请求路径，例如 "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"。
+          example: /api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV
+          type: string
+        params:
+          additionalProperties:
+            type: string
+          description: Params 与本次错误相关的结构化上下文参数（例如 book_id / email）。
+          type: object
+        request_id:
+          description: RequestID 与响应头 X-Request-ID 及服务端结构化日志一致的追踪 ID。
+          example: 01ARZ3NDEKTSV4RRFFQ69G5FAV
+          type: string
+        status:
+          description: Status HTTP 状态码，例如 400 / 404 / 409 / 500。
+          example: 404
+          type: integer
+        title:
+          description: Title 与 HTTP 状态码对应的简短英文摘要（不随单次错误实例变化）。
+          example: Not Found
+          type: string
+        type:
+          description: Type 标识问题类型的 URI 引用；缺省使用 "about:blank"。
+          example: about:blank
           type: string
       type: object
     types.RefreshTokenRequest:
@@ -138,6 +148,15 @@ components:
         email:
           type: string
         username:
+          type: string
+      type: object
+    types.TokenPair:
+      properties:
+        access_token:
+          type: string
+        expires_at:
+          type: integer
+        refresh_token:
           type: string
       type: object
     types.User:
@@ -188,25 +207,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.AuthResponse'
+                $ref: '#/components/schemas/types.TokenPair'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: 账户已停用
       summary: 用户登录
       tags:
@@ -220,7 +239,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -243,25 +262,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.AuthResponse'
+                $ref: '#/components/schemas/types.TokenPair'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "403":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: 账户已停用
       summary: 刷新访问令牌
       tags:
@@ -282,19 +301,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.AuthResponse'
+                $ref: '#/components/schemas/types.TokenPair'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: 邮箱或用户名已被占用
       summary: 用户注册
       tags:
@@ -327,19 +346,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/types.ListResponse-types_Book'
+                $ref: '#/components/schemas/types.BookList'
           description: OK
         "400":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -368,20 +387,20 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
-          description: book_id 已存在（ALREADY_EXISTS）
+                $ref: '#/components/schemas/types.Problem'
+          description: book_id 已存在（BOOK_ALREADY_EXISTS）
       security:
       - BearerAuth: []
       summary: 创建书籍
@@ -389,9 +408,9 @@ paths:
       - books
   /api/v1/books/{book}:
     delete:
-      description: 资源不存在时返回 404（NOT_FOUND）；删除成功返回 204（无响应体）。
+      description: 资源不存在时返回 404（BOOK_NOT_FOUND）；删除成功返回 204（无响应体）。
       parameters:
-      - description: 书籍资源名称（书籍 ULID）
+      - description: 书籍资源 ID（ULID）
         in: path
         name: book
         required: true
@@ -404,13 +423,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Not Found
       security:
       - BearerAuth: []
@@ -419,7 +438,7 @@ paths:
       - books
     get:
       parameters:
-      - description: 书籍资源名称（书籍 ULID）
+      - description: 书籍资源 ID（ULID）
         in: path
         name: book
         required: true
@@ -436,13 +455,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Not Found
       security:
       - BearerAuth: []
@@ -453,7 +472,7 @@ paths:
       description: 根据 Content-Type 选择 patch 协议：application/json-patch+json (RFC 6902)
         / application/merge-patch+json (RFC 7386) / application/merge-patch+shorthand。
       parameters:
-      - description: 书籍资源名称（书籍 ULID）
+      - description: 书籍资源 ID（ULID）
         in: path
         name: book
         required: true
@@ -490,20 +509,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Not Found
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.Problem'
+          description: 不支持的 PATCH Content-Type
       security:
       - BearerAuth: []
       summary: 局部更新书籍
@@ -512,7 +537,7 @@ paths:
     put:
       description: 使用请求体中的全部字段替换资源；未提供的可选字段会被清除。响应为更新后的资源。
       parameters:
-      - description: 书籍资源名称（书籍 ULID）
+      - description: 书籍资源 ID（ULID）
         in: path
         name: book
         required: true
@@ -538,19 +563,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "404":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Not Found
       security:
       - BearerAuth: []
@@ -570,7 +595,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
       security:
       - BearerAuth: []
@@ -611,20 +636,26 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Conflict
+        "415":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/types.Problem'
+          description: 不支持的 PATCH Content-Type
       security:
       - BearerAuth: []
       summary: 局部更新当前用户资料
@@ -652,19 +683,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
         "409":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: username / email 已被占用
       security:
       - BearerAuth: []
@@ -689,13 +720,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Bad Request
         "401":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/status.ErrorResponse'
+                $ref: '#/components/schemas/types.Problem'
           description: Unauthorized
       security:
       - BearerAuth: []

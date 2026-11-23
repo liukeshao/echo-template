@@ -3,7 +3,7 @@
 // 核心思路：
 //   - 使用 pkg/codes.Code 作为错误翻译 key 的稳定主键（key = "errors.<CODE>"）。
 //   - 使用稳定键 "validation.<rule>" 作为字段校验消息的翻译键。
-//   - 翻译结果通过 AIP-193 LocalizedMessage detail 暴露，保持 error.message 英文以向后兼容。
+//   - 翻译结果通过 RFC 9457 Problem.Detail 与 FieldError.Message 暴露。
 //
 // 翻译表在启动时从 embed.FS 加载到内存后只读，无锁并发安全。
 // 若默认 locale 缺失任一已注册 Code 的翻译，loader 启动时 panic（fail-fast）。

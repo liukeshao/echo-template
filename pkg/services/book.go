@@ -18,7 +18,6 @@ import (
 	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
-	"github.com/liukeshao/echo-template/transport/rpc/errdetails"
 )
 
 // BookService 书籍服务
@@ -33,38 +32,22 @@ func NewBookService(i do.Injector) (*BookService, error) {
 	}, nil
 }
 
-// bookAlreadyExists 构造携带 ResourceInfo 的 BOOK_ALREADY_EXISTS oops 错误（AIP-133）。
+// bookAlreadyExists 构造 BOOK_ALREADY_EXISTS oops 错误（HTTP 409）。
 func bookAlreadyExists(id string) error {
 	return oops.
 		Code(codes.BookAlreadyExists.String()).
-		With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
-			Type:         errdetails.TypeResourceInfo,
-			ResourceType: "Book",
-			ResourceName: id,
-		}).
-		With(codes.CtxKeyMetadata, map[string]string{
-			"book_id": id,
-		}).
+		With(codes.CtxKeyParams, map[string]string{"book_id": id}).
 		Public(fmt.Sprintf("Book %q already exists. Please use a different book_id.", id)).
 		Errorf("book already exists")
 }
 
-// bookNotFound 构造携带 ResourceInfo 和 ErrorInfo.Metadata 的 BOOK_NOT_FOUND oops 错误。
-//
-// Public message 作为 AIP-193 response.error.message，包含 id 供调用方快速定位。
-// Errorf message 保持低基数（无变量），供 APM 工具聚合分组。
+// bookNotFound 构造 BOOK_NOT_FOUND oops 错误（HTTP 404）。
+// Errorf message 保持低基数（无变量），供日志与 APM 聚合分组。
 func bookNotFound(id string) error {
 	return oops.
 		Code(codes.BookNotFound.String()).
-		With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
-			Type:         errdetails.TypeResourceInfo,
-			ResourceType: "Book",
-			ResourceName: id,
-		}).
-		With(codes.CtxKeyMetadata, map[string]string{
-			"book_id": id,
-		}).
-		Public(fmt.Sprintf("Book %q not found. Please verify the book ID and try again.", id)).
+		With(codes.CtxKeyParams, map[string]string{"book_id": id}).
+		Public(fmt.Sprintf("Book %q not found.", id)).
 		Errorf("book not found")
 }
 
@@ -77,7 +60,7 @@ func bookDB(err error, op, id string) error {
 		Wrapf(err, "%s", op)
 }
 
-// Create 创建书籍（AIP-133）。
+// Create 创建书籍。
 //
 // 若 req.BookID 非空则使用该值作为资源 ID；否则自动生成 ULID。
 // 若指定的 ID 已存在，返回 BOOK_ALREADY_EXISTS 错误。

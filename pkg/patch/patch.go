@@ -164,7 +164,7 @@ func invalidPatch(mediaType, msg string, cause error) error {
 	return oops.
 		Code(codes.PatchInvalid.String()).
 		Tags("patch").
-		With(codes.CtxKeyMetadata, map[string]string{
+		With(codes.CtxKeyParams, map[string]string{
 			"content_type": mediaType,
 		}).
 		Public(msg).
@@ -177,7 +177,7 @@ func unsupportedMediaType(actual string) error {
 	return oops.
 		Code(codes.PatchUnsupportedMediaType.String()).
 		Tags("patch").
-		With(codes.CtxKeyMetadata, map[string]string{
+		With(codes.CtxKeyParams, map[string]string{
 			"content_type": actual,
 			"supported":    supported,
 		}).

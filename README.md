@@ -10,7 +10,7 @@
 | 依赖注入 | samber/do v2 |
 | ORM | entgo v0.14 + SQLite（可换 PostgreSQL/MySQL）|
 | 认证 | JWT（access + refresh token，数据库存储）|
-| 错误模型 | AIP-193（google.rpc.Code + errdetails）|
+| 错误模型 | RFC 9457 Problem Details（`application/problem+json`，扁平强类型 + i18n）|
 | 结构化日志 | log/slog + ContextHandler（自动注入 request_id）|
 | ID 生成 | ULID |
 | 配置管理 | Viper（TOML + 环境变量）|
@@ -34,9 +34,9 @@ pkg/
       client.go         具体实现（从 DI 取 config + HTTPClient）
       errors.go         oops 错误构造辅助
       package.go        do.Package(do.Lazy(NewXxxClient))
-  codes/                业务错误码 + RPC 状态码注册表
+  codes/                业务错误码 → HTTP 状态码注册表
   filter/               AIP-160 过滤表达式解析器 + 泛型 FilterTranslator[P]
-  handlers/             HTTP handler + router + error_handler + pagination
+  handlers/             HTTP handler + router + RFC 9457 error_handler + pagination
   i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商）
   infra/                DB / ORM / 共享 HTTPClient 基础设施（DI 生命周期）
   log/                  slog ContextHandler（日志自动带 request_id）
@@ -46,14 +46,9 @@ pkg/
   services/             领域服务（业务逻辑）
     <domain>_filter.go  AIP-160 过滤器 → ent predicate 翻译（每个领域一个文件）
   testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
-  types/                Request / Response DTO + Validate()
+  types/                API 契约 DTO（平铺资源模型 + Request + RFC 9457 Problem）
   utils/                password（bcrypt cost=12）、ULID、Retry
   validator/            FieldViolations + 原子校验规则
-transport/
-  rpc/codes             google.rpc.Code 定义
-  rpc/status            不可变 Status（code + message + details）
-  rpc/errdetails        AIP-193 detail payload 类型
-  http/status           rpc.Code ↔ HTTP 状态码映射 + AIP-193 ErrorResponse/ErrorDetails 契约
 static/                 Stoplight Elements + OpenAPI YAML（embed.FS）
 .apitest/               IDE HTTP Client 测试文件
 ```
@@ -148,49 +143,53 @@ const (
 )
 
 func init() {
-    Register(OrderNotFound,      rpccodes.NotFound)
-    Register(OrderAlreadyExists, rpccodes.AlreadyExists)
-    Register(OrderInternal,      rpccodes.Internal)
+    Register(OrderNotFound,      http.StatusNotFound)
+    Register(OrderAlreadyExists, http.StatusConflict)
+    Register(OrderInternal,      http.StatusInternalServerError)
 }
 ```
 
 **3. DTO**（`pkg/types/order.go`）
 
 ```go
-// 可写字段的单一事实来源，供 Order / CreateOrderRequest / ReplaceOrderRequest 共享
-type OrderSpec struct {
-    Title  string  `json:"title"`
-    Amount float64 `json:"amount,omitempty"`
-}
-func (s *OrderSpec) validate(v *validator.FieldViolations) { ... }
-
-// 资源对外表示（嵌入 ObjectMeta + OrderSpec），不含 deleted_at / 内部字段；
+// 资源对外表示（平铺结构体），不含 deleted_at / 内部字段；
 // 同时作为 PATCH "read-modify-write" 流程中的 JSON 中间表示
 type Order struct {
-    ObjectMeta
-    OrderSpec
+    ID        string    `json:"id"`
+    Title     string    `json:"title"`
+    Amount    float64   `json:"amount,omitempty"`
+    CreatedAt time.Time `json:"created_at"`
+    UpdatedAt time.Time `json:"updated_at"`
 }
+
+// 分页列表表示（items + 分页元信息）
+type OrderList struct {
+    Items     []Order `json:"items"`
+    Page      int32   `json:"page"`
+    PageSize  int32   `json:"page_size"`
+    TotalSize int32   `json:"total_size"`
+}
+
+// 路径参数（供 GET / DELETE / PATCH 复用）
+type OrderPath struct { Order string `param:"order"` }
 
 // 创建：order_id 可选；提供则用作资源 ID（ULID），省略则自动生成
 type CreateOrderRequest struct {
-    OrderID string `json:"order_id,omitempty"`
-    OrderSpec
+    OrderID string  `json:"order_id,omitempty"`
+    Title   string  `json:"title"`
+    Amount  float64 `json:"amount,omitempty"`
 }
 func (r *CreateOrderRequest) Validate() error { ... }
 
-// 单资源读 / 删 / PATCH 路径参数
-type GetOrderRequest    struct { Order string `param:"order"` }
-type DeleteOrderRequest struct { Order string `param:"order"` }
-type PatchOrderRequest  struct { Order string `param:"order"` }
-
-// PUT：全量替换（所有可写字段；可选字段未提供视为清除；天然丢弃 ObjectMeta 只读字段）
+// PUT：全量替换（所有可写字段；可选字段未提供视为清除；不含只读字段）
 type ReplaceOrderRequest struct {
-    Order string `param:"order" json:"-"`
-    OrderSpec
+    Order  string  `param:"order" json:"-"`
+    Title  string  `json:"title"`
+    Amount float64 `json:"amount,omitempty"`
 }
 func (r *ReplaceOrderRequest) Validate() error { ... }
 
-// 列表直接复用通用 types.ListRequest 与泛型 types.ListResponse[types.Order]（无需额外定义）
+// 列表查询直接复用通用 types.ListRequest
 ```
 
 **4. Service**（`pkg/services/order.go`）
@@ -292,14 +291,14 @@ make swag
 // 领域内部错误（对外隐藏细节）
 oops.Code(codes.OrderInternal.String()).Tags("order").Wrapf(err, "%s", op)
 
-// 资源未找到（携带 AIP-193 ResourceInfo）
+// 资源未找到（携带用于 i18n 插值与 Problem.Params 的参数）
 oops.Code(codes.OrderNotFound.String()).
-    With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{...}).
+    With(codes.CtxKeyParams, map[string]string{"order_id": id}).
     Public(fmt.Sprintf("Order %q not found.", id)).
     Errorf("order not found")
 ```
 
-`error_handler` 会自动将 oops 错误转换为 AIP-193 JSON 响应，无需在 handler 层手动处理。
+`error_handler` 会自动将 oops 错误转换为 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
 
 ## 增加一个新的第三方 API 对接（Checklist）
 
@@ -334,9 +333,9 @@ const (
 )
 
 func init() {
-    Register(StripeUnavailable, rpccodes.Unavailable)
-    Register(StripeRateLimited, rpccodes.ResourceExhausted)
-    Register(StripeInternal,    rpccodes.Internal)
+    Register(StripeUnavailable, http.StatusServiceUnavailable)
+    Register(StripeRateLimited, http.StatusTooManyRequests)
+    Register(StripeInternal,    http.StatusInternalServerError)
 }
 ```
 

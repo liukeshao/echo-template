@@ -1,6 +1,6 @@
 package codes
 
-import rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
+import "net/http"
 
 // Auth 领域错误码。
 //
@@ -27,10 +27,10 @@ const (
 )
 
 func init() {
-	Register(AuthInvalidCredentials, rpccodes.Unauthenticated)
-	Register(AuthTokenInvalid, rpccodes.Unauthenticated)
-	Register(AuthAccountDisabled, rpccodes.PermissionDenied)
-	Register(AuthEmailTaken, rpccodes.AlreadyExists)
-	Register(AuthUsernameTaken, rpccodes.AlreadyExists)
-	Register(AuthInternal, rpccodes.Internal)
+	Register(AuthInvalidCredentials, http.StatusUnauthorized)
+	Register(AuthTokenInvalid, http.StatusUnauthorized)
+	Register(AuthAccountDisabled, http.StatusForbidden)
+	Register(AuthEmailTaken, http.StatusConflict)
+	Register(AuthUsernameTaken, http.StatusConflict)
+	Register(AuthInternal, http.StatusInternalServerError)
 }

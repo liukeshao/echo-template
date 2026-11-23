@@ -95,7 +95,7 @@ func (e *Env) DoRequest(method, target string, opts ...ReqOption) *httptest.Resp
 }
 
 // MustAuthUser 注册一个测试用户并返回其认证令牌，用于快速构造需要登录态的测试用例。
-func (e *Env) MustAuthUser(username, email, password string) *types.AuthResponse {
+func (e *Env) MustAuthUser(username, email, password string) *types.TokenPair {
 	e.t.Helper()
 	authSvc := do.MustInvoke[*services.AuthService](e.Injector)
 	resp, err := authSvc.Register(context.Background(), &types.RegisterRequest{

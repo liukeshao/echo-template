@@ -4,7 +4,7 @@
 #   [validation] stable keys used by pkg/validator rules and types.*.Validate().
 #   [fallback]   generic messages for paths that bypass code translation.
 #
-# Placeholders use the {name} form and are populated by oops.With(codes.CtxKeyMetadata, ...)
+# Placeholders use the {name} form and are populated by oops.With(codes.CtxKeyParams, ...)
 # or FieldViolations.Add(field, key, vars). Missing vars are kept verbatim for easy detection.
 
 [errors]

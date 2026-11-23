@@ -2,49 +2,43 @@ package codes
 
 import (
 	"fmt"
-
-	rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
+	"net/http"
 )
 
-// Domain 是本服务全局唯一的错误域标识。
-// AIP-193: 必须稳定，通常为服务主机名。
-const Domain = "echo-template"
+// CtxKeyParams 是 oops context key，用于向 i18n 模板与 RFC 9457 Problem.Params
+// 传递动态键值对，值类型为 map[string]string。
+const CtxKeyParams = "params"
 
-// oops context key 常量，用于在 oops.With() 和 classifyOops 之间传递 AIP-193 detail payload。
-const (
-	// CtxKeyMetadata 对应 ErrorInfo.Metadata，值类型为 map[string]string。
-	CtxKeyMetadata = "metadata"
-	// CtxKeyResourceInfo 对应 ResourceInfo detail，值类型为 errdetails.ResourceInfo。
-	CtxKeyResourceInfo = "resource_info"
-)
-
-// Code 是机器可读的业务错误码类型。
+// Code 是机器可读的业务错误码类型（UPPER_SNAKE_CASE）。
 type Code string
 
 // String 实现 fmt.Stringer，供 oops.Code(c.String()) 使用。
 func (c Code) String() string { return string(c) }
 
-// registry 存储业务错误码到 RPC 状态码的映射。
+// registry 存储业务错误码到 HTTP 状态码的映射。
 // 各领域在自己文件的 init() 中调用 Register，实现去中心化注册。
-var registry = map[Code]rpccodes.Code{}
+var registry = map[Code]int{}
 
-// Register 注册业务错误码到对应的 RPC 状态码。
+// Register 注册业务错误码对应的 HTTP 状态码（4xx / 5xx）。
 // 在各领域文件的 init() 中调用，保证程序启动时完成注册。
-// 重复注册同一 Code 时 panic，防止配置错误在运行时静默覆盖。
-func Register(c Code, rpcCode rpccodes.Code) {
+// 重复注册同一 Code 或状态码不在 400–599 范围内时 panic，防止配置错误静默生效。
+func Register(c Code, httpStatus int) {
 	if _, exists := registry[c]; exists {
 		panic(fmt.Sprintf("codes: duplicate registration for %q", c))
 	}
-	registry[c] = rpcCode
+	if httpStatus < 400 || httpStatus > 599 {
+		panic(fmt.Sprintf("codes: invalid HTTP error status %d for %q", httpStatus, c))
+	}
+	registry[c] = httpStatus
 }
 
-// Lookup 返回业务错误码对应的 RPC 状态码。
-// 若未注册则回退到 Internal。
-func Lookup(c Code) rpccodes.Code {
-	if cc, ok := registry[c]; ok {
-		return cc
+// HTTPStatus 返回业务错误码对应的 HTTP 状态码。
+// 若未注册则回退到 500 Internal Server Error。
+func HTTPStatus(c Code) int {
+	if status, ok := registry[c]; ok {
+		return status
 	}
-	return rpccodes.Internal
+	return http.StatusInternalServerError
 }
 
 // RegisteredCodes 返回所有已通过 Register 注册的业务错误码副本。

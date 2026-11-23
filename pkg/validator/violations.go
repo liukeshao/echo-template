@@ -16,7 +16,7 @@ import (
 
 // Violation 是 FieldViolations 的内部表示，对应一条字段级校验错误。
 //
-// 面向 wire 的形式是 errdetails.FieldViolation，其 Description 由
+// 面向 wire 的形式是 types.FieldError，其 Message 由
 // error_handler 在渲染阶段基于 Translator 填充。
 type Violation struct {
 	// Field 为 JSON 字段名；空字符串表示跨字段错误（如 "at least one field must be provided"）。

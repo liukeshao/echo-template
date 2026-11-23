@@ -1,6 +1,6 @@
 package codes
 
-import rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
+import "net/http"
 
 const (
 	// ValidationInvalid 表示请求参数未通过字段级校验。
@@ -8,5 +8,5 @@ const (
 )
 
 func init() {
-	Register(ValidationInvalid, rpccodes.InvalidArgument)
+	Register(ValidationInvalid, http.StatusBadRequest)
 }

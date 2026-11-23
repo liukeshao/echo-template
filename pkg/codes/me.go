@@ -1,6 +1,6 @@
 package codes
 
-import rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
+import "net/http"
 
 // Me 领域错误码（已登录用户的个人信息操作）。
 //
@@ -20,8 +20,8 @@ const (
 )
 
 func init() {
-	Register(MeUsernameTaken, rpccodes.AlreadyExists)
-	Register(MeEmailTaken, rpccodes.AlreadyExists)
-	Register(MeInvalidPassword, rpccodes.InvalidArgument)
-	Register(MeInternal, rpccodes.Internal)
+	Register(MeUsernameTaken, http.StatusConflict)
+	Register(MeEmailTaken, http.StatusConflict)
+	Register(MeInvalidPassword, http.StatusBadRequest)
+	Register(MeInternal, http.StatusInternalServerError)
 }

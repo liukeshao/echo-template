@@ -14,10 +14,8 @@ import (
 
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/testutil"
+	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/validator"
-	rpccodes "github.com/liukeshao/echo-template/transport/rpc/codes"
-	"github.com/liukeshao/echo-template/transport/rpc/errdetails"
-	rpcstatus "github.com/liukeshao/echo-template/transport/rpc/status"
 )
 
 func TestErrorHandler_AllClassificationPaths(t *testing.T) {
@@ -25,19 +23,25 @@ func TestErrorHandler_AllClassificationPaths(t *testing.T) {
 	env := testutil.New(t)
 	web := env.Echo()
 
-	web.GET("/test/rpc", func(_ *echo.Context) error {
-		return rpcstatus.New(rpccodes.PermissionDenied, "forbidden by policy")
+	web.GET("/test/problem", func(_ *echo.Context) error {
+		return types.Problem{
+			Status: http.StatusForbidden,
+			Code:   "POLICY_DENIED",
+			Detail: "Forbidden by policy.",
+		}
 	})
-	web.GET("/test/oops-resource", func(_ *echo.Context) error {
+	web.GET("/test/oops-localized", func(_ *echo.Context) error {
 		return oops.
 			Code(codes.BookNotFound.String()).
-			With(codes.CtxKeyResourceInfo, errdetails.ResourceInfo{
-				ResourceType: "Book",
-				ResourceName: "01TEST",
-			}).
-			With(codes.CtxKeyMetadata, map[string]string{"book_id": "01TEST"}).
+			With(codes.CtxKeyParams, map[string]string{"book_id": "01TEST"}).
 			Public("Book not found").
-			Errorf("not found")
+			Errorf("book not found")
+	})
+	web.GET("/test/oops-internal", func(_ *echo.Context) error {
+		return oops.
+			Code(codes.BookInternal.String()).
+			With(codes.CtxKeyParams, map[string]string{"sql": "SELECT secret"}).
+			Wrapf(errors.New("db password leak"), "querying book")
 	})
 	web.GET("/test/validation", func(_ *echo.Context) error {
 		var v validator.FieldViolations
@@ -61,55 +65,55 @@ func TestErrorHandler_AllClassificationPaths(t *testing.T) {
 		return errors.New("late error")
 	})
 
-	// 1. *rpcstatus.Status — includes fallback ErrorInfo and RequestInfo
-	rec := env.DoRequest(http.MethodGet, "/test/rpc")
-	resp := testutil.AssertAPIError(t, rec, http.StatusForbidden, "PERMISSION_DENIED")
-	ei, ok := resp.Error.ErrorInfo()
-	require.True(t, ok)
-	assert.Equal(t, "PERMISSION_DENIED", ei.Reason)
-	reqInfo, ok := resp.Error.RequestInfo()
-	require.True(t, ok)
-	assert.Equal(t, rec.Header().Get(echo.HeaderXRequestID), reqInfo.RequestID)
+	// 1. Direct types.Problem -> defaults filled (type, title, instance, request_id)
+	rec := env.DoRequest(http.MethodGet, "/test/problem")
+	p := testutil.AssertProblem(t, rec, http.StatusForbidden, "POLICY_DENIED")
+	assert.Equal(t, "about:blank", p.Type)
+	assert.Equal(t, "Forbidden", p.Title)
+	assert.Equal(t, "Forbidden by policy.", p.Detail)
+	assert.Equal(t, "/test/problem", p.Instance)
+	assert.Equal(t, rec.Header().Get(echo.HeaderXRequestID), p.RequestID)
 
-	// 2. oops with ResourceInfo omitting Type -> Type defaulted + Chinese LocalizedMessage
-	rec = env.DoRequest(http.MethodGet, "/test/oops-resource", testutil.WithHeader("Accept-Language", "zh-CN"))
-	resp = testutil.AssertAPIError(t, rec, http.StatusNotFound, "NOT_FOUND")
-	ri, ok := resp.Error.ResourceInfo()
-	require.True(t, ok)
-	assert.Equal(t, errdetails.TypeResourceInfo, ri.Type)
-	assert.Equal(t, "Book", ri.ResourceType)
-	assert.Equal(t, "01TEST", ri.ResourceName)
-	lm, ok := resp.Error.LocalizedMessage()
-	require.True(t, ok)
-	assert.Equal(t, "未找到 ID 为 01TEST 的书籍。", lm.Message)
+	// 2. oops with CtxKeyParams -> localized Chinese detail + exposed params
+	rec = env.DoRequest(http.MethodGet, "/test/oops-localized", testutil.WithHeader("Accept-Language", "zh-CN"))
+	p = testutil.AssertProblem(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND")
+	assert.Equal(t, "Not Found", p.Title)
+	assert.Equal(t, "未找到 ID 为 01TEST 的书籍。", p.Detail)
+	assert.Equal(t, map[string]string{"book_id": "01TEST"}, p.Params)
 
-	// 3. *validator.FieldViolations -> localized BadRequest + LocalizedMessage
+	// 3. oops 5xx -> localized generic message, internal error & params hidden
+	rec = env.DoRequest(http.MethodGet, "/test/oops-internal", testutil.WithHeader("Accept-Language", "zh-CN"))
+	p = testutil.AssertProblem(t, rec, http.StatusInternalServerError, "BOOK_INTERNAL_ERROR")
+	assert.Equal(t, "处理书籍请求时发生内部错误。", p.Detail)
+	assert.NotContains(t, p.Detail, "db password leak")
+	assert.Empty(t, p.Params)
+
+	// 4. *validator.FieldViolations -> localized 400 VALIDATION_INVALID + field errors
 	rec = env.DoRequest(http.MethodGet, "/test/validation", testutil.WithHeader("Accept-Language", "zh-CN"))
-	resp = testutil.AssertAPIError(t, rec, http.StatusBadRequest, "INVALID_ARGUMENT")
-	br, ok := resp.Error.BadRequest()
-	require.True(t, ok)
-	require.Len(t, br.FieldViolations, 1)
-	assert.Equal(t, "title", br.FieldViolations[0].Field)
-	assert.Equal(t, "title 不能为空。", br.FieldViolations[0].Description)
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
+	assert.Equal(t, "请求参数校验失败。", p.Detail)
+	require.Len(t, p.Errors, 1)
+	assert.Equal(t, "title", p.Errors[0].Field)
+	assert.Equal(t, "title 不能为空。", p.Errors[0].Message)
 
-	// 4. context.DeadlineExceeded / context.Canceled
+	// 5. context.DeadlineExceeded / context.Canceled
 	rec = env.DoRequest(http.MethodGet, "/test/deadline")
-	testutil.AssertAPIError(t, rec, http.StatusGatewayTimeout, "DEADLINE_EXCEEDED")
+	testutil.AssertProblem(t, rec, http.StatusGatewayTimeout, "GATEWAY_TIMEOUT")
 
 	rec = env.DoRequest(http.MethodGet, "/test/canceled")
-	testutil.AssertAPIError(t, rec, 499, "CANCELLED")
+	testutil.AssertProblem(t, rec, 499, "CLIENT_CLOSED_REQUEST")
 
-	// 5. *echo.HTTPError
+	// 6. *echo.HTTPError
 	rec = env.DoRequest(http.MethodGet, "/test/echo-http")
-	resp = testutil.AssertAPIError(t, rec, http.StatusForbidden, "PERMISSION_DENIED")
-	assert.Equal(t, "custom forbidden", resp.Error.Message)
+	p = testutil.AssertProblem(t, rec, http.StatusForbidden, "FORBIDDEN")
+	assert.Equal(t, "custom forbidden", p.Detail)
 
-	// 6. Unknown error -> 500 Internal with details hidden
+	// 7. Unknown error -> 500 INTERNAL_ERROR with details hidden
 	rec = env.DoRequest(http.MethodGet, "/test/unknown")
-	resp = testutil.AssertAPIError(t, rec, http.StatusInternalServerError, "INTERNAL")
-	assert.NotContains(t, resp.Error.Message, "secret database")
+	p = testutil.AssertProblem(t, rec, http.StatusInternalServerError, "INTERNAL_ERROR")
+	assert.NotContains(t, p.Detail, "secret database")
 
-	// 7. Committed response is not overwritten
+	// 8. Committed response is not overwritten
 	rec = httptest.NewRecorder()
 	web.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/test/committed", nil))
 	require.Equal(t, http.StatusAccepted, rec.Code)

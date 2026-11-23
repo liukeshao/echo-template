@@ -20,6 +20,13 @@ import (
 	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
+// jwtClaims 是 JWT 令牌内部声明（仅含 user_id 与 token_type，不暴露给外部 DTO）。
+type jwtClaims struct {
+	UserID    string `json:"user_id"`
+	TokenType string `json:"token_type"`
+	jwt.RegisteredClaims
+}
+
 // AuthService 认证服务
 type AuthService struct {
 	orm       *ent.Client
@@ -70,7 +77,7 @@ func authInvalidCredentials() error {
 // parseJWTOfType 解析并验证 JWT 签名、算法、发行者及内置时效（exp/iat/nbf 由库负责），
 // 并确认自定义 TokenType claim 与 expectedType 一致。
 // 这是所有 token 验证的唯一入口，上层无需再重复时间校验。
-func (s *AuthService) parseJWTOfType(ctx context.Context, tokenString string, expectedType token.Type) (*types.JWTClaims, error) {
+func (s *AuthService) parseJWTOfType(ctx context.Context, tokenString string, expectedType token.Type) (*jwtClaims, error) {
 	opts := []jwt.ParserOption{
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
 	}
@@ -78,13 +85,13 @@ func (s *AuthService) parseJWTOfType(ctx context.Context, tokenString string, ex
 		opts = append(opts, jwt.WithIssuer(s.jwtConfig.Issuer))
 	}
 
-	t, err := jwt.ParseWithClaims(tokenString, &types.JWTClaims{}, func(_ *jwt.Token) (any, error) {
+	t, err := jwt.ParseWithClaims(tokenString, &jwtClaims{}, func(_ *jwt.Token) (any, error) {
 		return []byte(s.jwtConfig.Secret), nil
 	}, opts...)
 	if err != nil {
 		return nil, authTokenInvalid("invalid or expired token")
 	}
-	claims, ok := t.Claims.(*types.JWTClaims)
+	claims, ok := t.Claims.(*jwtClaims)
 	if !ok || !t.Valid {
 		return nil, authTokenInvalid("invalid token claims")
 	}
@@ -110,15 +117,17 @@ func (s *AuthService) generateToken(userID string, tokenType token.Type) (string
 	now := time.Now()
 	expirationTime := now.Add(expiry)
 
-	claims := &types.JWTClaims{
+	claims := &jwtClaims{
 		UserID:    userID,
 		TokenType: string(tokenType),
-		ID:        utils.GenerateULID(),
-		ExpiresAt: jwt.NewNumericDate(expirationTime),
-		IssuedAt:  jwt.NewNumericDate(now),
-		NotBefore: jwt.NewNumericDate(now),
-		Issuer:    s.jwtConfig.Issuer,
-		Subject:   userID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        utils.GenerateULID(),
+			ExpiresAt: jwt.NewNumericDate(expirationTime),
+			IssuedAt:  jwt.NewNumericDate(now),
+			NotBefore: jwt.NewNumericDate(now),
+			Issuer:    s.jwtConfig.Issuer,
+			Subject:   userID,
+		},
 	}
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -187,7 +196,7 @@ func (s *AuthService) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userI
 }
 
 // issueTokenPairTx 在已有事务中签发并持久化 access + refresh token 对。
-func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*types.AuthResponse, error) {
+func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*types.TokenPair, error) {
 	accessToken, accessExpiry, err := s.generateToken(userID, token.TypeAccess)
 	if err != nil {
 		return nil, err
@@ -206,7 +215,7 @@ func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID s
 		return nil, err
 	}
 
-	return &types.AuthResponse{
+	return &types.TokenPair{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 		ExpiresAt:    accessExpiry.Unix(),
@@ -215,7 +224,7 @@ func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID s
 
 // generateTokenPair 在独立事务中生成 access + refresh token 对。
 // 使用 named return err 配合 defer，保证任意失败路径都触发 Rollback。
-func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *types.AuthResponse, err error) {
+func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *types.TokenPair, err error) {
 	tx, err := s.orm.Tx(ctx)
 	if err != nil {
 		return nil, authInternal(err, "beginning transaction")
@@ -245,14 +254,14 @@ func (s *AuthService) checkUniqueUserConflict(ctx context.Context, email, userna
 	if exists, err := s.orm.User.Query().Where(userEnt.Email(email)).Exist(ctx); err == nil && exists {
 		return oops.
 			Code(codes.AuthEmailTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"email": email}).
+			With(codes.CtxKeyParams, map[string]string{"email": email}).
 			Public(fmt.Sprintf("the email %q is already registered", email)).
 			Errorf("email taken: %s", email)
 	}
 	if exists, err := s.orm.User.Query().Where(userEnt.Username(username)).Exist(ctx); err == nil && exists {
 		return oops.
 			Code(codes.AuthUsernameTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"username": username}).
+			With(codes.CtxKeyParams, map[string]string{"username": username}).
 			Public(fmt.Sprintf("the username %q is already taken", username)).
 			Errorf("username taken: %s", username)
 	}
@@ -260,7 +269,7 @@ func (s *AuthService) checkUniqueUserConflict(ctx context.Context, email, userna
 }
 
 // Register 用户注册。
-func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) (*types.AuthResponse, error) {
+func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) (*types.TokenPair, error) {
 	emailExists, err := s.orm.User.Query().
 		Where(userEnt.Email(req.Email)).
 		Exist(ctx)
@@ -270,7 +279,7 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 	if emailExists {
 		return nil, oops.
 			Code(codes.AuthEmailTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"email": req.Email}).
+			With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
 			Public(fmt.Sprintf("the email %q is already registered", req.Email)).
 			Errorf("email taken: %s", req.Email)
 	}
@@ -284,7 +293,7 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 	if usernameExists {
 		return nil, oops.
 			Code(codes.AuthUsernameTaken.String()).
-			With(codes.CtxKeyMetadata, map[string]string{"username": req.Username}).
+			With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
 			Public(fmt.Sprintf("the username %q is already taken", req.Username)).
 			Errorf("username taken: %s", req.Username)
 	}
@@ -322,7 +331,7 @@ func (s *AuthService) Register(ctx context.Context, req *types.RegisterRequest) 
 }
 
 // Login 用户登录。
-func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.AuthResponse, error) {
+func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*types.TokenPair, error) {
 	user, err := s.findUserByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
@@ -350,7 +359,7 @@ func (s *AuthService) Login(ctx context.Context, req *types.LoginRequest) (*type
 
 // RefreshToken 刷新令牌对。
 // 在单个事务中原子地撤销旧 refresh token 并签发新令牌对，防止并发重放。
-func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenRequest) (_ *types.AuthResponse, err error) {
+func (s *AuthService) RefreshToken(ctx context.Context, req *types.RefreshTokenRequest) (_ *types.TokenPair, err error) {
 	claims, err := s.parseJWTOfType(ctx, req.RefreshToken, token.TypeRefresh)
 	if err != nil {
 		return nil, err

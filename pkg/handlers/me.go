@@ -12,7 +12,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/types"
 )
 
-// MeHandler 当前登录用户的处理器（Kubernetes 风格单例资源）。
+// MeHandler 当前登录用户的处理器（单例资源）。
 type MeHandler struct {
 	me *services.MeService
 }
@@ -43,17 +43,13 @@ func (h *MeHandler) Routes(g *echo.Group, auth echo.MiddlewareFunc) {
 // toUser 将 *ent.User 映射为对外的资源视图 types.User（不含密码、删除标记等）。
 func toUser(u *ent.User) types.User {
 	return types.User{
-		ObjectMeta: types.ObjectMeta{
-			ID:        u.ID,
-			CreatedAt: u.CreatedAt,
-			UpdatedAt: u.UpdatedAt,
-		},
-		UserSpec: types.UserSpec{
-			Username: u.Username,
-			Email:    u.Email,
-		},
+		ID:          u.ID,
+		Username:    u.Username,
+		Email:       u.Email,
 		Status:      string(u.Status),
 		LastLoginAt: u.LastLoginAt,
+		CreatedAt:   u.CreatedAt,
+		UpdatedAt:   u.UpdatedAt,
 	}
 }
 
@@ -64,14 +60,14 @@ func toUser(u *ent.User) types.User {
 //	@Security	BearerAuth
 //	@Produce	json
 //	@Success	200	{object}	types.User
-//	@Failure	401	{object}	status.ErrorResponse
+//	@Failure	401	{object}	types.Problem
 //	@Router		/api/v1/me [get]
 func (h *MeHandler) Get(c *echo.Context) error {
 	user := appctx.MustGetUserFromContext(c.Request().Context())
 	return c.JSON(http.StatusOK, toUser(user))
 }
 
-// Replace 替换当前用户资料（幂等全量更新，Kubernetes 风格 PUT）。
+// Replace 替换当前用户资料（幂等全量更新）。
 //
 //	@Summary		替换当前用户资料
 //	@Description	使用请求体中的 username 与 email 覆盖现有资料。username / email 各自全局唯一，冲突时返回 409。
@@ -81,9 +77,9 @@ func (h *MeHandler) Get(c *echo.Context) error {
 //	@Produce		json
 //	@Param			body	body		types.ReplaceMeRequest	true	"完整资料"
 //	@Success		200		{object}	types.User
-//	@Failure		400		{object}	status.ErrorResponse
-//	@Failure		401		{object}	status.ErrorResponse
-//	@Failure		409		{object}	status.ErrorResponse	"username / email 已被占用"
+//	@Failure		400		{object}	types.Problem
+//	@Failure		401		{object}	types.Problem
+//	@Failure		409		{object}	types.Problem	"username / email 已被占用"
 //	@Router			/api/v1/me [put]
 func (h *MeHandler) Replace(c *echo.Context) error {
 	ctx := c.Request().Context()
@@ -113,9 +109,10 @@ func (h *MeHandler) Replace(c *echo.Context) error {
 //	@Produce		json
 //	@Param			body	body		object	true	"patch 主体（具体格式由 Content-Type 决定）"
 //	@Success		200		{object}	types.User
-//	@Failure		400		{object}	status.ErrorResponse
-//	@Failure		401		{object}	status.ErrorResponse
-//	@Failure		409		{object}	status.ErrorResponse
+//	@Failure		400		{object}	types.Problem
+//	@Failure		401		{object}	types.Problem
+//	@Failure		409		{object}	types.Problem
+//	@Failure		415		{object}	types.Problem	"不支持的 PATCH Content-Type"
 //	@Router			/api/v1/me [patch]
 func (h *MeHandler) Patch(c *echo.Context) error {
 	ctx := c.Request().Context()
@@ -145,8 +142,8 @@ func (h *MeHandler) Patch(c *echo.Context) error {
 //	@Produce	json
 //	@Param		body	body	types.ChangePasswordRequest	true	"密码信息"
 //	@Success	204
-//	@Failure	400	{object}	status.ErrorResponse
-//	@Failure	401	{object}	status.ErrorResponse
+//	@Failure	400	{object}	types.Problem
+//	@Failure	401	{object}	types.Problem
 //	@Router		/api/v1/me/change-password [post]
 func (h *MeHandler) ChangePassword(c *echo.Context) error {
 	ctx := c.Request().Context()

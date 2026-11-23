@@ -2,41 +2,42 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v5"
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
 
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	appcodes "github.com/liukeshao/echo-template/pkg/codes"
+	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/i18n"
+	"github.com/liukeshao/echo-template/pkg/types"
 	"github.com/liukeshao/echo-template/pkg/validator"
-	httpstatus "github.com/liukeshao/echo-template/transport/http/status"
-	"github.com/liukeshao/echo-template/transport/rpc/codes"
-	"github.com/liukeshao/echo-template/transport/rpc/errdetails"
-	rpcstatus "github.com/liukeshao/echo-template/transport/rpc/status"
 )
 
-// registerErrorHandler 将 echo HTTPErrorHandler 绑定到使用给定 Translator 的实现上。
-// Translator 以闭包方式注入，避免扩大 errorHandler 的参数面，同时保留对 DI 的依赖。
+const statusClientClosedRequest = 499
+
+// registerErrorHandler 将 echo HTTPErrorHandler 绑定到基于 RFC 9457 的错误处理器。
 func registerErrorHandler(web *echo.Echo, t i18n.Translator) {
 	web.HTTPErrorHandler = func(c *echo.Context, err error) {
 		handleError(c, err, t)
 	}
 }
 
-// handleError converts any error into an AIP-193 compliant JSON response.
+// handleError 将任意 error 转换为 RFC 9457 (application/problem+json) 响应。
 //
-// Conversion precedence:
-//  1. *rpcstatus.Status         — use as-is, then inject ErrorInfo if absent
-//  2. oops.OopsError with Code  — classifyOops (service/domain errors)
-//  3. *validator.FieldViolations — field-level validation errors → BadRequest detail
-//  4. context.DeadlineExceeded / context.Canceled
-//  5. echo.HTTPStatusCoder      — map HTTP code → RPC code (framework errors)
-//  6. everything else           — codes.Internal (message hidden for security)
+// 分类优先级：
+//  1. types.Problem / *types.Problem — 直接使用并补全缺省字段
+//  2. oops.OopsError（含 Code）       — 业务/领域错误，经 pkg/codes 映射 HTTP 状态码并本地化
+//  3. *validator.FieldViolations     — 400 VALIDATION_INVALID + 本地化字段级 errors
+//  4. context.DeadlineExceeded / Canceled — 504 / 499
+//  5. echo.HTTPStatusCoder           — 框架错误（404 / 405 / 413 等），保留原 HTTP 状态码
+//  6. 其他未知错误                    — 500 INTERNAL_ERROR（隐藏内部细节）
 func handleError(c *echo.Context, err error, t i18n.Translator) {
 	if err == nil {
 		return
@@ -45,213 +46,174 @@ func handleError(c *echo.Context, err error, t i18n.Translator) {
 	ctx := c.Request().Context()
 	loc := appctx.LocaleFromContext(ctx, t.Default())
 
-	s := classify(err, t, loc)
-	s = ensureErrorInfo(s)
-	s = ensureLocalizedMessage(s, t, loc)
-	s = ensureRequestInfo(s, ctx)
-
-	if s.Code() == codes.Internal || s.Code() == codes.Unknown {
-		slog.ErrorContext(ctx, "unhandled error", "error", err)
+	p := classifyError(err, t, loc)
+	if p.Type == "" {
+		p.Type = "about:blank"
+	}
+	if p.Title == "" {
+		p.Title = httpStatusTitle(p.Status)
+	}
+	if p.Instance == "" && c.Request() != nil && c.Request().URL != nil {
+		p.Instance = c.Request().URL.Path
+	}
+	if p.RequestID == "" {
+		p.RequestID = appctx.MustGetRequestIDFromContext(ctx)
 	}
 
-	httpCode, resp := httpstatus.FromRPCStatus(s)
+	if p.Status >= http.StatusInternalServerError {
+		slog.ErrorContext(ctx, "unhandled error", "status", p.Status, "code", p.Code, "error", err)
+	}
 
 	if r, unwrapErr := echo.UnwrapResponse(c.Response()); unwrapErr == nil && r.Committed {
 		return
 	}
-	if writeErr := c.JSON(httpCode, resp); writeErr != nil {
-		slog.ErrorContext(ctx, "failed to write error response", "error", writeErr)
+
+	body, marshalErr := json.Marshal(p)
+	if marshalErr != nil {
+		slog.ErrorContext(ctx, "failed to marshal problem response", "error", marshalErr)
+		return
+	}
+	if writeErr := c.Blob(p.Status, types.ContentTypeProblemJSON, body); writeErr != nil {
+		slog.ErrorContext(ctx, "failed to write problem response", "error", writeErr)
 	}
 }
 
-// classify maps any error to a canonical *rpcstatus.Status.
-func classify(err error, t i18n.Translator, loc language.Tag) *rpcstatus.Status {
-	if s, ok := rpcstatus.As(err); ok {
-		return s
+func classifyError(err error, t i18n.Translator, loc language.Tag) types.Problem {
+	if p, ok := errors.AsType[types.Problem](err); ok {
+		return p
+	}
+	if p, ok := errors.AsType[*types.Problem](err); ok && p != nil {
+		return *p
 	}
 	if oopsErr, ok := errors.AsType[oops.OopsError](err); ok {
 		if codeStr, _ := oopsErr.Code().(string); codeStr != "" {
-			return classifyOops(oopsErr, codeStr)
+			return classifyOops(oopsErr, codeStr, t, loc)
 		}
 	}
 	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok {
 		return classifyFieldViolations(fv, t, loc)
 	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return rpcstatus.FromContextError(err)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return types.Problem{
+			Status: http.StatusGatewayTimeout,
+			Code:   httpStatusCode(http.StatusGatewayTimeout),
+			Detail: http.StatusText(http.StatusGatewayTimeout),
+		}
 	}
-	// echo v5 has two error types: exported *HTTPError (NewHTTPError) and unexported
-	// *httpError (ErrNotFound, ErrUnauthorized, etc.). Both implement HTTPStatusCoder,
-	// so we match via the interface to cover both cases.
-	// errors.AsType cannot be used here: HTTPStatusCoder does not implement error.
+	if errors.Is(err, context.Canceled) {
+		return types.Problem{
+			Status: statusClientClosedRequest,
+			Title:  "Client Closed Request",
+			Code:   "CLIENT_CLOSED_REQUEST",
+			Detail: "Client closed the request before the server could respond.",
+		}
+	}
+	// echo v5 同时存在导出的 *HTTPError 与未导出的 *httpError（如 ErrNotFound），
+	// 二者均实现 HTTPStatusCoder 接口。
 	var sc echo.HTTPStatusCoder
 	if errors.As(err, &sc) {
-		rpcCode := httpstatus.ToRPCCode(sc.StatusCode())
-		var msg string
-		if he, ok := sc.(*echo.HTTPError); ok && he.Message != "" {
-			msg = he.Message
-		} else {
-			msg = http.StatusText(sc.StatusCode())
+		status := sc.StatusCode()
+		detail := httpStatusTitle(status)
+		if status >= http.StatusInternalServerError {
+			detail = translateFallbackInternal(t, loc)
+		} else if he, ok := sc.(*echo.HTTPError); ok && he.Message != "" {
+			detail = he.Message
 		}
-		return rpcstatus.New(rpcCode, msg)
+		return types.Problem{
+			Status: status,
+			Code:   httpStatusCode(status),
+			Detail: detail,
+		}
 	}
-	return rpcstatus.New(codes.Internal, "an internal server error occurred")
+
+	return types.Problem{
+		Status: http.StatusInternalServerError,
+		Code:   "INTERNAL_ERROR",
+		Detail: translateFallbackInternal(t, loc),
+	}
 }
 
-// classifyFieldViolations converts *validator.FieldViolations into an AIP-193 BadRequest Status.
-//
-// 每个 FieldViolation 的 description 由 Translator 基于 (key, vars) 渲染；
-// 顶层 message 使用 VALIDATION_INVALID 的英文翻译作为开发者面向消息。
-// LocalizedMessage 由 ensureLocalizedMessage 在调用方统一追加。
-func classifyFieldViolations(fv *validator.FieldViolations, t i18n.Translator, loc language.Tag) *rpcstatus.Status {
-	defTag := t.Default()
+func classifyOops(oopsErr oops.OopsError, codeStr string, t i18n.Translator, loc language.Tag) types.Problem {
+	status := codes.HTTPStatus(codes.Code(codeStr))
+	params, _ := oopsErr.Context()[codes.CtxKeyParams].(map[string]string)
 
-	viols := fv.Items()
-	out := make([]errdetails.FieldViolation, 0, len(viols))
-	for _, it := range viols {
-		desc, _, ok := t.T(loc, it.Key, it.Vars)
-		if !ok {
-			desc = it.Key
+	detail, _, ok := t.T(loc, "errors."+codeStr, params)
+	if !ok {
+		if status >= http.StatusInternalServerError {
+			detail = translateFallbackInternal(t, loc)
+		} else if pub := oops.GetPublic(oopsErr, ""); pub != "" {
+			detail = pub
+		} else {
+			detail = httpStatusTitle(status)
 		}
-		out = append(out, errdetails.FieldViolation{
-			Field:       it.Field,
-			Description: desc,
+	}
+
+	// 5xx 错误不对外透出 params，防止意外泄漏内部上下文。
+	var publicParams map[string]string
+	if status < http.StatusInternalServerError && len(params) > 0 {
+		publicParams = params
+	}
+
+	return types.Problem{
+		Status: status,
+		Code:   codeStr,
+		Detail: detail,
+		Params: publicParams,
+	}
+}
+
+func classifyFieldViolations(fv *validator.FieldViolations, t i18n.Translator, loc language.Tag) types.Problem {
+	viols := fv.Items()
+	fieldErrs := make([]types.FieldError, 0, len(viols))
+	for _, it := range viols {
+		msg, _, ok := t.T(loc, it.Key, it.Vars)
+		if !ok {
+			msg = it.Key
+		}
+		fieldErrs = append(fieldErrs, types.FieldError{
+			Field:   it.Field,
+			Message: msg,
 		})
 	}
 
-	// 顶层 message 采用默认 locale 的 VALIDATION_INVALID，保持 error.message 为稳定英文。
-	topMsg, _, ok := t.T(defTag, "errors."+appcodes.ValidationInvalid.String(), nil)
+	codeStr := codes.ValidationInvalid.String()
+	detail, _, ok := t.T(loc, "errors."+codeStr, nil)
 	if !ok {
-		topMsg = "request validation failed"
+		detail = "Request validation failed."
 	}
 
-	return rpcstatus.New(codes.InvalidArgument, topMsg).WithDetails(
-		errdetails.ErrorInfo{
-			Type:   errdetails.TypeErrorInfo,
-			Reason: appcodes.ValidationInvalid.String(),
-			Domain: appcodes.Domain,
-		},
-		errdetails.BadRequest{
-			Type:            errdetails.TypeBadRequest,
-			FieldViolations: out,
-		},
-	)
+	return types.Problem{
+		Status: codes.HTTPStatus(codes.ValidationInvalid),
+		Code:   codeStr,
+		Detail: detail,
+		Errors: fieldErrs,
+	}
 }
 
-// classifyOops converts an oops.OopsError with a registered app code into a
-// *rpcstatus.Status, building AIP-193 details from the oops context:
-//
-//   - ErrorInfo.Reason    ← the app code string (e.g. "BOOK_NOT_FOUND")
-//   - ErrorInfo.Metadata  ← oops context key CtxKeyMetadata (map[string]string)
-//   - ResourceInfo        ← oops context key CtxKeyResourceInfo (errdetails.ResourceInfo)
-//
-// Message precedence for error.message (developer-facing English):
-//  1. oops.Public() — set by the caller for a detailed, variable-rich description
-//  2. oopsErr.Error() — fallback for non-internal errors
-//  3. generic "an internal server error occurred" — always used for Internal/Unknown
-//
-// 本地化消息通过 ensureLocalizedMessage 附加到 details，不替换 error.message。
-func classifyOops(oopsErr oops.OopsError, codeStr string) *rpcstatus.Status {
-	rpcCode := appcodes.Lookup(appcodes.Code(codeStr))
-
-	msg := oops.GetPublic(oopsErr, "")
-	if msg == "" {
-		if rpcCode == codes.Internal || rpcCode == codes.Unknown {
-			msg = "an internal server error occurred"
-		} else {
-			msg = oopsErr.Error()
-		}
+func translateFallbackInternal(t i18n.Translator, loc language.Tag) string {
+	if msg, _, ok := t.T(loc, "fallback.internal", nil); ok {
+		return msg
 	}
-
-	errorInfo := errdetails.ErrorInfo{
-		Type:   errdetails.TypeErrorInfo,
-		Reason: codeStr,
-		Domain: appcodes.Domain,
-	}
-	if metadata, ok := oopsErr.Context()[appcodes.CtxKeyMetadata].(map[string]string); ok {
-		errorInfo.Metadata = metadata
-	}
-
-	details := []any{errorInfo}
-	if ri, ok := oopsErr.Context()[appcodes.CtxKeyResourceInfo].(errdetails.ResourceInfo); ok {
-		if ri.Type == "" {
-			ri.Type = errdetails.TypeResourceInfo
-		}
-		details = append(details, ri)
-	}
-
-	return rpcstatus.New(rpcCode, msg).WithDetails(details...)
+	return "An internal server error occurred."
 }
 
-// ensureErrorInfo guarantees that the Status carries at least one ErrorInfo detail.
-// AIP-193: "All error responses must include an ErrorInfo within details."
-// Acts as a fallback for non-oops error paths (ent, context, echo.HTTPError).
-func ensureErrorInfo(s *rpcstatus.Status) *rpcstatus.Status {
-	for _, d := range s.Details() {
-		if info, ok := d.(errdetails.ErrorInfo); ok && info.Type == errdetails.TypeErrorInfo {
-			return s
-		}
+func httpStatusTitle(status int) string {
+	if status == statusClientClosedRequest {
+		return "Client Closed Request"
 	}
-	return s.WithDetails(errdetails.ErrorInfo{
-		Type:   errdetails.TypeErrorInfo,
-		Reason: s.Code().Name(),
-		Domain: appcodes.Domain,
-	})
+	if text := http.StatusText(status); text != "" {
+		return text
+	}
+	return http.StatusText(http.StatusInternalServerError)
 }
 
-// ensureLocalizedMessage 基于 Status 的 ErrorInfo（reason + metadata）渲染 LocalizedMessage。
-//
-// 查找顺序：
-//  1. "errors.<reason>"（业务错误码或 ValidationInvalid）
-//  2. "fallback.internal"（兜底消息）
-//
-// 若 Status 已包含 LocalizedMessage 则不追加。
-func ensureLocalizedMessage(s *rpcstatus.Status, t i18n.Translator, loc language.Tag) *rpcstatus.Status {
-	var (
-		reason   string
-		metadata map[string]string
-	)
-	for _, d := range s.Details() {
-		if lm, ok := d.(errdetails.LocalizedMessage); ok && lm.Type == errdetails.TypeLocalizedMessage {
-			return s
-		}
-		if info, ok := d.(errdetails.ErrorInfo); ok && info.Type == errdetails.TypeErrorInfo {
-			reason = info.Reason
-			metadata = info.Metadata
-		}
+func httpStatusCode(status int) string {
+	if status == http.StatusInternalServerError {
+		return "INTERNAL_ERROR"
 	}
-	if reason == "" {
-		return s
+	title := httpStatusTitle(status)
+	if title == "" {
+		return fmt.Sprintf("HTTP_%d", status)
 	}
-
-	text, used, ok := t.T(loc, "errors."+reason, metadata)
-	if !ok {
-		text, used, ok = t.T(loc, "fallback.internal", nil)
-	}
-	if !ok {
-		return s
-	}
-	return s.WithDetails(errdetails.LocalizedMessage{
-		Type:    errdetails.TypeLocalizedMessage,
-		Locale:  used.String(),
-		Message: text,
-	})
-}
-
-// ensureRequestInfo 在上下文存在 request_id 时自动附加 AIP-193 RequestInfo，
-// 便于客户端直接将错误响应体与服务端结构化日志关联排障。
-func ensureRequestInfo(s *rpcstatus.Status, ctx context.Context) *rpcstatus.Status {
-	rid, ok := appctx.GetRequestIDFromContext(ctx)
-	if !ok || rid == "" {
-		return s
-	}
-	for _, d := range s.Details() {
-		if ri, ok := d.(errdetails.RequestInfo); ok && ri.Type == errdetails.TypeRequestInfo {
-			return s
-		}
-	}
-	return s.WithDetails(errdetails.RequestInfo{
-		Type:      errdetails.TypeRequestInfo,
-		RequestID: rid,
-	})
+	return strings.ToUpper(strings.NewReplacer(" ", "_", "-", "_").Replace(title))
 }

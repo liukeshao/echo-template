@@ -38,10 +38,11 @@ func TestRouter_404RunsGlobalMiddleware(t *testing.T) {
 	)
 
 	assert.NotEmpty(t, rec.Header().Get(echo.HeaderXRequestID), "404 should still run RequestID middleware")
-	testutil.AssertAPIError(t, rec, http.StatusNotFound, "NOT_FOUND")
+	p := testutil.AssertProblem(t, rec, http.StatusNotFound, "NOT_FOUND")
+	assert.Equal(t, "/api/v1/does-not-exist", p.Instance)
 }
 
-func TestBookHandler_PatchTypeMismatchReturns400(t *testing.T) {
+func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
 	authResp := env.MustAuthUser("patcher", "patcher@example.com", "password123")
@@ -53,12 +54,19 @@ func TestBookHandler_PatchTypeMismatchReturns400(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createRec.Code)
 	created := testutil.DecodeJSON[types.Book](t, createRec)
 
-	// Send PATCH with wrong type for price ("not-a-number") -> must return 400 PATCH_INVALID, not 500.
+	// Wrong type for price -> 400 PATCH_INVALID (not 500).
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody(patch.ContentTypeMergePatch, `{"price":"not-a-number"}`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
-	testutil.AssertAPIError(t, patchRec, http.StatusBadRequest, "INVALID_ARGUMENT")
+	testutil.AssertProblem(t, patchRec, http.StatusBadRequest, "PATCH_INVALID")
+
+	// Unsupported PATCH Content-Type -> 415 PATCH_UNSUPPORTED_MEDIA_TYPE.
+	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
+		testutil.WithBody("text/plain", `title=foo`),
+		testutil.WithBearer(authResp.AccessToken),
+	)
+	testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType, "PATCH_UNSUPPORTED_MEDIA_TYPE")
 }
 
 func TestDocsHandler_StaticIsolatesAssets(t *testing.T) {
@@ -78,7 +86,7 @@ func TestDocsHandler_StaticIsolatesAssets(t *testing.T) {
 	}
 }
 
-func TestRouter_BodyLimitMapsToResourceExhausted(t *testing.T) {
+func TestRouter_BodyLimitReturns413(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
 
@@ -86,7 +94,7 @@ func TestRouter_BodyLimitMapsToResourceExhausted(t *testing.T) {
 	rec := env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testutil.WithRawBody(echo.MIMEApplicationJSON, bytes.NewReader(oversized)),
 	)
-	testutil.AssertAPIError(t, rec, http.StatusTooManyRequests, "RESOURCE_EXHAUSTED")
+	testutil.AssertProblem(t, rec, http.StatusRequestEntityTooLarge, "REQUEST_ENTITY_TOO_LARGE")
 }
 
 func TestRouter_AuthBoundary(t *testing.T) {
@@ -147,7 +155,7 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 		testutil.WithJSON(map[string]any{"username": "httpuser", "email": "http@example.com", "password": "password123"}),
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	reg := testutil.DecodeJSON[types.AuthResponse](t, rec)
+	reg := testutil.DecodeJSON[types.TokenPair](t, rec)
 	assert.NotEmpty(t, reg.AccessToken)
 
 	// Login
@@ -155,14 +163,14 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 		testutil.WithJSON(map[string]any{"email": "http@example.com", "password": "password123"}),
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	login := testutil.DecodeJSON[types.AuthResponse](t, rec)
+	login := testutil.DecodeJSON[types.TokenPair](t, rec)
 
 	// Refresh
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/refresh",
 		testutil.WithJSON(map[string]any{"refresh_token": login.RefreshToken}),
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
-	refreshed := testutil.DecodeJSON[types.AuthResponse](t, rec)
+	refreshed := testutil.DecodeJSON[types.TokenPair](t, rec)
 
 	// Logout -> 204
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/logout", testutil.WithBearer(refreshed.AccessToken))
@@ -191,7 +199,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 	// List
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&filter=price%20%3E%2010", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
-	list := testutil.DecodeJSON[types.ListResponse[types.Book]](t, rec)
+	list := testutil.DecodeJSON[types.BookList](t, rec)
 	assert.Equal(t, int32(1), list.TotalSize)
 	require.Len(t, list.Items, 1)
 	assert.Equal(t, b.ID, list.Items[0].ID)

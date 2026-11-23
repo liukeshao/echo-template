@@ -7,7 +7,7 @@
 //	env := testutil.New(t)
 //	bookSvc := do.MustInvoke[*services.BookService](env.Injector)
 //
-//	// 2. Handler 层测试（完整 Echo 路由 + 中间件 + AIP-193 错误处理）
+//	// 2. Handler 层测试（完整 Echo 路由 + 中间件 + RFC 9457 错误处理）
 //	env := testutil.New(t)
 //	tok := env.MustAuthUser("alice", "alice@example.com", "password123")
 //	rec := env.DoRequest(http.MethodGet, "/api/v1/books", testutil.WithBearer(tok.AccessToken))
@@ -178,7 +178,7 @@ func (e *Env) ORM() *ent.Client {
 	return do.MustInvoke[*infra.ORM](e.Injector).Client
 }
 
-// Echo 按需构建并返回已挂载全部路由、中间件与 AIP-193 错误处理器的 *echo.Echo 实例。
+// Echo 按需构建并返回已挂载全部路由、中间件与 RFC 9457 错误处理器的 *echo.Echo 实例。
 func (e *Env) Echo() *echo.Echo {
 	e.t.Helper()
 	e.echoOnce.Do(func() {

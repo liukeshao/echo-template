@@ -11,7 +11,7 @@ import (
 // 协商优先级：?lang= 查询参数 > Accept-Language header > Translator.Default()。
 //
 // 必须放置在 RequestContext 之后，业务 handler 之前。
-// 与 error_handler 配合，实现 AIP-193 LocalizedMessage 的本地化输出。
+// 与 error_handler 配合，实现 RFC 9457 Problem.Detail 与字段错误的本地化输出。
 func Locale(t i18n.Translator) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
