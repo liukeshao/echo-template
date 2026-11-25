@@ -125,7 +125,6 @@ export function emitInterfaceAndMount(program, ifaceName, opInfos) {
   lines.push(`// 可直接挂载到 rest.Router（router.Mount(api.New${handlerName}(impl, ...))），也可独立用于 httptest。`);
   lines.push(`func New${handlerName}(impl ${handlerName}, opts ...rest.HandlerOption) rest.Handler {`);
   lines.push(`\tcfg := rest.ApplyHandlerOptions(opts...)`);
-  lines.push(`\trt := cfg.Runtime`);
   lines.push(`\treturn rest.NewHandler(func(mux *http.ServeMux) {`);
 
   const opByRef = new Map(opInfos.map((info) => [info.httpOp.operation, info]));
@@ -162,8 +161,8 @@ function emitStandardOpBody(info) {
     lines.push(`\t\tvar req ${info.reqStruct}`);
 
     if (info.bodyModel) {
-      lines.push(`\t\tif err := rt.DecodeJSON(r, &req); err != nil {`);
-      lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+      lines.push(`\t\tif err := rest.DecodeJSON(r, &req); err != nil {`);
+      lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
       lines.push(`\t\t\treturn`);
       lines.push(`\t\t}`);
     }
@@ -192,22 +191,22 @@ function emitStandardOpBody(info) {
         }
         const scalarName = p.param.type.kind === "Scalar" ? baseScalarName(p.param.type) : "string";
         if (scalarName === "int32") {
-          lines.push(`\t\treq.${goField} = rt.ParseInt32Query(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = rest.ParseInt32Query(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "int64") {
-          lines.push(`\t\treq.${goField} = rt.ParseInt64Query(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = rest.ParseInt64Query(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "float64") {
           const fn = p.param.optional ? "ParseOptionalFloat64Query" : "ParseFloat64Query";
-          lines.push(`\t\treq.${goField} = rt.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = rest.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "boolean") {
           const fn = p.param.optional ? "ParseOptionalBoolQuery" : "ParseBoolQuery";
-          lines.push(`\t\treq.${goField} = rt.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = rest.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
         } else {
           lines.push(`\t\treq.${goField} = q.Get(${JSON.stringify(p.name)})`);
         }
       }
       if (hasTypedQuery) {
         lines.push(`\t\tif err := qv.Err(); err != nil {`);
-        lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+        lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
         lines.push(`\t\t\treturn`);
         lines.push(`\t\t}`);
       }
@@ -215,7 +214,7 @@ function emitStandardOpBody(info) {
 
     if (info.hasValidate) {
       lines.push(`\t\tif err := req.Validate(); err != nil {`);
-      lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+      lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
       lines.push(`\t\t\treturn`);
       lines.push(`\t\t}`);
     }
@@ -225,17 +224,17 @@ function emitStandardOpBody(info) {
   if (info.respModel) {
     lines.push(`\t\tres, err := impl.${info.methodName}(${callArgs})`);
     lines.push(`\t\tif err != nil {`);
-    lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+    lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
-    lines.push(`\t\trt.WriteJSON(w, ${httpStatusConst(info.status)}, res)`);
+    lines.push(`\t\trest.WriteJSON(w, r, ${httpStatusConst(info.status)}, res)`);
   } else {
     lines.push(`\t\tif err := impl.${info.methodName}(${callArgs}); err != nil {`);
-    lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+    lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
     if (info.status === 204) {
-      lines.push(`\t\trt.WriteNoContent(w)`);
+      lines.push(`\t\trest.WriteNoContent(w)`);
     } else {
       lines.push(`\t\tw.WriteHeader(${httpStatusConst(info.status)})`);
     }
@@ -254,7 +253,7 @@ function emitAutoPatchBody(info, getInfo, replaceInfo) {
     }
     if (getInfo.hasValidate) {
       lines.push(`\t\tif err := getReq.Validate(); err != nil {`);
-      lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+      lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
       lines.push(`\t\t\treturn`);
       lines.push(`\t\t}`);
     }
@@ -264,12 +263,12 @@ function emitAutoPatchBody(info, getInfo, replaceInfo) {
   }
 
   lines.push(`\t\tif err != nil {`);
-  lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+  lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
   lines.push(`\t\tvar req ${replaceInfo.reqStruct}`);
-  lines.push(`\t\tif err := rt.ApplyPatch(r, current, &req); err != nil {`);
-  lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+  lines.push(`\t\tif err := rest.ApplyPatch(r, current, &req); err != nil {`);
+  lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
   for (const p of info.pathParams) {
@@ -277,16 +276,16 @@ function emitAutoPatchBody(info, getInfo, replaceInfo) {
   }
   if (replaceInfo.hasValidate) {
     lines.push(`\t\tif err := req.Validate(); err != nil {`);
-    lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+    lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
   }
   lines.push(`\t\tres, err := impl.${replaceInfo.methodName}(ctx, &req)`);
   lines.push(`\t\tif err != nil {`);
-  lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
+  lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
-  lines.push(`\t\trt.WriteJSON(w, http.StatusOK, res)`);
+  lines.push(`\t\trest.WriteJSON(w, r, http.StatusOK, res)`);
   return lines;
 }
 

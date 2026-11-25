@@ -2,146 +2,138 @@ package rest_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
-	"time"
 
-	"github.com/samber/do/v2"
-	"github.com/samber/oops"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/i18n"
 	"github.com/liukeshao/echo-template/pkg/rest"
-	"github.com/liukeshao/echo-template/pkg/testutil"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-func TestRouter_WriteProblemAllClassificationPaths(t *testing.T) {
-	t.Parallel()
-	env := testutil.New(t)
-	tr := do.MustInvoke[i18n.Translator](env.Injector)
-	rt := rest.New(tr)
+func decodeProblem(t *testing.T, rec *httptest.ResponseRecorder) rest.Problem {
+	t.Helper()
+	assert.Contains(t, rec.Header().Get("Content-Type"), rest.ContentTypeProblemJSON)
+	var p rest.Problem
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &p), "body: %s", rec.Body.String())
+	return p
+}
 
-	router := rest.NewRouter(rt, rest.WithMaxBodyBytes(1<<20))
-	router.HandleFunc("GET /test/problem", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, rest.Problem{
+func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
+	t.Parallel()
+	router := rest.NewRouter()
+	router.Use(rest.AccessLog(), rest.Recover(nil), rest.BodyLimit(64))
+
+	router.HandleFunc("GET /problem", func(w http.ResponseWriter, r *http.Request) {
+		rest.DefaultErrorEncoder(w, r, rest.Problem{
 			Status: http.StatusForbidden,
 			Code:   "POLICY_DENIED",
 			Detail: "Forbidden by policy.",
 		})
 	})
-	router.HandleFunc("GET /test/oops-localized", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, oops.
-			Code(codes.BookNotFound.String()).
-			With(codes.CtxKeyParams, map[string]string{"book_id": "01TEST"}).
-			Public("Book not found").
-			Errorf("book not found"))
-	})
-	router.HandleFunc("GET /test/oops-internal", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, oops.
-			Code(codes.BookInternal.String()).
-			With(codes.CtxKeyParams, map[string]string{"sql": "SELECT secret"}).
-			Wrapf(errors.New("db password leak"), "querying book"))
-	})
-	router.HandleFunc("GET /test/validation", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("GET /validation", func(w http.ResponseWriter, r *http.Request) {
 		var v validator.FieldViolations
-		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
-		rt.WriteProblem(w, r, v.Err())
+		v.Add("title", validator.KeyRequired, nil)
+		rest.DefaultErrorEncoder(w, r, v.Err())
 	})
-	router.HandleFunc("GET /test/deadline", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, context.DeadlineExceeded)
+	router.HandleFunc("GET /deadline", func(w http.ResponseWriter, r *http.Request) {
+		rest.DefaultErrorEncoder(w, r, context.DeadlineExceeded)
 	})
-	router.HandleFunc("GET /test/canceled", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, context.Canceled)
+	router.HandleFunc("GET /canceled", func(w http.ResponseWriter, r *http.Request) {
+		rest.DefaultErrorEncoder(w, r, context.Canceled)
 	})
-	router.HandleFunc("GET /test/unknown", func(w http.ResponseWriter, r *http.Request) {
-		rt.WriteProblem(w, r, errors.New("secret database connection string"))
+	router.HandleFunc("GET /unknown", func(w http.ResponseWriter, r *http.Request) {
+		rest.DefaultErrorEncoder(w, r, errors.New("secret connection string"))
 	})
-	router.HandleFunc("GET /test/panic", func(_ http.ResponseWriter, _ *http.Request) {
-		panic("unexpected crash")
+	router.HandleFunc("GET /panic", func(_ http.ResponseWriter, _ *http.Request) {
+		panic("boom")
+	})
+	router.HandleFunc("POST /decode", func(w http.ResponseWriter, r *http.Request) {
+		var dst struct {
+			Name string `json:"name"`
+		}
+		if err := rest.DecodeJSON(r, &dst); err != nil {
+			rest.DefaultErrorEncoder(w, r, err)
+			return
+		}
+		rest.WriteJSON(w, r, http.StatusOK, dst)
 	})
 
-	call := func(method, target, lang string) *httptest.ResponseRecorder {
-		req := httptest.NewRequest(method, target, nil)
-		if lang != "" {
-			req.Header.Set("Accept-Language", lang)
-		}
+	call := func(method, target, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, target, strings.NewReader(body))
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		return rec
 	}
 
-	// 1. Direct Problem -> fills type, title, instance, request_id
-	rec := call(http.MethodGet, "/test/problem", "")
-	p := testutil.AssertProblem(t, rec, http.StatusForbidden, "POLICY_DENIED")
-	assert.Equal(t, "about:blank", p.Type)
-	assert.Equal(t, "Forbidden", p.Title)
-	assert.Equal(t, "Forbidden by policy.", p.Detail)
-	assert.Equal(t, "/test/problem", p.Instance)
-	assert.Equal(t, rec.Header().Get(rest.HeaderRequestID), p.RequestID)
+	rec := call(http.MethodGet, "/problem", "")
+	assert.Equal(t, http.StatusForbidden, rec.Code)
+	p := decodeProblem(t, rec)
+	assert.Equal(t, "POLICY_DENIED", p.Code)
+	assert.Equal(t, "/problem", p.Instance)
 
-	// 2. oops with CtxKeyParams -> localized Chinese detail + exposed params
-	rec = call(http.MethodGet, "/test/oops-localized", "zh-CN")
-	p = testutil.AssertProblem(t, rec, http.StatusNotFound, "BOOK_NOT_FOUND")
-	assert.Equal(t, "未找到 ID 为 01TEST 的书籍。", p.Detail)
-	assert.Equal(t, map[string]string{"book_id": "01TEST"}, p.Params)
-
-	// 3. oops 5xx -> localized generic message, internal error & params hidden
-	rec = call(http.MethodGet, "/test/oops-internal", "zh-CN")
-	p = testutil.AssertProblem(t, rec, http.StatusInternalServerError, "BOOK_INTERNAL_ERROR")
-	assert.Equal(t, "处理书籍请求时发生内部错误。", p.Detail)
-	assert.NotContains(t, p.Detail, "db password leak")
-	assert.Empty(t, p.Params)
-
-	// 4. *validator.FieldViolations -> localized 400 + errors
-	rec = call(http.MethodGet, "/test/validation", "zh-CN")
-	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
-	assert.Equal(t, "请求参数校验失败。", p.Detail)
+	rec = call(http.MethodGet, "/validation", "")
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	p = decodeProblem(t, rec)
+	assert.Equal(t, rest.CodeValidationInvalid, p.Code)
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "title", p.Errors[0].Field)
-	assert.Equal(t, "title 不能为空。", p.Errors[0].Message)
 
-	// 5. context.DeadlineExceeded / context.Canceled (localized in zh-CN)
-	p = testutil.AssertProblem(t, call(http.MethodGet, "/test/deadline", "zh-CN"), http.StatusGatewayTimeout, "GATEWAY_TIMEOUT")
-	assert.Equal(t, "请求处理超时。", p.Detail)
-	p = testutil.AssertProblem(t, call(http.MethodGet, "/test/canceled", "zh-CN"), 499, "CLIENT_CLOSED_REQUEST")
-	assert.Equal(t, "客户端在服务端响应前关闭了连接。", p.Detail)
+	rec = call(http.MethodGet, "/deadline", "")
+	assert.Equal(t, http.StatusGatewayTimeout, rec.Code)
+	assert.Equal(t, rest.CodeGatewayTimeout, decodeProblem(t, rec).Code)
 
-	// 6. Unknown error -> 500 with details hidden
-	p = testutil.AssertProblem(t, call(http.MethodGet, "/test/unknown", ""), http.StatusInternalServerError, "INTERNAL_ERROR")
-	assert.NotContains(t, p.Detail, "secret database")
+	rec = call(http.MethodGet, "/canceled", "")
+	assert.Equal(t, rest.StatusClientClosedRequest, rec.Code)
+	assert.Equal(t, rest.CodeClientClosedRequest, decodeProblem(t, rec).Code)
 
-	// 7. Panic recovered -> 500 RFC 9457 Problem (preserving RequestID and negotiated locale)
-	rec = call(http.MethodGet, "/test/panic", "zh-CN")
-	p = testutil.AssertProblem(t, rec, http.StatusInternalServerError, "INTERNAL_ERROR")
-	assert.NotContains(t, p.Detail, "unexpected crash")
-	assert.Equal(t, "服务器内部错误。", p.Detail)
-	assert.NotEmpty(t, p.RequestID)
-	assert.Equal(t, rec.Header().Get(rest.HeaderRequestID), p.RequestID)
+	rec = call(http.MethodGet, "/unknown", "")
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	p = decodeProblem(t, rec)
+	assert.Equal(t, rest.CodeInternalError, p.Code)
+	assert.NotContains(t, p.Detail, "secret")
 
-	// 8. 404 & 405 from ServeMux converted to localized RFC 9457 Problem
-	p = testutil.AssertProblem(t, call(http.MethodGet, "/does-not-exist", "zh-CN"), http.StatusNotFound, "NOT_FOUND")
-	assert.Equal(t, "/does-not-exist", p.Instance)
-	assert.Equal(t, "请求的资源不存在。", p.Detail)
+	rec = call(http.MethodGet, "/panic", "")
+	assert.Equal(t, http.StatusInternalServerError, rec.Code)
+	assert.Equal(t, rest.CodeInternalError, decodeProblem(t, rec).Code)
 
-	rec = call(http.MethodPost, "/test/problem", "zh-CN")
-	p = testutil.AssertProblem(t, rec, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED")
-	assert.Equal(t, "该资源不支持当前 HTTP 方法。", p.Detail)
+	// Trailing JSON garbage rejected as 400 BAD_REQUEST.
+	rec = call(http.MethodPost, "/decode", `{"name":"a"}{"name":"b"}`)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	assert.Equal(t, rest.CodeBadRequest, decodeProblem(t, rec).Code)
+
+	// Oversized body rejected as 413 REQUEST_ENTITY_TOO_LARGE.
+	rec = call(http.MethodPost, "/decode", `{"name":"`+strings.Repeat("x", 128)+`"}`)
+	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
+	assert.Equal(t, rest.CodeRequestEntityTooLarge, decodeProblem(t, rec).Code)
+
+	// 404 & 405 converted to RFC 9457 Problem.
+	rec = call(http.MethodGet, "/missing", "")
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Equal(t, rest.CodeNotFound, decodeProblem(t, rec).Code)
+
+	rec = call(http.MethodPost, "/problem", "")
+	assert.Equal(t, http.StatusMethodNotAllowed, rec.Code)
+	assert.Equal(t, rest.CodeMethodNotAllowed, decodeProblem(t, rec).Code)
 	assert.Contains(t, rec.Header().Get("Allow"), "GET")
+
+	// Path-cleaning redirect from ServeMux is preserved (not converted to 404).
+	rec = call(http.MethodGet, "/foo/../problem", "")
+	assert.Equal(t, http.StatusTemporaryRedirect, rec.Code)
+	assert.Equal(t, "/problem", rec.Header().Get("Location"))
 }
 
 func TestHandler_StandaloneAndMounted(t *testing.T) {
 	t.Parallel()
 
-	// Standalone rest.Handler works directly as a standard http.Handler (Connect-Go style).
 	h := rest.NewHandler(func(mux *http.ServeMux) {
 		mux.HandleFunc("GET /ping/{name}", func(w http.ResponseWriter, r *http.Request) {
-			rest.DefaultRuntime().WriteJSON(w, http.StatusOK, map[string]string{"hello": r.PathValue("name")})
+			rest.WriteJSON(w, r, http.StatusOK, map[string]string{"hello": r.PathValue("name")})
 		})
 	})
 
@@ -150,49 +142,12 @@ func TestHandler_StandaloneAndMounted(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.JSONEq(t, `{"hello":"world"}`, rec.Body.String())
 
-	// Same rest.Handler mounts cleanly onto rest.Router.
-	router := rest.NewRouter(nil)
+	router := rest.NewRouter()
 	router.Mount(h)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ping/router", nil))
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.JSONEq(t, `{"hello":"router"}`, rec.Body.String())
-}
-
-func TestMiddlewares_RequestIDAndLocale(t *testing.T) {
-	t.Parallel()
-	env := testutil.New(t)
-	tr := do.MustInvoke[i18n.Translator](env.Injector)
-	rt := rest.New(tr)
-
-	var gotRID, gotLocale string
-	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotRID = appctx.RequestIDFromContext(r.Context())
-		gotLocale = appctx.LocaleFromContext(r.Context(), tr.Default()).String()
-		w.WriteHeader(http.StatusOK)
-	})
-
-	h := rest.RequestID()(rt.Locale()(inner))
-	req := httptest.NewRequest(http.MethodGet, "/?lang=zh-CN", nil)
-	req.Header.Set("Accept-Language", "en-US")
-	req.Header.Set(rest.HeaderRequestID, "rid-999")
-	rec := httptest.NewRecorder()
-	h.ServeHTTP(rec, req)
-
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "rid-999", gotRID)
-	assert.Equal(t, "rid-999", rec.Header().Get(rest.HeaderRequestID))
-	assert.Equal(t, "zh-CN", gotLocale)
-}
-
-func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
-	t.Parallel()
-	cfg := testutil.DefaultConfig()
-	srv := rest.NewServer(&cfg, http.NewServeMux())
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	require.NoError(t, srv.Shutdown(ctx))
 }
 
 func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
@@ -231,7 +186,7 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 		}),
 	)
 
-	// 1. OR: BearerAuth | ApiKeyAuth (second scheme succeeds when first fails).
+	// 1. OR: BearerAuth | ApiKeyAuth.
 	orHandler := cfg.Wrap(rest.Operation{
 		ID:   "dualAuth",
 		Auth: [][]string{{"BearerAuth"}, {"ApiKeyAuth"}},
@@ -245,7 +200,7 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 	orHandler.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	// 2. AND: [BearerAuth, ApiKeyAuth] requires both.
+	// 2. AND: [BearerAuth, ApiKeyAuth].
 	andHandler := cfg.Wrap(rest.Operation{
 		ID:   "bothAuth",
 		Auth: [][]string{{"BearerAuth", "ApiKeyAuth"}},
@@ -258,7 +213,8 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer ok")
 	rec = httptest.NewRecorder()
 	andHandler.ServeHTTP(rec, req)
-	testutil.AssertProblem(t, rec, http.StatusUnauthorized, "API_KEY_INVALID")
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, "API_KEY_INVALID", decodeProblem(t, rec).Code)
 
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer ok")
@@ -267,7 +223,7 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 	andHandler.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 
-	// 3. Optional auth: BearerAuth | NoAuth allows anonymous pass-through.
+	// 3. Optional auth: BearerAuth | NoAuth.
 	optHandler := cfg.Wrap(rest.Operation{
 		ID:   "optAuth",
 		Auth: [][]string{{"BearerAuth"}, {}},

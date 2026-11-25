@@ -202,25 +202,24 @@ type BooksHandler interface {
 // 可直接挂载到 rest.Router（router.Mount(api.NewBooksHandler(impl, ...))），也可独立用于 httptest。
 func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler {
 	cfg := rest.ApplyHandlerOptions(opts...)
-	rt := cfg.Runtime
 	return rest.NewHandler(func(mux *http.ServeMux) {
 		mux.Handle("POST /api/v1/books", cfg.Wrap(rest.Operation{ID: "createBook", Method: http.MethodPost, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req CreateBookRequest
-			if err := rt.DecodeJSON(r, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.DecodeJSON(r, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.CreateBook(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusCreated, res)
+			rest.WriteJSON(w, r, http.StatusCreated, res)
 		}))
 
 		mux.Handle("GET /api/v1/books", cfg.Wrap(rest.Operation{ID: "listBooks", Method: http.MethodGet, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
@@ -228,27 +227,27 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 			var req ListBooksRequest
 			q := r.URL.Query()
 			var qv validator.FieldViolations
-			req.Page = rt.ParseInt32Query(q, "page", &qv)
-			req.PageSize = rt.ParseInt32Query(q, "page_size", &qv)
+			req.Page = rest.ParseInt32Query(q, "page", &qv)
+			req.PageSize = rest.ParseInt32Query(q, "page_size", &qv)
 			req.OrderBy = q.Get("order_by")
 			req.Title = q.Get("title")
 			req.Author = q.Get("author")
-			req.MinPrice = rt.ParseOptionalFloat64Query(q, "min_price", &qv)
-			req.MaxPrice = rt.ParseOptionalFloat64Query(q, "max_price", &qv)
+			req.MinPrice = rest.ParseOptionalFloat64Query(q, "min_price", &qv)
+			req.MaxPrice = rest.ParseOptionalFloat64Query(q, "max_price", &qv)
 			if err := qv.Err(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.ListBooks(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("GET /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "getBook", Method: http.MethodGet, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
@@ -256,35 +255,35 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 			var req GetBookRequest
 			req.Book = r.PathValue("book")
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.GetBook(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("PUT /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "replaceBook", Method: http.MethodPut, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req ReplaceBookRequest
-			if err := rt.DecodeJSON(r, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.DecodeJSON(r, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			req.Book = r.PathValue("book")
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.ReplaceBook(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("PATCH /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "patchBook", Method: http.MethodPatch, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
@@ -293,30 +292,30 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 			var getReq GetBookRequest
 			getReq.Book = r.PathValue("book")
 			if err := getReq.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			current, err := impl.GetBook(ctx, &getReq)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			var req ReplaceBookRequest
-			if err := rt.ApplyPatch(r, current, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.ApplyPatch(r, current, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			req.Book = r.PathValue("book")
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.ReplaceBook(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("DELETE /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "deleteBook", Method: http.MethodDelete, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
@@ -324,14 +323,14 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 			var req DeleteBookRequest
 			req.Book = r.PathValue("book")
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := impl.DeleteBook(ctx, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteNoContent(w)
+			rest.WriteNoContent(w)
 		}))
 
 	})

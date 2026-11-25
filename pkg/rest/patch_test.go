@@ -2,13 +2,12 @@ package rest_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
-	"github.com/samber/oops"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/rest"
 )
 
@@ -60,9 +59,10 @@ func TestApplyMergePatch_UnsupportedMediaTypes(t *testing.T) {
 		_, err := rest.ApplyMergePatch([]byte(samplePatchDoc), []byte(`{}`), ct)
 		require.Error(t, err, "contentType=%q", ct)
 
-		var oe oops.OopsError
-		require.ErrorAs(t, err, &oe)
-		assert.Equal(t, codes.PatchUnsupportedMediaType.String(), oe.Code())
+		p, ok := errors.AsType[rest.Problem](err)
+		require.True(t, ok)
+		assert.Equal(t, 415, p.Status)
+		assert.Equal(t, rest.CodePatchUnsupportedMediaType, p.Code)
 	}
 }
 
@@ -76,9 +76,10 @@ func TestApplyMergePatch_InvalidJSONAndTrailingGarbage(t *testing.T) {
 		_, err := rest.ApplyMergePatch([]byte(samplePatchDoc), []byte(body), rest.ContentTypeMergePatch)
 		require.Error(t, err, "body=%q", body)
 
-		var oe oops.OopsError
-		require.ErrorAs(t, err, &oe)
-		assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
+		p, ok := errors.AsType[rest.Problem](err)
+		require.True(t, ok)
+		assert.Equal(t, 400, p.Status)
+		assert.Equal(t, rest.CodePatchInvalid, p.Code)
 	}
 }
 
@@ -97,12 +98,13 @@ func TestApplyMergePatchInto_SuccessAndTypeMismatch(t *testing.T) {
 	var bad target
 	err := rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`{"price":"not-a-number"}`), rest.ContentTypeMergePatch, &bad)
 	require.Error(t, err)
-	var oe oops.OopsError
-	require.ErrorAs(t, err, &oe)
-	assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
+	p, ok := errors.AsType[rest.Problem](err)
+	require.True(t, ok)
+	assert.Equal(t, rest.CodePatchInvalid, p.Code)
 
 	err = rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`[{"op":"replace","path":"/title","value":"x"}]`), rest.ContentTypeMergePatch, &bad)
 	require.Error(t, err)
-	require.ErrorAs(t, err, &oe)
-	assert.Equal(t, codes.PatchInvalid.String(), oe.Code())
+	p, ok = errors.AsType[rest.Problem](err)
+	require.True(t, ok)
+	assert.Equal(t, rest.CodePatchInvalid, p.Code)
 }

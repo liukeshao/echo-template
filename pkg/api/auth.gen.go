@@ -98,72 +98,71 @@ type AuthHandler interface {
 // 可直接挂载到 rest.Router（router.Mount(api.NewAuthHandler(impl, ...))），也可独立用于 httptest。
 func NewAuthHandler(impl AuthHandler, opts ...rest.HandlerOption) rest.Handler {
 	cfg := rest.ApplyHandlerOptions(opts...)
-	rt := cfg.Runtime
 	return rest.NewHandler(func(mux *http.ServeMux) {
 		mux.Handle("POST /api/v1/auth/register", cfg.Wrap(rest.Operation{ID: "register", Method: http.MethodPost, Pattern: "/api/v1/auth/register"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req RegisterRequest
-			if err := rt.DecodeJSON(r, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.DecodeJSON(r, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.Register(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusCreated, res)
+			rest.WriteJSON(w, r, http.StatusCreated, res)
 		}))
 
 		mux.Handle("POST /api/v1/auth/login", cfg.Wrap(rest.Operation{ID: "login", Method: http.MethodPost, Pattern: "/api/v1/auth/login"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req LoginRequest
-			if err := rt.DecodeJSON(r, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.DecodeJSON(r, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.Login(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("POST /api/v1/auth/refresh", cfg.Wrap(rest.Operation{ID: "refreshToken", Method: http.MethodPost, Pattern: "/api/v1/auth/refresh"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req RefreshTokenRequest
-			if err := rt.DecodeJSON(r, &req); err != nil {
-				rt.WriteProblem(w, r, err)
+			if err := rest.DecodeJSON(r, &req); err != nil {
+				cfg.WriteError(w, r, err)
 				return
 			}
 			if err := req.Validate(); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
 			res, err := impl.RefreshToken(ctx, &req)
 			if err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteJSON(w, http.StatusOK, res)
+			rest.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
 		mux.Handle("POST /api/v1/auth/logout", cfg.Wrap(rest.Operation{ID: "logout", Method: http.MethodPost, Pattern: "/api/v1/auth/logout", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			if err := impl.Logout(ctx); err != nil {
-				rt.WriteProblem(w, r, err)
+				cfg.WriteError(w, r, err)
 				return
 			}
-			rt.WriteNoContent(w)
+			rest.WriteNoContent(w)
 		}))
 
 	})

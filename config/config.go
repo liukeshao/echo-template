@@ -10,26 +10,27 @@ import (
 
 const defaultInsecureJWTSecret = "your-super-secret-jwt-key-change-this-in-production"
 
-type environment string
+// Environment represents the application runtime environment.
+type Environment string
 
 const (
 	// EnvLocal represents the local environment.
-	EnvLocal environment = "local"
+	EnvLocal Environment = "local"
 
 	// EnvTest represents the test environment.
-	EnvTest environment = "test"
+	EnvTest Environment = "test"
 
 	// EnvDevelop represents the development environment.
-	EnvDevelop environment = "dev"
+	EnvDevelop Environment = "dev"
 
 	// EnvStaging represents the staging environment.
-	EnvStaging environment = "staging"
+	EnvStaging Environment = "staging"
 
 	// EnvQA represents the qa environment.
-	EnvQA environment = "qa"
+	EnvQA Environment = "qa"
 
 	// EnvProduction represents the production environment.
-	EnvProduction environment = "prod"
+	EnvProduction Environment = "prod"
 )
 
 type (
@@ -37,15 +38,23 @@ type (
 	Config struct {
 		HTTP     HTTPConfig
 		App      AppConfig
+		Auth     AuthConfig
 		Database DatabaseConfig
 		JWT      JWTConfig
 		Clients  ClientsConfig
 		I18n     I18nConfig
 	}
 
+	// AuthConfig stores authentication policy settings.
+	AuthConfig struct {
+		// BcryptCost sets the bcrypt hashing cost (4–31).
+		// Zero uses services.DefaultBcryptCost (12).
+		BcryptCost int
+	}
+
 	// I18nConfig 控制错误消息与字段校验消息的本地化行为。
 	//
-	// 加载的翻译文件位于 pkg/i18n/messages/<locale>.toml，通过 embed.FS 打包进二进制。
+	// 加载的翻译文件位于 internal/i18n/messages/<locale>.toml，通过 embed.FS 打包进二进制。
 	// DefaultLocale 必须同时出现在 SupportedLocales 中，否则 i18n.NewTranslator 启动失败。
 	I18nConfig struct {
 		// DefaultLocale 为 fallback 语言；所有已注册错误码必须在该 locale 存在翻译。
@@ -54,7 +63,7 @@ type (
 		SupportedLocales []string
 	}
 
-	// HTTPConfig stores HTTP server configuration for rest.Server (*http.Server).
+	// HTTPConfig stores HTTP server configuration for server.Server (*http.Server).
 	HTTPConfig struct {
 		Hostname string
 		Port     uint16
@@ -73,7 +82,7 @@ type (
 	AppConfig struct {
 		Name        string
 		Host        string
-		Environment environment
+		Environment Environment
 	}
 
 	// JWTConfig stores JWT configuration.
@@ -106,17 +115,19 @@ type (
 		BaseURL string
 		// APIKey is the credential passed via the Authorization / X-API-Key header.
 		APIKey string
-		// Timeout overrides the shared *http.Client timeout for this API.
-		// Zero means the shared default (10 s) is used.
+		// Timeout sets the total request timeout (including retries) for this API.
+		// Zero inherits the shared default (10 s).
 		Timeout time.Duration
-		// Retry is the maximum number of additional attempts on transient errors.
+		// Retry is the maximum number of additional attempts on transient errors
+		// (network errors, HTTP 429/502/503/504) for idempotent requests, enforced
+		// automatically by httpclient.Client.WithOptions.
 		// 0 = no retry, 1 = one retry (two total attempts), etc.
 		Retry int
 	}
 )
 
-// GetConfig loads and returns configuration.
-func GetConfig() (Config, error) {
+// Load loads, validates, and returns configuration.
+func Load() (Config, error) {
 	var c Config
 	v := viper.New()
 
@@ -163,6 +174,9 @@ func (c *Config) Validate() error {
 	}
 	if c.JWT.AccessTokenExpiry <= 0 || c.JWT.RefreshTokenExpiry <= 0 {
 		return fmt.Errorf("config: jwt token expiries must be positive")
+	}
+	if c.Auth.BcryptCost != 0 && (c.Auth.BcryptCost < 4 || c.Auth.BcryptCost > 31) {
+		return fmt.Errorf("config: auth.bcryptCost must be 0 (default) or between 4 and 31")
 	}
 	return nil
 }

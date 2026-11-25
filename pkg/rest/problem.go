@@ -1,3 +1,5 @@
+// Package rest 提供基于 Go 1.22+ 标准库 net/http 的轻量、零外部依赖 REST 协议原语，
+// 配合 TypeSpec Emitter 生成的 api.NewXxxHandler 实现 Connect-Go v2 风格的零反射传输层。
 package rest
 
 import (
@@ -7,20 +9,29 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strings"
 
-	"github.com/samber/oops"
-	"golang.org/x/text/language"
-
-	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
 // ContentTypeProblemJSON 是 RFC 9457 Problem Details 的标准媒体类型。
 const ContentTypeProblemJSON = "application/problem+json"
 
-const statusClientClosedRequest = 499
+// HTTP 传输层与协议通用错误码常量。
+const (
+	CodeBadRequest                = "BAD_REQUEST"
+	CodeNotFound                  = "NOT_FOUND"
+	CodeMethodNotAllowed          = "METHOD_NOT_ALLOWED"
+	CodeRequestEntityTooLarge     = "REQUEST_ENTITY_TOO_LARGE"
+	CodeGatewayTimeout            = "GATEWAY_TIMEOUT"
+	CodeClientClosedRequest       = "CLIENT_CLOSED_REQUEST"
+	CodeInternalError             = "INTERNAL_ERROR"
+	CodeValidationInvalid         = "VALIDATION_INVALID"
+	CodePatchInvalid              = "PATCH_INVALID"
+	CodePatchUnsupportedMediaType = "PATCH_UNSUPPORTED_MEDIA_TYPE"
+)
+
+// StatusClientClosedRequest 是客户端提前断开连接时使用的非标准 HTTP 状态码（499）。
+const StatusClientClosedRequest = 499
 
 // Problem 遵循 RFC 9457 (Problem Details for HTTP APIs) 的扁平、强类型 HTTP 错误响应。
 type Problem struct {
@@ -46,43 +57,31 @@ type FieldError struct {
 	Message string `json:"message"`
 }
 
-// WriteProblem 将任意 error 分类并渲染为 RFC 9457 (application/problem+json) 响应。
-//
-// 分类优先级：
-//  1. Problem / *Problem                  — 直接使用并补全缺省字段
-//  2. oops.OopsError（含 Code）            — 经 pkg/codes 映射 HTTP 状态码并本地化
-//  3. *validator.FieldViolations          — 400 VALIDATION_INVALID + 本地化字段 errors
-//  4. *http.MaxBytesError                 — 413 REQUEST_ENTITY_TOO_LARGE
-//  5. context.DeadlineExceeded / Canceled — 504 / 499
-//  6. 其他未知错误                         — 500 INTERNAL_ERROR（隐藏内部细节）
-func (rt *Runtime) WriteProblem(w http.ResponseWriter, r *http.Request, err error) {
-	if err == nil {
-		return
-	}
-	ctx := r.Context()
-	loc := appctx.LocaleFromContext(ctx, rt.translator.Default())
+// ErrorEncoder 将任意 error 渲染为 HTTP 错误响应（通常为 RFC 9457 application/problem+json）。
+// 应用层可注入自定义 ErrorEncoder 以接入业务错误码注册表、i18n 与链路追踪 ID。
+type ErrorEncoder func(w http.ResponseWriter, r *http.Request, err error)
 
-	p := rt.classifyError(err, loc)
+// WriteProblem 补全 Problem 缺省字段并写出 RFC 9457 (application/problem+json) 响应。
+func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
+	if p.Status == 0 {
+		p.Status = http.StatusInternalServerError
+	}
 	if p.Type == "" {
 		p.Type = "about:blank"
 	}
 	if p.Title == "" {
-		p.Title = httpStatusTitle(p.Status)
+		p.Title = StatusTitle(p.Status)
 	}
-	if p.Instance == "" && r.URL != nil {
+	if p.Detail == "" {
+		p.Detail = p.Title
+	}
+	if p.Instance == "" && r != nil && r.URL != nil {
 		p.Instance = r.URL.Path
 	}
-	if p.RequestID == "" {
-		p.RequestID = appctx.RequestIDFromContext(ctx)
-	}
 
-	if p.Status >= http.StatusInternalServerError {
-		slog.ErrorContext(ctx, "unhandled error", "status", p.Status, "code", p.Code, "error", err)
-	}
-
-	body, marshalErr := json.Marshal(p)
-	if marshalErr != nil {
-		slog.ErrorContext(ctx, "failed to marshal problem", "error", marshalErr)
+	body, err := json.Marshal(p)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "failed to marshal problem", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -91,131 +90,76 @@ func (rt *Runtime) WriteProblem(w http.ResponseWriter, r *http.Request, err erro
 	_, _ = w.Write(body)
 }
 
-func (rt *Runtime) classifyError(err error, loc language.Tag) Problem {
+// DefaultErrorEncoder 是不依赖外部业务错误库或 i18n 的默认 RFC 9457 编码器，
+// 适合独立单测或轻量服务零配置运行。
+func DefaultErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+	if err == nil {
+		return
+	}
+
+	p := classifyDefaultError(err)
+	if p.Status >= http.StatusInternalServerError {
+		p.Params = nil
+		slog.ErrorContext(r.Context(), "unhandled error", "status", p.Status, "code", p.Code, "error", err)
+	}
+	WriteProblem(w, r, p)
+}
+
+func classifyDefaultError(err error) Problem {
 	if p, ok := errors.AsType[Problem](err); ok {
-		return rt.fillProblemDetail(p, loc)
+		return p
 	}
 	if p, ok := errors.AsType[*Problem](err); ok && p != nil {
-		return rt.fillProblemDetail(*p, loc)
-	}
-	if oopsErr, ok := errors.AsType[oops.OopsError](err); ok {
-		if codeStr, _ := oopsErr.Code().(string); codeStr != "" {
-			return rt.classifyOops(oopsErr, codeStr, loc)
-		}
+		return *p
 	}
 	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok {
-		return rt.classifyFieldViolations(fv, loc)
+		viols := fv.Items()
+		fieldErrs := make([]FieldError, 0, len(viols))
+		for _, it := range viols {
+			fieldErrs = append(fieldErrs, FieldError{
+				Field:   it.Field,
+				Message: it.Key,
+			})
+		}
+		return Problem{
+			Status: http.StatusBadRequest,
+			Code:   CodeValidationInvalid,
+			Detail: "Request validation failed.",
+			Errors: fieldErrs,
+		}
 	}
 	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
 		return Problem{
 			Status: http.StatusRequestEntityTooLarge,
-			Code:   "REQUEST_ENTITY_TOO_LARGE",
-			Detail: rt.translateFallback(loc, "fallback.request_entity_too_large", "Request body exceeds the maximum allowed size."),
+			Code:   CodeRequestEntityTooLarge,
+			Detail: "Request body exceeds the maximum allowed size.",
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return Problem{
 			Status: http.StatusGatewayTimeout,
-			Code:   "GATEWAY_TIMEOUT",
-			Detail: rt.translateFallback(loc, "fallback.gateway_timeout", "The request timed out."),
+			Code:   CodeGatewayTimeout,
+			Detail: "The request timed out.",
 		}
 	}
 	if errors.Is(err, context.Canceled) {
 		return Problem{
-			Status: statusClientClosedRequest,
+			Status: StatusClientClosedRequest,
 			Title:  "Client Closed Request",
-			Code:   "CLIENT_CLOSED_REQUEST",
-			Detail: rt.translateFallback(loc, "fallback.client_closed_request", "Client closed the request before the server could respond."),
+			Code:   CodeClientClosedRequest,
+			Detail: "Client closed the request before the server could respond.",
 		}
 	}
 	return Problem{
 		Status: http.StatusInternalServerError,
-		Code:   "INTERNAL_ERROR",
-		Detail: rt.translateFallbackInternal(loc),
+		Code:   CodeInternalError,
+		Detail: "An internal server error occurred.",
 	}
 }
 
-func (rt *Runtime) fillProblemDetail(p Problem, loc language.Tag) Problem {
-	if p.Detail != "" {
-		return p
-	}
-	if p.Code != "" {
-		if msg, _, ok := rt.translator.T(loc, "fallback."+strings.ToLower(p.Code), nil); ok {
-			p.Detail = msg
-			return p
-		}
-	}
-	p.Detail = httpStatusTitle(p.Status)
-	return p
-}
-
-func (rt *Runtime) classifyOops(oopsErr oops.OopsError, codeStr string, loc language.Tag) Problem {
-	status := codes.HTTPStatus(codes.Code(codeStr))
-	params, _ := oopsErr.Context()[codes.CtxKeyParams].(map[string]string)
-
-	detail, _, ok := rt.translator.T(loc, "errors."+codeStr, params)
-	if !ok {
-		if status >= http.StatusInternalServerError {
-			detail = rt.translateFallbackInternal(loc)
-		} else if pub := oops.GetPublic(oopsErr, ""); pub != "" {
-			detail = pub
-		} else {
-			detail = httpStatusTitle(status)
-		}
-	}
-
-	// 5xx 错误不对外透出 params，防止意外泄漏内部上下文。
-	var publicParams map[string]string
-	if status < http.StatusInternalServerError && len(params) > 0 {
-		publicParams = params
-	}
-	return Problem{
-		Status: status,
-		Code:   codeStr,
-		Detail: detail,
-		Params: publicParams,
-	}
-}
-
-func (rt *Runtime) classifyFieldViolations(fv *validator.FieldViolations, loc language.Tag) Problem {
-	viols := fv.Items()
-	fieldErrs := make([]FieldError, 0, len(viols))
-	for _, it := range viols {
-		msg, _, ok := rt.translator.T(loc, it.Key, it.Vars)
-		if !ok {
-			msg = it.Key
-		}
-		fieldErrs = append(fieldErrs, FieldError{
-			Field:   it.Field,
-			Message: msg,
-		})
-	}
-	codeStr := codes.ValidationInvalid.String()
-	detail, _, ok := rt.translator.T(loc, "errors."+codeStr, nil)
-	if !ok {
-		detail = "Request validation failed."
-	}
-	return Problem{
-		Status: codes.HTTPStatus(codes.ValidationInvalid),
-		Code:   codeStr,
-		Detail: detail,
-		Errors: fieldErrs,
-	}
-}
-
-func (rt *Runtime) translateFallback(loc language.Tag, key, defaultMsg string) string {
-	if msg, _, ok := rt.translator.T(loc, key, nil); ok {
-		return msg
-	}
-	return defaultMsg
-}
-
-func (rt *Runtime) translateFallbackInternal(loc language.Tag) string {
-	return rt.translateFallback(loc, "fallback.internal", "An internal server error occurred.")
-}
-
-func httpStatusTitle(status int) string {
-	if status == statusClientClosedRequest {
+// StatusTitle 返回 HTTP 状态码对应的标准短标题（兼容 499 Client Closed Request）。
+func StatusTitle(status int) string {
+	if status == StatusClientClosedRequest {
 		return "Client Closed Request"
 	}
 	if text := http.StatusText(status); text != "" {

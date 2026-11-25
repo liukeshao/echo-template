@@ -1,0 +1,82 @@
+// Package main is the entry point of the application.
+//
+//go:generate make -C ../.. api
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"os"
+	"os/signal"
+	"strings"
+	"syscall"
+
+	"github.com/samber/do/v2"
+
+	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/internal/client"
+	"github.com/liukeshao/echo-template/internal/database"
+	"github.com/liukeshao/echo-template/internal/handler"
+	"github.com/liukeshao/echo-template/internal/i18n"
+	"github.com/liukeshao/echo-template/internal/logging"
+	"github.com/liukeshao/echo-template/internal/server"
+	"github.com/liukeshao/echo-template/internal/service"
+)
+
+func main() {
+	// 1. Config (bootstrap — needed before DI starts)
+	cfg, err := config.Load()
+	fatal("load config", err)
+
+	// 2. Log
+	logging.Setup(&cfg)
+
+	// 3. DI container
+	i := do.New(database.Package, i18n.Package, client.Package, service.Package, handler.Package, server.Package)
+	do.ProvideValue(i, &cfg)
+
+	// 4. Start HTTP server
+	srv := do.MustInvoke[*server.Server](i)
+	if cfg.App.Environment != config.EnvProduction {
+		slog.Info("API docs", "url", fmt.Sprintf("%s/docs", strings.TrimRight(cfg.App.Host, "/")))
+	}
+
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
+	go func() {
+		errCh <- srv.Start()
+	}()
+
+	// 5. Block until SIGINT/SIGTERM or unexpected server startup/listen failure,
+	//    then shut down all DI services in order: Server (drain HTTP) → ORM → DB.
+	var startErr error
+	select {
+	case <-sigCtx.Done():
+		slog.Info("shutting down on signal")
+	case err := <-errCh:
+		if err != nil {
+			startErr = err
+			slog.Error("server stopped with error", "error", err)
+		}
+	}
+
+	report := i.ShutdownWithContext(context.Background())
+	if !report.Succeed {
+		slog.Error("shutdown errors", "errors", report.Errors)
+		os.Exit(1)
+	}
+	if startErr != nil {
+		os.Exit(1)
+	}
+	slog.Info("shutdown complete")
+}
+
+func fatal(msg string, err error) {
+	if err != nil {
+		slog.Error(msg, "error", err)
+		os.Exit(1)
+	}
+}

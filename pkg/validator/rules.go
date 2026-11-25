@@ -9,7 +9,7 @@ import (
 
 // 翻译键常量。集中定义避免字符串散落各处；任何新规则须同时新增 key 与翻译。
 //
-// 与 pkg/i18n/messages/*.toml 中 [validation] section 的键一一对应。
+// 与 internal/i18n/messages/*.toml 中 [validation] section 的键一一对应。
 const (
 	KeyRequired                = "validation.required"
 	KeyMinLength               = "validation.min_length"

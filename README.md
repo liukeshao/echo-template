@@ -7,7 +7,7 @@
 | 分层 | 选型 |
 |---|---|
 | API 契约 & 代码生成 | TypeSpec 1.18 + `@typespec/openapi3` (OpenAPI 3.1) + 自研 `go-rest` Emitter |
-| HTTP 运行时 | Go 1.22+ 标准库 `net/http` (`*http.ServeMux`) + 轻量 `pkg/rest`（`Router` / `Runtime` / `Handler` / `Server`，零第三方 Web 框架）|
+| HTTP 运行时 | Go 1.22+ 标准库 `net/http` (`*http.ServeMux`) + 零依赖 `pkg/rest`（`Router` / `Handler` / `ErrorEncoder` / 无状态编解码 / RFC 9457 / RFC 7386）+ `internal/server` |
 | Handler 接口风格 | Connect-Go v2 风格无泛型纯 Go 方法 `(ctx context.Context, req *api.Req) (*api.Resp, error)` |
 | 依赖注入 | samber/do v2 |
 | ORM | entgo v0.14 + SQLite（可换 PostgreSQL/MySQL）|
@@ -26,29 +26,32 @@
 api/
   spec/                 TypeSpec 契约单一事实来源（main.tsp、common/*、domains/*）
   emitters/go-rest/     自研 TypeSpec Go Emitter（同步生成 pkg/api/*.gen.go）
-cmd/                    应用入口（main.go）
+cmd/
+  server/               应用入口（main.go）
 config/                 配置定义与加载（Viper）
 ent/
   schema/               实体 schema 定义（改这里，然后 make ent）
   *.go                  ent 自动生成代码（不要手改）
-pkg/
+pkg/                    纯公共、零 internal/ 与零三方依赖的可复用包
   api/                  TypeSpec 生成的平铺 DTO、Validate()、Handler 接口与 api.NewXxxHandler 适配器
-  appctx/               context 工具（user、request_id、locale）
-  clients/              第三方 API 客户端（每个 API 一个子包）
+  rest/                 纯标准库 net/http REST 原语（Router、Handler、ErrorEncoder、无状态编解码、RFC 9457 Problem、RFC 7386 Merge Patch）
+  validator/            FieldViolations + 原子校验规则（含 UUID / Email / Username / Password）
+internal/               应用私有实现
+  client/               第三方 API 客户端（每个 API 一个子包）
     <apiname>/
       interface.go      API interface + 响应 DTO（service 层唯一依赖）
-      client.go         具体实现（从 DI 取 config + HTTPClient）
+      client.go         具体实现（从 DI 取 config + httpclient.Client）
       errors.go         oops 错误构造辅助
-      package.go        do.Package(do.Lazy(NewXxxClient), do.Bind[*Client, API]())
+      package.go        do.Package(do.Lazy(NewClient), do.Bind[*Client, API]())
   codes/                业务错误码 → HTTP 状态码注册表
-  handlers/             三层编排 Handler（Auth / Me / Book，纯 Go 零 net/http 依赖）+ router（含 BearerAuth 与 NewServer）+ docs
-  i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商）
-  infra/                DB / ORM / 共享 HTTPClient + Retry 基础设施（DI 生命周期）
-  log/                  slog ContextHandler（日志自动带 request_id）
-  rest/                 轻量 net/http REST 运行时（Router、Handler、Option、AuthMiddleware、RFC 9457 Problem、RFC 7386 Merge Patch、优雅停机 Server）
-  services/             领域服务（业务逻辑、分页规范化、bcrypt 密码策略与各自资源的 ent 查询条件）
+  database/             DB / ORM 基础设施（DI 生命周期）
+  handler/              纯 Go 业务编排与 DTO 投影 Handler（Auth / Me / Book，彻底零 net/http 依赖）
+  httpclient/           共享 HTTPClient 连接池与内置超时/重试 RoundTripper（通过 WithOptions 按外部 API 派生，零数据库/ORM 依赖）
+  i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商 + locale context）
+  logging/              slog ContextHandler（日志自动带 request_id + request_id context）
+  server/               HTTP 传输装配层（Server 优雅停机、NewProblemEncoder、RequestID/Locale 中间件、BuildRouter、BearerAuth、Docs）
+  service/              领域服务（业务逻辑、分页规范化、bcrypt 密码策略与各自资源的 ent 查询条件）
   testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
-  validator/            FieldViolations + 原子校验规则（含 UUID / Email / Username / Password）
 static/                 Stoplight Elements + OpenAPI 3.1 YAML（embed.FS）
 .apitest/               IDE HTTP Client 测试文件
 ```
@@ -62,7 +65,7 @@ cd echo-template
 go mod download
 
 # 2. 启动（首次运行自动建表；运行时零 Node 依赖）
-go run ./cmd/
+go run ./cmd/server
 
 # 3. 查看 API 文档（非生产环境）
 open http://localhost:8000/docs
@@ -75,7 +78,7 @@ make api
 配置文件为 `config/config.toml`，所有字段均可通过环境变量覆盖，前缀 `ECHO_TEMPLATE_`，例如：
 
 ```bash
-ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/
+ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/server
 ```
 
 ## API 风格与 PATCH（RFC 7386）
@@ -92,7 +95,7 @@ ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/
 
 在 TypeSpec 中为 `patch` 操作标注 `@autoPatch(Domain.getXxx, Domain.replaceXxx)` 后：
 - OpenAPI 3.1 会记录强类型的 `PatchXxxRequest` Schema 及 `415 Unsupported Media Type`。
-- 生成的 `api.<Domain>Handler` 接口**无需**手写 `Patch` 方法，`api.New<Domain>Handler` 会自动串联 `Get → rt.ApplyPatch → Validate → Replace`。
+- 生成的 `api.<Domain>Handler` 接口**无需**手写 `Patch` 方法，`api.New<Domain>Handler` 会自动串联 `Get → rest.ApplyPatch → Validate → Replace`。
 
 | Content-Type                   | 主体格式                                 | 示例                                      |
 |--------------------------------|------------------------------------------|-------------------------------------------|
@@ -156,29 +159,29 @@ make api
 make ent
 ```
 
-**3. 错误码与国际化**（`pkg/codes/order.go` + `pkg/i18n/messages/{en,zh-CN}.toml`）
+**3. 错误码与国际化**（`internal/codes/order.go` + `internal/i18n/messages/{en,zh-CN}.toml`）
 
 ```go
 const (
     OrderNotFound      Code = "ORDER_NOT_FOUND"
     OrderAlreadyExists Code = "ORDER_ALREADY_EXISTS"
-    OrderInternal      Code = "ORDER_INTERNAL_ERROR"
+    OrderInternalError Code = "ORDER_INTERNAL_ERROR"
 )
 
 func init() {
     Register(OrderNotFound,      http.StatusNotFound)
     Register(OrderAlreadyExists, http.StatusConflict)
-    Register(OrderInternal,      http.StatusInternalServerError)
+    Register(OrderInternalError, http.StatusInternalServerError)
 }
 ```
 
-**4. Service**（`pkg/services/order.go` + 注册到 `pkg/services/package.go`）
+**4. Service**（`internal/service/order.go` + 注册到 `internal/service/package.go`）
 
 实现 `Create` / `Get` / `List` / `Replace` / `Delete`（返回 `*ent.Order`），各资源的列表查询条件直接按对应 `ListXxxRequest` 字段构造 ent predicate。
 
-**5. Handler**（`pkg/handlers/order.go` + `pkg/handlers/package.go` + `pkg/handlers/router.go`）
+**5. Handler & 路由挂载**（`internal/handler/order.go` + `internal/handler/package.go` + `internal/server/router.go`）
 
-实现生成的 `api.OrdersHandler` 纯 Go 接口（编排多 Service + `toOrder` 投影，无需依赖 `net/http` 或写 `Mount` 方法）；在 `package.go` 注册 `do.Lazy(NewOrder)`，在 `router.go` 中挂载 `api.NewOrdersHandler(do.MustInvoke[*Order](i), opts...)`。
+实现生成的 `api.OrdersHandler` 纯 Go 接口（编排多 Service + `toOrder` 投影，无需依赖 `net/http` 或写 `Mount` 方法）；在 `internal/handler/package.go` 注册 `do.Lazy(NewOrder)`，在 `internal/server/router.go` 中挂载 `api.NewOrdersHandler(do.MustInvoke[*handler.Order](i), opts...)`。
 
 ## 错误处理约定
 
@@ -186,7 +189,7 @@ func init() {
 
 ```go
 // 领域内部错误（对外隐藏细节与 params）
-oops.Code(codes.OrderInternal.String()).Tags("order").Wrapf(err, "%s", op)
+oops.Code(codes.OrderInternalError.String()).Tags("order").Wrapf(err, "%s", op)
 
 // 客户端错误（携带 params 供 i18n 模板插值与 Problem.Params 暴露）
 oops.Code(codes.OrderNotFound.String()).
@@ -195,7 +198,7 @@ oops.Code(codes.OrderNotFound.String()).
     Errorf("order not found")
 ```
 
-`rest.Runtime.WriteProblem` 自动将错误转换为 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
+`server.NewProblemEncoder` 自动将错误转换为 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
 
 ## 命令
 

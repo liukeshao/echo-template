@@ -8,15 +8,15 @@ import (
 )
 
 // Authenticator 实现单个命名认证方案（与 TypeSpec @useAuth 名称对应，如 "BearerAuth"、"ApiKeyAuth"）。
-// 认证成功时返回附加了身份信息的 context；失败时返回 error，由 Runtime.WriteProblem 统一渲染为 RFC 9457。
+// 认证成功时返回附加了身份信息的 context；失败时返回 error，由 ErrorEncoder 统一渲染。
 type Authenticator func(ctx context.Context, r *http.Request) (context.Context, error)
 
 // AuthMiddleware 返回基于命名方案映射的 RouteMiddleware，原生支持 TypeSpec @useAuth 的
 // 单方案、AND 组合、OR 备选以及 NoAuth 可选认证。
 // 若路由声明了未在 schemes 中注册的方案名，会在挂载阶段直接 panic（fail-fast）。
-func AuthMiddleware(rt *Runtime, schemes map[string]Authenticator) RouteMiddleware {
-	if rt == nil {
-		rt = DefaultRuntime()
+func AuthMiddleware(enc ErrorEncoder, schemes map[string]Authenticator) RouteMiddleware {
+	if enc == nil {
+		enc = DefaultErrorEncoder
 	}
 	cloned := maps.Clone(schemes)
 
@@ -60,7 +60,7 @@ func AuthMiddleware(rt *Runtime, schemes map[string]Authenticator) RouteMiddlewa
 					}
 					lastErr = altErr
 				}
-				rt.WriteProblem(w, r, lastErr)
+				enc(w, r, lastErr)
 			})
 		}
 	}

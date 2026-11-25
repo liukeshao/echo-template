@@ -61,9 +61,22 @@ func TestConfig_Validate(t *testing.T) {
 	badExpiry := validBaseConfig()
 	badExpiry.JWT.AccessTokenExpiry = 0
 	assert.Error(t, badExpiry.Validate())
+
+	// Out-of-range bcrypt cost.
+	lowCost := validBaseConfig()
+	lowCost.Auth.BcryptCost = 3
+	assert.Error(t, lowCost.Validate())
+
+	highCost := validBaseConfig()
+	highCost.Auth.BcryptCost = 32
+	assert.Error(t, highCost.Validate())
+
+	validCost := validBaseConfig()
+	validCost.Auth.BcryptCost = 10
+	assert.NoError(t, validCost.Validate())
 }
 
-func TestGetConfig_LoadsTOMLAndEnvOverrides(t *testing.T) {
+func TestLoad_LoadsTOMLAndEnvOverrides(t *testing.T) {
 	dir := t.TempDir()
 	tomlContent := `
 [http]
@@ -72,6 +85,9 @@ port = 9000
 [app]
 name = "custom-app"
 environment = "local"
+
+[auth]
+bcryptCost = 10
 
 [database]
 driver = "sqlite"
@@ -92,10 +108,11 @@ supportedLocales = ["en", "zh-CN"]
 	t.Chdir(dir)
 	t.Setenv("ECHO_TEMPLATE_JWT_SECRET", "env-overridden-secret")
 
-	cfg, err := GetConfig()
+	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, uint16(9000), cfg.HTTP.Port)
 	assert.Equal(t, "custom-app", cfg.App.Name)
+	assert.Equal(t, 10, cfg.Auth.BcryptCost)
 	assert.Equal(t, "env-overridden-secret", cfg.JWT.Secret)
 	assert.True(t, cfg.Database.AutoMigrate)
 }

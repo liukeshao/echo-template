@@ -6,11 +6,8 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/http"
 	"strings"
-
-	"github.com/samber/oops"
-
-	"github.com/liukeshao/echo-template/pkg/codes"
 )
 
 // RFC 7386 JSON Merge Patch 支持的 Content-Type 常量。
@@ -32,7 +29,7 @@ var SupportedPatchMediaTypes = []string{
 //   - body        : 客户端提交的 JSON Merge Patch 主体（null 表示清空/删除字段）
 //   - contentType : HTTP Content-Type 头（允许带参数，例如 "...; charset=utf-8"）
 //
-// 返回错误使用 oops 包装，包含 codes.PatchInvalid（400）或 codes.PatchUnsupportedMediaType（415）。
+// 返回错误为 Problem，包含 CodePatchInvalid（400）或 CodePatchUnsupportedMediaType（415）及结构化 Params。
 func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) {
 	mediaType := parseMediaType(contentType)
 
@@ -52,7 +49,7 @@ func ApplyMergePatchInto(original, body []byte, contentType string, dst any) err
 		return err
 	}
 	if err := json.Unmarshal(patched, dst); err != nil {
-		return invalidPatch(fmt.Sprintf("patched document does not match target schema: %v", err), err)
+		return invalidPatch(fmt.Sprintf("patched document does not match target schema: %v", err))
 	}
 	return nil
 }
@@ -72,17 +69,17 @@ func parseMediaType(ct string) string {
 func applyMergePatch(original, body []byte) ([]byte, error) {
 	target, err := decodeJSONValue(original)
 	if err != nil {
-		return nil, invalidPatch(fmt.Sprintf("decode original document failed: %v", err), err)
+		return nil, invalidPatch(fmt.Sprintf("decode original document failed: %v", err))
 	}
 	patchVal, err := decodeJSONValue(body)
 	if err != nil {
-		return nil, invalidPatch(fmt.Sprintf("invalid JSON Merge Patch document: %v", err), err)
+		return nil, invalidPatch(fmt.Sprintf("invalid JSON Merge Patch document: %v", err))
 	}
 
 	merged := mergeValue(target, patchVal)
 	out, err := json.Marshal(merged)
 	if err != nil {
-		return nil, invalidPatch(fmt.Sprintf("marshal merged document failed: %v", err), err)
+		return nil, invalidPatch(fmt.Sprintf("marshal merged document failed: %v", err))
 	}
 	return out, nil
 }
@@ -119,26 +116,26 @@ func mergeValue(target, patchVal any) any {
 	return targetObj
 }
 
-func invalidPatch(msg string, cause error) error {
-	return oops.
-		Code(codes.PatchInvalid.String()).
-		Tags("patch").
-		With(codes.CtxKeyParams, map[string]string{
+func invalidPatch(msg string) error {
+	return Problem{
+		Status: http.StatusBadRequest,
+		Code:   CodePatchInvalid,
+		Detail: msg,
+		Params: map[string]string{
 			"content_type": ContentTypeMergePatch,
-		}).
-		Public(msg).
-		Wrapf(cause, "patch invalid: %s", ContentTypeMergePatch)
+		},
+	}
 }
 
 func unsupportedPatchMediaType(actual string) error {
 	supported := strings.Join(SupportedPatchMediaTypes, ", ")
-	return oops.
-		Code(codes.PatchUnsupportedMediaType.String()).
-		Tags("patch").
-		With(codes.CtxKeyParams, map[string]string{
+	return Problem{
+		Status: http.StatusUnsupportedMediaType,
+		Code:   CodePatchUnsupportedMediaType,
+		Detail: fmt.Sprintf("unsupported PATCH content type %q; supported: %s", actual, supported),
+		Params: map[string]string{
 			"content_type": actual,
 			"supported":    supported,
-		}).
-		Public(fmt.Sprintf("unsupported PATCH content type %q; supported: %s", actual, supported)).
-		Errorf("unsupported patch media type: %s", actual)
+		},
+	}
 }

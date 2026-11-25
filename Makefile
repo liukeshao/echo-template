@@ -15,6 +15,6 @@ test: ## 运行测试（启用竞态检测）
 	go test -race ./...
 
 cover: ## 统计业务包单元测试覆盖率（排除 ent 生成代码与 testutil）
-	go test -race -coverprofile=coverage.out $$(go list ./config/... ./pkg/... | grep -v '/pkg/testutil$$')
+	go test -race -coverprofile=coverage.out $$(go list ./config/... ./pkg/... ./internal/... | grep -v '/internal/testutil$$')
 	go tool cover -func=coverage.out | tail -n 1
 	rm -f coverage.out

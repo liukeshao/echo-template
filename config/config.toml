@@ -13,6 +13,10 @@ name = "echo-template"
 host = "http://localhost:8000"
 environment = "local"
 
+[auth]
+# bcrypt 哈希成本（4-31）；设为 0 时使用默认值 12
+bcryptCost = 12
+
 # JWT配置
 [jwt]
 secret = "your-super-secret-jwt-key-change-this-in-production"
@@ -34,7 +38,7 @@ apiKey  = "change-me"
 timeout = "5s"
 retry   = 2
 
-# 国际化配置。翻译文件通过 embed.FS 打包进二进制（pkg/i18n/messages/*.toml）。
+# 国际化配置。翻译文件通过 embed.FS 打包进二进制（internal/i18n/messages/*.toml）。
 # defaultLocale 必须同时出现在 supportedLocales 中。
 [i18n]
 defaultLocale    = "en"
