@@ -12,7 +12,7 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/httpclient"
+	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
 
 // Client is the concrete implementation of [API].

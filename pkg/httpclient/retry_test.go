@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/httpclient"
+	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -32,29 +32,47 @@ func (c *trackingReadCloser) Close() error {
 }
 
 func newTestClient(rt http.RoundTripper, opts httpclient.Options) *httpclient.Client {
-	base := &httpclient.Client{
-		Client: &http.Client{
-			Timeout:   5 * time.Second,
-			Transport: rt,
-		},
-	}
+	base := httpclient.New(httpclient.Config{
+		Timeout:   5 * time.Second,
+		Transport: rt,
+	})
 	return base.WithOptions(opts)
 }
 
-func TestWithOptions_TimeoutInheritanceAndOverride(t *testing.T) {
+func TestWithOptions_TimeoutInheritanceAndNoNestedRetry(t *testing.T) {
 	t.Parallel()
-	base := &httpclient.Client{
-		Client: &http.Client{
-			Timeout:   7 * time.Second,
-			Transport: roundTripFunc(func(*http.Request) (*http.Response, error) { return nil, nil }),
-		},
-	}
+	var calls int
+	base := httpclient.New(httpclient.Config{
+		Timeout: 7 * time.Second,
+		Retry:   2,
+		Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
+			calls++
+			return &http.Response{
+				StatusCode: http.StatusServiceUnavailable,
+				Body:       io.NopCloser(strings.NewReader("busy")),
+				Header:     make(http.Header),
+			}, nil
+		}),
+	})
 
 	inherited := base.WithOptions(httpclient.Options{})
 	assert.Equal(t, 7*time.Second, inherited.Timeout)
 
-	overridden := base.WithOptions(httpclient.Options{Timeout: 2 * time.Second})
+	// Retry: 0 on derived client disables retry even when base had Retry: 2.
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	require.NoError(t, err)
+	resp, err := inherited.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, 1, calls)
+
+	overridden := base.WithOptions(httpclient.Options{Timeout: 2 * time.Second, Retry: 1})
 	assert.Equal(t, 2*time.Second, overridden.Timeout)
+	calls = 0
+	resp, err = overridden.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+	assert.Equal(t, 2, calls, "derived Retry: 1 must not multiply with base Retry: 2")
 }
 
 func TestRetryTransport_RetriesTransientStatusAndClosesIntermediateBody(t *testing.T) {

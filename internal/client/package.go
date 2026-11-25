@@ -11,11 +11,15 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/internal/client/weather"
-	"github.com/liukeshao/echo-template/internal/httpclient"
+	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
+
+func newSharedHTTPClient(_ do.Injector) (*httpclient.Client, error) {
+	return httpclient.New(httpclient.Config{}), nil
+}
 
 // Package registers the shared HTTP client and all third-party API client providers into the DI container.
 var Package = do.Package(
-	httpclient.Package,
+	do.Lazy(newSharedHTTPClient),
 	weather.Package,
 )

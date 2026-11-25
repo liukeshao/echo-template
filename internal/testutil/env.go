@@ -33,10 +33,10 @@ import (
 	"github.com/liukeshao/echo-template/internal/client"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/internal/handler"
-	"github.com/liukeshao/echo-template/internal/httpclient"
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/server"
 	"github.com/liukeshao/echo-template/internal/service"
+	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
 
 // Env 封装单个测试专用的 DI 容器与按需初始化的运行时依赖。
@@ -77,12 +77,10 @@ func WithOverride[T any](val T) Option {
 // WithHTTPTransport 替换共享 *httpclient.Client 的 Transport，
 // 用于在无网络环境下测试第三方 API 客户端。
 func WithHTTPTransport(rt http.RoundTripper) Option {
-	return WithOverride(&httpclient.Client{
-		Client: &http.Client{
-			Timeout:   5 * time.Second,
-			Transport: rt,
-		},
-	})
+	return WithOverride(httpclient.New(httpclient.Config{
+		Timeout:   5 * time.Second,
+		Transport: rt,
+	}))
 }
 
 // WithInjector 提供底层 DI 容器回调，适合需要自定义 do.Bind 等高级装配的场景。
