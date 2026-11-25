@@ -5,8 +5,72 @@ namespace EchoTemplate;
 
 model FieldError {
   field: string;
+  code: string;
   message: string;
+  metadata?: Record<string>;
 }
+
+@doc("AIP-193 ResourceInfo: describes a missing or conflicting resource.")
+model ResourceInfo {
+  resource_type: string;
+  resource_name: string;
+  field?: string;
+}
+
+@doc("AIP-193 PreconditionInfo: describes a failed precondition or credential state.")
+model PreconditionInfo {
+  type: string;
+  subject?: string;
+  detail?: string;
+}
+
+@doc("AIP-193 RetryInfo: describes rate limiting and suggested retry window.")
+model RetryInfo {
+  service: string;
+  retry_after?: string;
+}
+
+@doc("Summary metadata for field validation failures.")
+model ValidationInfo {
+  error_count: int32;
+}
+
+@doc("Metadata for JSON request body decoding errors.")
+model DecodeInfo {
+  reason: string;
+  offset?: int64;
+}
+
+@doc("Metadata for PATCH document or media type errors.")
+model MediaTypeInfo {
+  content_type: string;
+  supported?: string[];
+  reason?: string;
+  field?: string;
+}
+
+@doc("Metadata for HTTP 405 Method Not Allowed responses.")
+model MethodInfo {
+  method: string;
+  path: string;
+  allowed?: string[];
+}
+
+@doc("Metadata for HTTP 413 Request Entity Too Large responses.")
+model RequestLimitInfo {
+  max_bytes: int64;
+}
+
+alias ErrorMetadata =
+  | ResourceInfo
+  | PreconditionInfo
+  | RetryInfo
+  | ValidationInfo
+  | DecodeInfo
+  | MediaTypeInfo
+  | MethodInfo
+  | RequestLimitInfo
+  | Record<unknown>;
 
 @error
 @doc("RFC 9457 Problem Details")
@@ -19,7 +83,7 @@ model Problem {
   instance?: string;
   code: string;
   request_id?: string;
-  params?: Record<string>;
+  metadata?: ErrorMetadata;
   errors?: FieldError[];
 }
 

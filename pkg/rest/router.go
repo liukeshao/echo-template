@@ -3,6 +3,7 @@ package rest
 import (
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 )
 
@@ -91,18 +92,34 @@ func (r *Router) buildHandler() http.Handler {
 				h.ServeHTTP(w, req)
 				return
 			case http.StatusMethodNotAllowed:
-				if allow := probe.header.Get("Allow"); allow != "" {
+				allow := probe.header.Get("Allow")
+				var allowed []string
+				if allow != "" {
 					w.Header().Set("Allow", allow)
+					for item := range strings.SplitSeq(allow, ",") {
+						if m := strings.TrimSpace(item); m != "" {
+							allowed = append(allowed, m)
+						}
+					}
 				}
 				r.errorEncoder(w, req, Problem{
 					Status: http.StatusMethodNotAllowed,
 					Code:   CodeMethodNotAllowed,
+					Metadata: MethodInfo{
+						Method:  req.Method,
+						Path:    req.URL.Path,
+						Allowed: allowed,
+					},
 				})
 				return
 			default:
 				r.errorEncoder(w, req, Problem{
 					Status: http.StatusNotFound,
 					Code:   CodeNotFound,
+					Metadata: ResourceInfo{
+						ResourceType: "route",
+						ResourceName: req.URL.Path,
+					},
 				})
 				return
 			}

@@ -15,6 +15,7 @@ import (
 	"github.com/liukeshao/echo-template/internal/client/weather"
 	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/pkg/rest"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -68,17 +69,20 @@ func TestClient_GetCurrent_CallerContextCanceledPropagatesDirectly(t *testing.T)
 func TestClient_GetCurrent_RateLimited(t *testing.T) {
 	t.Parallel()
 	rt := roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		h := make(http.Header)
+		h.Set("Retry-After", "30")
 		return &http.Response{
 			StatusCode: http.StatusTooManyRequests,
 			Body:       io.NopCloser(bytes.NewBufferString("slow down")),
-			Header:     make(http.Header),
+			Header:     h,
 		}, nil
 	})
 
 	env := testutil.New(t, testutil.WithHTTPTransport(rt))
 	c := do.MustInvoke[*weather.Client](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "Tokyo")
-	testutil.AssertOopsCode(t, err, codes.WeatherRateLimited)
+	oe := testutil.AssertOopsCode(t, err, codes.WeatherRateLimited)
+	assert.Equal(t, rest.RetryInfo{Service: "weather", RetryAfter: "30"}, oe.Context()[rest.MetaKey])
 }
 
 func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {

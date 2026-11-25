@@ -227,13 +227,13 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
       if (prop.optional) {
         checks.push(
           `\tif r.${goField} != "" && !validator.IsValidUUID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyUUID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeUUID, nil)`,
           `\t}`,
         );
       } else {
         checks.push(
           `\tif !validator.IsValidUUID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyUUID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeUUID, nil)`,
           `\t}`,
         );
       }
@@ -244,13 +244,13 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
       if (prop.optional) {
         checks.push(
           `\tif r.${goField} != "" && !validator.IsValidEmail(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyEmail, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeEmail, nil)`,
           `\t}`,
         );
       } else {
         checks.push(
           `\tif !validator.IsValidEmail(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyEmail, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeEmail, nil)`,
           `\t}`,
         );
       }
@@ -294,7 +294,7 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
           `\t\tswitch ${expr} {`,
           `\t\tcase ${cases}:`,
           `\t\tdefault:`,
-          `\t\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyOneOf, map[string]string{"field": ${JSON.stringify(jsonName)}, "allowed": ${JSON.stringify(allowedStr)}})`,
+          `\t\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeOneOf, map[string]string{"allowed": ${JSON.stringify(allowedStr)}})`,
           `\t\t}`,
           `\t}`,
         );
@@ -303,7 +303,7 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
           `\tswitch ${expr} {`,
           `\tcase ${cases}:`,
           `\tdefault:`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyOneOf, map[string]string{"field": ${JSON.stringify(jsonName)}, "allowed": ${JSON.stringify(allowedStr)}})`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeOneOf, map[string]string{"allowed": ${JSON.stringify(allowedStr)}})`,
           `\t}`,
         );
       }
@@ -349,20 +349,20 @@ function emitStringChecks(checks, { structName, goField, jsonName, optional, min
     imports.add("strings");
     branches.push({
       cond: `strings.TrimSpace(r.${goField}) == ""`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyRequired, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeRequired, nil)`,
     });
     if (minLen > 1) {
       imports.add("unicode/utf8");
       branches.push({
         cond: `utf8.RuneCountInString(r.${goField}) < ${minLen}`,
-        body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMinLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minLen))}})`,
+        body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMinLength, map[string]string{"min": ${JSON.stringify(String(minLen))}})`,
       });
     }
   } else if (optional && minLen !== undefined && minLen >= 1) {
     imports.add("unicode/utf8");
     branches.push({
       cond: `r.${goField} != "" && utf8.RuneCountInString(r.${goField}) < ${minLen}`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMinLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minLen))}})`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMinLength, map[string]string{"min": ${JSON.stringify(String(minLen))}})`,
     });
   }
 
@@ -370,7 +370,7 @@ function emitStringChecks(checks, { structName, goField, jsonName, optional, min
     imports.add("unicode/utf8");
     branches.push({
       cond: `utf8.RuneCountInString(r.${goField}) > ${maxLen}`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMaxLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxLen))}})`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMaxLength, map[string]string{"max": ${JSON.stringify(String(maxLen))}})`,
     });
   }
 
@@ -381,7 +381,7 @@ function emitStringChecks(checks, { structName, goField, jsonName, optional, min
     const guard = optional ? `r.${goField} != "" && ` : "";
     branches.push({
       cond: `${guard}!${varName}.MatchString(r.${goField})`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyPattern, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodePattern, map[string]string{"pattern": ${JSON.stringify(pattern)}})`,
     });
   }
 
@@ -403,13 +403,13 @@ function emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal })
     if (minVal === 0) {
       checks.push(
         `\tif ${guard}${valExpr} < 0 {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyNonNegative, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeNonNegative, map[string]string{"min": "0"})`,
         `\t}`,
       );
     } else {
       checks.push(
         `\tif ${guard}${valExpr} < ${minVal} {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMinValue, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minVal))}})`,
+        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeMinValue, map[string]string{"min": ${JSON.stringify(String(minVal))}})`,
         `\t}`,
       );
     }
@@ -418,7 +418,7 @@ function emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal })
   if (maxVal !== undefined) {
     checks.push(
       `\tif ${guard}${valExpr} > ${maxVal} {`,
-      `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMaxValue, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxVal))}})`,
+      `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeMaxValue, map[string]string{"max": ${JSON.stringify(String(maxVal))}})`,
       `\t}`,
     );
   }

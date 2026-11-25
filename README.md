@@ -185,20 +185,24 @@ func init() {
 
 ## 错误处理约定
 
-所有 service 层错误通过 `oops` 构造：
+所有 service / client 层错误统一使用原生 `oops` + AIP-193 强类型 `rest.Metadata` 结构体，**禁止使用 `.Public(...)`**，由终端 `server.NewProblemEncoder` 统一做国际化渲染：
 
 ```go
-// 领域内部错误（对外隐藏细节与 params）
-oops.Code(codes.OrderInternalError.String()).Tags("order").Wrapf(err, "%s", op)
+var errOrder = oops.In("order")
 
-// 客户端错误（携带 params 供 i18n 模板插值与 Problem.Params 暴露）
-oops.Code(codes.OrderNotFound.String()).
-    With(codes.CtxKeyParams, map[string]string{"order_id": id}).
-    Public(fmt.Sprintf("Order %q not found.", id)).
-    Errorf("order not found")
+// 领域内部错误（5xx：With 上下文仅打入 slog 日志，不对外暴露）
+errOrder.Tags("database").Code(codes.OrderInternalError).With("order_id", id).Wrapf(err, "%s", op)
+
+// 客户端错误（4xx：仅 rest.MetaKey 下实现 rest.Metadata 的结构体对外暴露并供给 i18n 插值）
+errOrder.Code(codes.OrderNotFound).
+    With(rest.MetaKey, rest.ResourceInfo{
+        ResourceType: "order",
+        ResourceName: id,
+    }).
+    New("order not found")
 ```
 
-`server.NewProblemEncoder` 自动将错误转换为 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
+`server.NewProblemEncoder` 自动按 `Classify → Sanitize & Log → Unified Localize` 流水线将错误转换为 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
 
 ## 命令
 

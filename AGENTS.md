@@ -47,36 +47,42 @@ make ent
 
 ---
 
-## Error Handling (RFC 9457 Problem Details)
+## Error Handling (RFC 9457 Problem Details + AIP-193 Metadata)
 
-All errors are serialized by `server.NewProblemEncoder` (implementing `rest.ErrorEncoder`) as flat, strongly-typed `rest.Problem` (`Content-Type: application/problem+json`). Classification precedence:
+All errors are serialized by `server.NewProblemEncoder` (implementing `rest.ErrorEncoder`) as flat, strongly-typed `rest.Problem` (`Content-Type: application/problem+json`) through a three-stage pipeline (`Classify` → `Sanitize & Log` → `Unified Localize`). Classification precedence:
 
-1. `rest.Problem` / `*rest.Problem` — localized via `errors.<CODE>` / `fallback.<code>` when available; defaults filled for `type`, `title`, `instance`, `request_id`
-2. `oops.OopsError` with `.Code()` — maps via `codes.HTTPStatus()`, localizes `detail` via `internal/i18n` using `codes.CtxKeyParams`, exposes `params` on 4xx only
-3. `*validator.FieldViolations` — `400 VALIDATION_INVALID` with localized `errors: []rest.FieldError`
-4. `*http.MaxBytesError` — `413 REQUEST_ENTITY_TOO_LARGE`
+1. `rest.Problem` / `*rest.Problem` — preserves `Status`, `Code`, `Metadata`, `Errors`
+2. `oops.OopsError` (`oops.AsOops`) with `.Code()` — maps via `codes.FromAny` + `codes.HTTPStatus()`, extracts typed `rest.Metadata` strictly from `oopsErr.Context()[rest.MetaKey]` on 4xx only (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
+3. `*validator.FieldViolations` — `400 VALIDATION_INVALID` with `rest.ValidationInfo` and localized `errors: []rest.FieldError{Field, Code, Message, Metadata}`
+4. `*http.MaxBytesError` — `413 REQUEST_ENTITY_TOO_LARGE` with `rest.RequestLimitInfo{MaxBytes}`
 5. `context.DeadlineExceeded` / `context.Canceled` — `504 GATEWAY_TIMEOUT` / `499 CLIENT_CLOSED_REQUEST`
-6. Everything else — `500 INTERNAL_ERROR` (internal details hidden, localized fallback message)
+6. Everything else — `500 INTERNAL_ERROR` (internal details and metadata strictly stripped)
 
-Unmatched `http.ServeMux` routes (404 / 405, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json` via the configured `rest.ErrorEncoder`.
+Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json` via the configured `rest.ErrorEncoder`. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[errors]` + `[validation]`); `oops.Public(...)` is never read.
 
 **Service layer error pattern:**
 
 ```go
-// internal error — hide details
-oops.Code(codes.DomainInternalError.String()).Tags("domain").Wrapf(err, "%s", op)
+var errDomain = oops.In("domain")
 
-// client error — attach structured params for i18n interpolation & Problem.Params
-oops.Code(codes.DomainNotFound.String()).
-	With(codes.CtxKeyParams, map[string]string{"domain_id": id}).
-	Public(fmt.Sprintf("Domain %q not found.", id)).
-	Errorf("domain not found")
+// internal error — internal debug context logged via slog, never exposed in Problem.Metadata
+errDomain.Tags("database").Code(codes.DomainInternalError).With("domain_id", id).Wrapf(err, "%s", op)
+
+// client error — attach AIP-193 typed rest.Metadata struct under rest.MetaKey; NEVER call .Public(...)
+errDomain.Code(codes.DomainNotFound).
+	With(rest.MetaKey, rest.ResourceInfo{
+		ResourceType: "domain",
+		ResourceName: id,
+	}).
+	New("domain not found")
 ```
 
 **Rules:**
 - Never use bare `fmt.Errorf` or `errors.New` in service layer.
+- Never call `oops.Public(...)` or hardcode user-facing English/Chinese sentences in services, clients, middleware, or `pkg/rest`.
 - Never return `*ent.NotFoundError` directly to handlers.
-- Every new error code must be registered in `internal/codes/<domain>.go` `init()` with a 4xx/5xx `net/http` status constant, and have a corresponding entry in `internal/i18n/messages/en.toml` (and `zh-CN.toml`).
+- Store internal actor IDs with `oops.User(userID)` and internal diagnostic fields with arbitrary `oops.With("k", v)` keys; only values implementing `rest.Metadata` under `rest.MetaKey` are exposed to HTTP clients (and stripped on 5xx).
+- Every new error code must be registered in `internal/codes/<domain>.go` `init()` with a 4xx/5xx `net/http` status constant, and have a corresponding entry in `internal/i18n/messages/en.toml` (and `zh-CN.toml`). Startup `assertCoverage` enforces 100% coverage for both `[errors]` and `[validation]`.
 
 ---
 
@@ -177,6 +183,7 @@ Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domai
 | Pattern | Reason |
 |---|---|
 | `fmt.Errorf` in service layer | Breaks error classification pipeline |
+| `oops.Public(...)` or hardcoded `Problem.Detail` | Bypasses unified terminal i18n; pass `codes.Code` + `rest.Metadata` instead |
 | Returning `*ent.Xxx` from handler | Leaks internal fields |
 | `bcrypt` calls outside `internal/service/password.go` | Centralised cost policy (cost=12) |
 | Registering duplicate error codes | `init()` panics by design |

@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 
 	"github.com/samber/do/v2"
@@ -15,7 +14,10 @@ import (
 	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/rest"
 )
+
+var errMe = oops.In("me")
 
 // Me 用户服务
 type Me struct {
@@ -32,36 +34,38 @@ func NewMe(i do.Injector) (*Me, error) {
 	}, nil
 }
 
-// meInternal 构造携带 "me" 标签的 ME_INTERNAL_ERROR oops 错误。
 func meInternal(err error, op string) error {
-	return oops.
-		Code(codes.MeInternalError.String()).
+	return errMe.
 		Tags("me").
+		Code(codes.MeInternalError).
 		Wrapf(err, "%s", op)
 }
 
-func meUsernameTaken(username string) error {
-	return oops.
-		Code(codes.MeUsernameTaken.String()).
-		With(codes.CtxKeyParams, map[string]string{"username": username}).
-		Public(fmt.Sprintf("the username %q is already taken", username)).
-		Errorf("username taken")
+func meUsernameTaken(userID, username string) error {
+	return errMe.
+		Code(codes.MeUsernameTaken).
+		User(userID).
+		With(rest.MetaKey, rest.ResourceInfo{
+			ResourceType: "user",
+			ResourceName: username,
+			Field:        "username",
+		}).
+		New("username taken")
 }
 
-func meEmailTaken(email string) error {
-	return oops.
-		Code(codes.MeEmailTaken.String()).
-		With(codes.CtxKeyParams, map[string]string{"email": email}).
-		Public(fmt.Sprintf("the email %q is already in use", email)).
-		Errorf("email taken")
+func meEmailTaken(userID, email string) error {
+	return errMe.
+		Code(codes.MeEmailTaken).
+		User(userID).
+		With(rest.MetaKey, rest.ResourceInfo{
+			ResourceType: "user",
+			ResourceName: email,
+			Field:        "email",
+		}).
+		New("email taken")
 }
 
 // Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
-//
-// 唯一性约束：username 与 email 全局唯一（排除当前用户自身），冲突时返回
-// ME_USERNAME_TAKEN / ME_EMAIL_TAKEN，对应 HTTP 409。
-//
-// PATCH handler 通过"GET → apply merge patch → Replace"流程复用本方法，共享同一份服务端校验逻辑。
 func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeRequest) (*ent.User, error) {
 	usernameTaken, err := s.orm.User.Query().
 		Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).
@@ -70,7 +74,7 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 		return nil, meInternal(err, "checking username uniqueness")
 	}
 	if usernameTaken {
-		return nil, meUsernameTaken(req.Username)
+		return nil, meUsernameTaken(userID, req.Username)
 	}
 
 	emailTaken, err := s.orm.User.Query().
@@ -80,7 +84,7 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 		return nil, meInternal(err, "checking email uniqueness")
 	}
 	if emailTaken {
-		return nil, meEmailTaken(req.Email)
+		return nil, meEmailTaken(userID, req.Email)
 	}
 
 	u, err := s.orm.User.UpdateOneID(userID).
@@ -90,10 +94,10 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 	if err != nil {
 		if ent.IsConstraintError(err) {
 			if taken, checkErr := s.orm.User.Query().Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, meUsernameTaken(req.Username)
+				return nil, meUsernameTaken(userID, req.Username)
 			}
 			if taken, checkErr := s.orm.User.Query().Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, meEmailTaken(req.Email)
+				return nil, meEmailTaken(userID, req.Email)
 			}
 		}
 		return nil, meInternal(err, "replacing user profile")
@@ -102,10 +106,6 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 }
 
 // ChangePassword 修改已登录用户的密码（自定义子资源动作）。
-//
-// 不通过 PUT /me 暴露：密码不出现在 User 响应中，
-// 且需要校验 old_password 才能轮换，这与"幂等全量替换"语义不兼容。
-// 修改成功后在同一事务内撤销该用户所有活跃令牌，迫使所有会话使用新密码重新认证。
 func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) (err error) {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
@@ -116,10 +116,14 @@ func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangeP
 
 	if err := verifyPassword(u.PasswordHash, req.OldPassword); err != nil {
 		slog.WarnContext(ctx, "invalid old password", "user_id", userID)
-		return oops.
-			Code(codes.MeInvalidPassword.String()).
-			Public("current password is incorrect").
-			Errorf("invalid old password: user_id=%s", userID)
+		return errMe.
+			Code(codes.MeInvalidPassword).
+			User(userID).
+			With(rest.MetaKey, rest.PreconditionInfo{
+				Type:    "INVALID_PASSWORD",
+				Subject: "old_password",
+			}).
+			New("invalid old password")
 	}
 
 	newHash, err := hashPassword(req.NewPassword, s.bcryptCost)

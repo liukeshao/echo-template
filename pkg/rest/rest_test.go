@@ -38,7 +38,7 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	})
 	router.HandleFunc("GET /validation", func(w http.ResponseWriter, r *http.Request) {
 		var v validator.FieldViolations
-		v.Add("title", validator.KeyRequired, nil)
+		v.Add("title", validator.CodeRequired, nil)
 		rest.DefaultErrorEncoder(w, r, v.Err())
 	})
 	router.HandleFunc("GET /deadline", func(w http.ResponseWriter, r *http.Request) {
@@ -81,8 +81,12 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	p = decodeProblem(t, rec)
 	assert.Equal(t, rest.CodeValidationInvalid, p.Code)
+	valMeta, err := rest.DecodeMetadata[rest.ValidationInfo](p)
+	require.NoError(t, err)
+	assert.Equal(t, 1, valMeta.ErrorCount)
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "title", p.Errors[0].Field)
+	assert.Equal(t, validator.CodeRequired, p.Errors[0].Code)
 
 	rec = call(http.MethodGet, "/deadline", "")
 	assert.Equal(t, http.StatusGatewayTimeout, rec.Code)
@@ -102,15 +106,31 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	assert.Equal(t, rest.CodeInternalError, decodeProblem(t, rec).Code)
 
-	// Trailing JSON garbage rejected as 400 BAD_REQUEST.
+	// Trailing JSON garbage rejected as 400 BAD_REQUEST with DecodeInfo metadata.
 	rec = call(http.MethodPost, "/decode", `{"name":"a"}{"name":"b"}`)
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
-	assert.Equal(t, rest.CodeBadRequest, decodeProblem(t, rec).Code)
+	p = decodeProblem(t, rec)
+	assert.Equal(t, rest.CodeBadRequest, p.Code)
+	decMeta, err := rest.DecodeMetadata[rest.DecodeInfo](p)
+	require.NoError(t, err)
+	assert.Equal(t, "trailing_data", decMeta.Reason)
 
-	// Oversized body rejected as 413 REQUEST_ENTITY_TOO_LARGE.
+	// Empty body rejected as 400 BAD_REQUEST with DecodeInfo(empty_body).
+	rec = call(http.MethodPost, "/decode", `   `)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+	p = decodeProblem(t, rec)
+	decMeta, err = rest.DecodeMetadata[rest.DecodeInfo](p)
+	require.NoError(t, err)
+	assert.Equal(t, "empty_body", decMeta.Reason)
+
+	// Oversized body rejected as 413 REQUEST_ENTITY_TOO_LARGE with RequestLimitInfo.
 	rec = call(http.MethodPost, "/decode", `{"name":"`+strings.Repeat("x", 128)+`"}`)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
-	assert.Equal(t, rest.CodeRequestEntityTooLarge, decodeProblem(t, rec).Code)
+	p = decodeProblem(t, rec)
+	assert.Equal(t, rest.CodeRequestEntityTooLarge, p.Code)
+	limitMeta, err := rest.DecodeMetadata[rest.RequestLimitInfo](p)
+	require.NoError(t, err)
+	assert.Equal(t, int64(64), limitMeta.MaxBytes)
 
 	// 404 & 405 converted to RFC 9457 Problem.
 	rec = call(http.MethodGet, "/missing", "")

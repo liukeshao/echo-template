@@ -25,13 +25,16 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 	reg := testutil.DecodeJSON[api.TokenPair](t, rec)
 	assert.NotEmpty(t, reg.AccessToken)
 
-	// Malformed JSON -> localized 400 BAD_REQUEST; JSON type mismatch -> 400 VALIDATION_INVALID without leaking Go struct names
+	// Malformed JSON -> localized 400 BAD_REQUEST with DecodeInfo; JSON type mismatch -> 400 VALIDATION_INVALID without leaking Go struct names
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testutil.WithBody("application/json", `{bad json`),
 		testutil.WithHeader("Accept-Language", "zh-CN"),
 	)
 	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 	assert.Equal(t, "请求体不是合法的 JSON 格式。", p.Detail)
+	decMeta := testutil.DecodeProblemMeta[rest.DecodeInfo](t, p)
+	assert.Equal(t, "invalid_json", decMeta.Reason)
+	assert.Positive(t, decMeta.Offset)
 
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testutil.WithBody("application/json", `{"email":123,"password":"x"}`),
@@ -39,6 +42,9 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "email", p.Errors[0].Field)
+	assert.Equal(t, "invalid_type", p.Errors[0].Code)
+	assert.Equal(t, "string", p.Errors[0].Metadata["expected"])
+	assert.Equal(t, "number", p.Errors[0].Metadata["actual"])
 	assert.NotContains(t, p.Errors[0].Message, "LoginRequest")
 
 	// Login

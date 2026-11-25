@@ -38,23 +38,23 @@ type CreateBookRequest struct {
 func (r *CreateBookRequest) Validate() error {
 	var v validator.FieldViolations
 	if r.BookID != "" && !validator.IsValidUUID(r.BookID) {
-		v.Add("book_id", validator.KeyUUID, map[string]string{"field": "book_id"})
+		v.Add("book_id", validator.CodeUUID, nil)
 	}
 	if strings.TrimSpace(r.Title) == "" {
-		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
+		v.Add("title", validator.CodeRequired, nil)
 	} else if utf8.RuneCountInString(r.Title) > 200 {
-		v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
+		v.Add("title", validator.CodeMaxLength, map[string]string{"max": "200"})
 	}
 	if strings.TrimSpace(r.Author) == "" {
-		v.Add("author", validator.KeyRequired, map[string]string{"field": "author"})
+		v.Add("author", validator.CodeRequired, nil)
 	} else if utf8.RuneCountInString(r.Author) > 100 {
-		v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
+		v.Add("author", validator.CodeMaxLength, map[string]string{"max": "100"})
 	}
 	if utf8.RuneCountInString(r.Description) > 1000 {
-		v.Add("description", validator.KeyMaxLength, map[string]string{"field": "description", "max": "1000"})
+		v.Add("description", validator.CodeMaxLength, map[string]string{"max": "1000"})
 	}
 	if r.Price != nil && *r.Price < 0 {
-		v.Add("price", validator.KeyNonNegative, map[string]string{"field": "price"})
+		v.Add("price", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -86,16 +86,16 @@ type ListBooksRequest struct {
 func (r *ListBooksRequest) Validate() error {
 	var v validator.FieldViolations
 	if r.Page < 0 {
-		v.Add("page", validator.KeyNonNegative, map[string]string{"field": "page"})
+		v.Add("page", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if r.PageSize < 0 {
-		v.Add("page_size", validator.KeyNonNegative, map[string]string{"field": "page_size"})
+		v.Add("page_size", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if r.MinPrice != nil && *r.MinPrice < 0 {
-		v.Add("min_price", validator.KeyNonNegative, map[string]string{"field": "min_price"})
+		v.Add("min_price", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if r.MaxPrice != nil && *r.MaxPrice < 0 {
-		v.Add("max_price", validator.KeyNonNegative, map[string]string{"field": "max_price"})
+		v.Add("max_price", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -114,7 +114,7 @@ type GetBookRequest struct {
 func (r *GetBookRequest) Validate() error {
 	var v validator.FieldViolations
 	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.KeyUUID, map[string]string{"field": "book"})
+		v.Add("book", validator.CodeUUID, nil)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -138,23 +138,23 @@ type ReplaceBookRequest struct {
 func (r *ReplaceBookRequest) Validate() error {
 	var v validator.FieldViolations
 	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.KeyUUID, map[string]string{"field": "book"})
+		v.Add("book", validator.CodeUUID, nil)
 	}
 	if strings.TrimSpace(r.Title) == "" {
-		v.Add("title", validator.KeyRequired, map[string]string{"field": "title"})
+		v.Add("title", validator.CodeRequired, nil)
 	} else if utf8.RuneCountInString(r.Title) > 200 {
-		v.Add("title", validator.KeyMaxLength, map[string]string{"field": "title", "max": "200"})
+		v.Add("title", validator.CodeMaxLength, map[string]string{"max": "200"})
 	}
 	if strings.TrimSpace(r.Author) == "" {
-		v.Add("author", validator.KeyRequired, map[string]string{"field": "author"})
+		v.Add("author", validator.CodeRequired, nil)
 	} else if utf8.RuneCountInString(r.Author) > 100 {
-		v.Add("author", validator.KeyMaxLength, map[string]string{"field": "author", "max": "100"})
+		v.Add("author", validator.CodeMaxLength, map[string]string{"max": "100"})
 	}
 	if utf8.RuneCountInString(r.Description) > 1000 {
-		v.Add("description", validator.KeyMaxLength, map[string]string{"field": "description", "max": "1000"})
+		v.Add("description", validator.CodeMaxLength, map[string]string{"max": "1000"})
 	}
 	if r.Price != nil && *r.Price < 0 {
-		v.Add("price", validator.KeyNonNegative, map[string]string{"field": "price"})
+		v.Add("price", validator.CodeNonNegative, map[string]string{"min": "0"})
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -173,7 +173,7 @@ type DeleteBookRequest struct {
 func (r *DeleteBookRequest) Validate() error {
 	var v validator.FieldViolations
 	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.KeyUUID, map[string]string{"field": "book"})
+		v.Add("book", validator.CodeUUID, nil)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)

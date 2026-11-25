@@ -85,7 +85,7 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 	case http.StatusOK:
 		// happy path — decode below
 	case http.StatusTooManyRequests:
-		return nil, weatherRateLimited(op)
+		return nil, weatherRateLimited(op, strings.TrimSpace(resp.Header.Get("Retry-After")))
 	case http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
 		return nil, weatherUnavailable(
 			fmt.Errorf("upstream returned %d", resp.StatusCode), op,

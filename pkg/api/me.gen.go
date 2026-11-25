@@ -40,7 +40,7 @@ func (r *ReplaceMeRequest) Validate() error {
 	var v validator.FieldViolations
 	validator.CheckUsername(&v, "username", r.Username)
 	if !validator.IsValidEmail(r.Email) {
-		v.Add("email", validator.KeyEmail, map[string]string{"field": "email"})
+		v.Add("email", validator.CodeEmail, nil)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -60,7 +60,7 @@ type ChangePasswordRequest struct {
 func (r *ChangePasswordRequest) Validate() error {
 	var v validator.FieldViolations
 	if strings.TrimSpace(r.OldPassword) == "" {
-		v.Add("old_password", validator.KeyRequired, map[string]string{"field": "old_password"})
+		v.Add("old_password", validator.CodeRequired, nil)
 	}
 	validator.CheckPassword(&v, "new_password", r.NewPassword)
 	if extra, ok := any(r).(interface {

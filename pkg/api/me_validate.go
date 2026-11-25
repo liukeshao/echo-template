@@ -6,8 +6,8 @@ import "github.com/liukeshao/echo-template/pkg/validator"
 // 由生成的 ChangePasswordRequest.Validate() 自动调用。
 func (r *ChangePasswordRequest) validateExtra(v *validator.FieldViolations) {
 	if r.OldPassword != "" && r.OldPassword == r.NewPassword {
-		v.Add("new_password", validator.KeyMustDiffer, map[string]string{
-			"field": "new_password", "other": "old_password",
+		v.Add("new_password", validator.CodeMustDiffer, map[string]string{
+			"other": "old_password",
 		})
 	}
 }

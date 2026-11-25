@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"uuid"
 
@@ -16,8 +15,11 @@ import (
 	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/rest"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
+
+var errBook = oops.In("book")
 
 // Book 书籍服务
 type Book struct {
@@ -33,28 +35,32 @@ func NewBook(i do.Injector) (*Book, error) {
 
 // bookAlreadyExists 构造 BOOK_ALREADY_EXISTS oops 错误（HTTP 409）。
 func bookAlreadyExists(id string) error {
-	return oops.
-		Code(codes.BookAlreadyExists.String()).
-		With(codes.CtxKeyParams, map[string]string{"book_id": id}).
-		Public(fmt.Sprintf("Book %q already exists. Please use a different book_id.", id)).
-		Errorf("book already exists")
+	return errBook.
+		Code(codes.BookAlreadyExists).
+		With(rest.MetaKey, rest.ResourceInfo{
+			ResourceType: "book",
+			ResourceName: id,
+			Field:        "book_id",
+		}).
+		New("book already exists")
 }
 
 // bookNotFound 构造 BOOK_NOT_FOUND oops 错误（HTTP 404）。
-// Errorf message 保持低基数（无变量），供日志与 APM 聚合分组。
 func bookNotFound(id string) error {
-	return oops.
-		Code(codes.BookNotFound.String()).
-		With(codes.CtxKeyParams, map[string]string{"book_id": id}).
-		Public(fmt.Sprintf("Book %q not found.", id)).
-		Errorf("book not found")
+	return errBook.
+		Code(codes.BookNotFound).
+		With(rest.MetaKey, rest.ResourceInfo{
+			ResourceType: "book",
+			ResourceName: id,
+		}).
+		New("book not found")
 }
 
-// bookDB 构造携带 database 标签的 BOOK_INTERNAL_ERROR oops 错误。
+// bookDB 构造携带 database 标签的 BOOK_INTERNAL_ERROR oops 错误（内部上下文仅进日志）。
 func bookDB(err error, op, id string) error {
-	return oops.
-		Code(codes.BookInternalError.String()).
+	return errBook.
 		Tags("database").
+		Code(codes.BookInternalError).
 		With("book_id", id).
 		Wrapf(err, "%s", op)
 }
@@ -177,13 +183,6 @@ func buildBookPredicates(req *api.ListBooksRequest) []predicate.Book {
 }
 
 // Replace 全量替换书籍 —— Kubernetes 风格的幂等 PUT 语义。
-//
-// 行为：
-//   - 必填字段（title / author）直接 Set
-//   - 可选字段（description / price / published_at）有则 Set，无则 Clear
-//   - id / created_at 不会被覆盖；updated_at 由 ent hook 自动刷新
-//
-// PATCH handler 通过"GET → apply merge patch → Replace"流程复用本方法，统一落到这一处幂等写入。
 func (s *Book) Replace(ctx context.Context, id string, req *api.ReplaceBookRequest) (*ent.Book, error) {
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).
@@ -249,7 +248,7 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		}
 		tokens := strings.Fields(part)
 		if len(tokens) > 2 {
-			v.Add("order_by", validator.KeyInvalidOrderByClause, map[string]string{
+			v.Add("order_by", validator.CodeInvalidOrderByClause, map[string]string{
 				"clause": part,
 			})
 			continue
@@ -258,7 +257,7 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		fieldName := strings.ToLower(tokens[0])
 		desc := len(tokens) == 2 && strings.ToLower(tokens[1]) == "desc"
 		if len(tokens) == 2 && !desc {
-			v.Add("order_by", validator.KeyInvalidOrderByDirection, map[string]string{
+			v.Add("order_by", validator.CodeInvalidOrderByDirection, map[string]string{
 				"direction": tokens[1],
 				"clause":    part,
 			})
@@ -284,8 +283,8 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 		case "published_at":
 			opts = append(opts, book.ByPublishedAt(dir))
 		default:
-			v.Add("order_by", validator.KeyUnknownOrderByField, map[string]string{
-				"field":   fieldName,
+			v.Add("order_by", validator.CodeUnknownOrderByField, map[string]string{
+				"value":   fieldName,
 				"allowed": bookAllowedOrderByFields,
 			})
 		}

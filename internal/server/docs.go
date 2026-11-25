@@ -49,6 +49,10 @@ func (h *Docs) Handler(encodeErr rest.ErrorEncoder) rest.Handler {
 				encodeErr(w, r, rest.Problem{
 					Status: http.StatusNotFound,
 					Code:   rest.CodeNotFound,
+					Metadata: rest.ResourceInfo{
+						ResourceType: "static_asset",
+						ResourceName: r.URL.Path,
+					},
 				})
 				return
 			}

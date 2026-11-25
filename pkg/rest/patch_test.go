@@ -63,6 +63,11 @@ func TestApplyMergePatch_UnsupportedMediaTypes(t *testing.T) {
 		require.True(t, ok)
 		assert.Equal(t, 415, p.Status)
 		assert.Equal(t, rest.CodePatchUnsupportedMediaType, p.Code)
+		assert.Empty(t, p.Detail, "transport errors must not hardcode user-facing Detail")
+		mt, err := rest.DecodeMetadata[rest.MediaTypeInfo](p)
+		require.NoError(t, err)
+		assert.Equal(t, ct, mt.ContentType)
+		assert.Equal(t, rest.SupportedPatchMediaTypes, mt.Supported)
 	}
 }
 
@@ -101,6 +106,11 @@ func TestApplyMergePatchInto_SuccessAndTypeMismatch(t *testing.T) {
 	p, ok := errors.AsType[rest.Problem](err)
 	require.True(t, ok)
 	assert.Equal(t, rest.CodePatchInvalid, p.Code)
+	assert.Empty(t, p.Detail)
+	mt, decErr := rest.DecodeMetadata[rest.MediaTypeInfo](p)
+	require.NoError(t, decErr)
+	assert.Equal(t, "schema_mismatch", mt.Reason)
+	assert.Equal(t, "price", mt.Field)
 
 	err = rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`[{"op":"replace","path":"/title","value":"x"}]`), rest.ContentTypeMergePatch, &bad)
 	require.Error(t, err)

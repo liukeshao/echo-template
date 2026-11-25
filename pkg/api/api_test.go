@@ -37,13 +37,14 @@ func TestValidate_MeRequests(t *testing.T) {
 	var fv *validator.FieldViolations
 	require.ErrorAs(t, err, &fv)
 	for _, it := range fv.Items() {
-		assert.NotEqual(t, validator.KeyMustDiffer, it.Key)
+		assert.NotEqual(t, validator.CodeMustDiffer, it.Code)
 	}
 
 	// Cross-field validation provided by me_validate.go (validateExtra hook).
 	err = (&api.ChangePasswordRequest{OldPassword: "samepassword1", NewPassword: "samepassword1"}).Validate()
 	require.ErrorAs(t, err, &fv)
-	assert.Equal(t, validator.KeyMustDiffer, fv.Items()[0].Key)
+	assert.Equal(t, validator.CodeMustDiffer, fv.Items()[0].Code)
+	assert.Equal(t, "old_password", fv.Items()[0].Metadata["other"])
 }
 
 func TestValidate_BookAndListRequests(t *testing.T) {

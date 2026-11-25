@@ -653,6 +653,17 @@ components:
         published_at:
           type: string
           format: date-time
+    DecodeInfo:
+      type: object
+      required:
+        - reason
+      properties:
+        reason:
+          type: string
+        offset:
+          type: integer
+          format: int64
+      description: Metadata for JSON request body decoding errors.
     Email:
       type: string
       format: email
@@ -661,12 +672,19 @@ components:
       type: object
       required:
         - field
+        - code
         - message
       properties:
         field:
           type: string
+        code:
+          type: string
         message:
           type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
     LoginRequest:
       type: object
       required:
@@ -678,6 +696,37 @@ components:
         password:
           type: string
           minLength: 1
+    MediaTypeInfo:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+        supported:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+        field:
+          type: string
+      description: Metadata for PATCH document or media type errors.
+    MethodInfo:
+      type: object
+      required:
+        - method
+        - path
+      properties:
+        method:
+          type: string
+        path:
+          type: string
+        allowed:
+          type: array
+          items:
+            type: string
+      description: Metadata for HTTP 405 Method Not Allowed responses.
     Password:
       type: string
       minLength: 8
@@ -719,6 +768,18 @@ components:
         email:
           $ref: '#/components/schemas/Email'
       description: RFC 7386 JSON Merge Patch for current user profile (omit field to keep).
+    PreconditionInfo:
+      type: object
+      required:
+        - type
+      properties:
+        type:
+          type: string
+        subject:
+          type: string
+        detail:
+          type: string
+      description: 'AIP-193 PreconditionInfo: describes a failed precondition or credential state.'
     Problem:
       type: object
       required:
@@ -744,10 +805,18 @@ components:
           type: string
         request_id:
           type: string
-        params:
-          type: object
-          additionalProperties:
-            type: string
+        metadata:
+          anyOf:
+            - $ref: '#/components/schemas/ResourceInfo'
+            - $ref: '#/components/schemas/PreconditionInfo'
+            - $ref: '#/components/schemas/RetryInfo'
+            - $ref: '#/components/schemas/ValidationInfo'
+            - $ref: '#/components/schemas/DecodeInfo'
+            - $ref: '#/components/schemas/MediaTypeInfo'
+            - $ref: '#/components/schemas/MethodInfo'
+            - $ref: '#/components/schemas/RequestLimitInfo'
+            - type: object
+              additionalProperties: {}
         errors:
           type: array
           items:
@@ -808,6 +877,38 @@ components:
           $ref: '#/components/schemas/Username'
         email:
           $ref: '#/components/schemas/Email'
+    RequestLimitInfo:
+      type: object
+      required:
+        - max_bytes
+      properties:
+        max_bytes:
+          type: integer
+          format: int64
+      description: Metadata for HTTP 413 Request Entity Too Large responses.
+    ResourceInfo:
+      type: object
+      required:
+        - resource_type
+        - resource_name
+      properties:
+        resource_type:
+          type: string
+        resource_name:
+          type: string
+        field:
+          type: string
+      description: 'AIP-193 ResourceInfo: describes a missing or conflicting resource.'
+    RetryInfo:
+      type: object
+      required:
+        - service
+      properties:
+        service:
+          type: string
+        retry_after:
+          type: string
+      description: 'AIP-193 RetryInfo: describes rate limiting and suggested retry window.'
     TokenPair:
       type: object
       required:
@@ -867,6 +968,15 @@ components:
       maxLength: 50
       pattern: ^[a-zA-Z0-9_-]+$
       description: Username (3-50 chars, letters/digits/underscore/hyphen)
+    ValidationInfo:
+      type: object
+      required:
+        - error_count
+      properties:
+        error_count:
+          type: integer
+          format: int32
+      description: Summary metadata for field validation failures.
   securitySchemes:
     BearerAuth:
       type: http

@@ -76,23 +76,45 @@ func BearerAuth(authService *service.Auth) rest.Authenticator {
 }
 
 // extractTokenFromHeader 从 Authorization header 提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
-// header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误（→ HTTP 401）。
+// header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误（→ HTTP 401 + PreconditionInfo）。
 func extractTokenFromHeader(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
+	if strings.TrimSpace(authHeader) == "" {
+		return "", oops.
+			In("auth").
+			Code(codes.AuthTokenInvalid).
+			With(rest.MetaKey, rest.PreconditionInfo{
+				Type:    "MISSING_HEADER",
+				Subject: "authorization",
+				Detail:  "Bearer",
+			}).
+			New("missing Authorization header")
+	}
+
 	scheme, rawToken, ok := strings.Cut(authHeader, " ")
 	if !ok || !strings.EqualFold(scheme, "Bearer") {
 		return "", oops.
-			Code(codes.AuthTokenInvalid.String()).
-			Public("missing or invalid Authorization header").
-			Errorf("missing or invalid Authorization header")
+			In("auth").
+			Code(codes.AuthTokenInvalid).
+			With(rest.MetaKey, rest.PreconditionInfo{
+				Type:    "MALFORMED_HEADER",
+				Subject: "authorization",
+				Detail:  "Bearer",
+			}).
+			New("invalid Authorization header scheme")
 	}
 
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
 		return "", oops.
-			Code(codes.AuthTokenInvalid.String()).
-			Public("bearer token is empty").
-			Errorf("empty bearer token")
+			In("auth").
+			Code(codes.AuthTokenInvalid).
+			With(rest.MetaKey, rest.PreconditionInfo{
+				Type:    "EMPTY_TOKEN",
+				Subject: "authorization",
+				Detail:  "Bearer",
+			}).
+			New("empty bearer token")
 	}
 
 	return token, nil

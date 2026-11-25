@@ -28,7 +28,7 @@ func (r *RegisterRequest) Validate() error {
 	var v validator.FieldViolations
 	validator.CheckUsername(&v, "username", r.Username)
 	if !validator.IsValidEmail(r.Email) {
-		v.Add("email", validator.KeyEmail, map[string]string{"field": "email"})
+		v.Add("email", validator.CodeEmail, nil)
 	}
 	validator.CheckPassword(&v, "password", r.Password)
 	if extra, ok := any(r).(interface {
@@ -49,10 +49,10 @@ type LoginRequest struct {
 func (r *LoginRequest) Validate() error {
 	var v validator.FieldViolations
 	if !validator.IsValidEmail(r.Email) {
-		v.Add("email", validator.KeyEmail, map[string]string{"field": "email"})
+		v.Add("email", validator.CodeEmail, nil)
 	}
 	if strings.TrimSpace(r.Password) == "" {
-		v.Add("password", validator.KeyRequired, map[string]string{"field": "password"})
+		v.Add("password", validator.CodeRequired, nil)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -71,7 +71,7 @@ type RefreshTokenRequest struct {
 func (r *RefreshTokenRequest) Validate() error {
 	var v validator.FieldViolations
 	if strings.TrimSpace(r.RefreshToken) == "" {
-		v.Add("refresh_token", validator.KeyRequired, map[string]string{"field": "refresh_token"})
+		v.Add("refresh_token", validator.CodeRequired, nil)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)

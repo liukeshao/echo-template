@@ -1,66 +1,67 @@
 # English translations.
 # Structure:
-#   [errors]     key must equal a Code string registered in internal/codes (e.g. "BOOK_NOT_FOUND").
-#   [validation] stable keys used by pkg/validator rules and api.*.Validate().
-#   [fallback]   generic messages for paths that bypass code translation.
+#   [errors]     key must equal a Code string registered in internal/codes (domain + transport).
+#   [validation] key must equal a validation rule code registered in pkg/validator.
 #
-# Placeholders use the {name} form and are populated by oops.With(codes.CtxKeyParams, ...)
-# or FieldViolations.Add(field, key, vars). Missing vars are kept verbatim for easy detection.
+# Placeholders use the {name} form and are populated by rest.Metadata.I18nVars()
+# or validator.Violation metadata (with {field} auto-injected). Missing vars are kept verbatim.
 
 [errors]
-AUTH_INVALID_CREDENTIALS = "Invalid email or password."
-AUTH_TOKEN_INVALID       = "Invalid or expired token."
-AUTH_ACCOUNT_DISABLED    = "This account has been disabled."
-AUTH_EMAIL_TAKEN         = "The email {email} is already registered."
-AUTH_USERNAME_TAKEN      = "The username {username} is already taken."
-AUTH_INTERNAL_ERROR      = "An internal error occurred during authentication."
+# Generic HTTP / transport codes
+BAD_REQUEST                  = "Invalid JSON request body."
+NOT_FOUND                    = "The requested resource was not found."
+METHOD_NOT_ALLOWED           = "HTTP method not allowed for this resource."
+REQUEST_ENTITY_TOO_LARGE     = "Request body exceeds the maximum allowed size ({max_bytes} bytes)."
+GATEWAY_TIMEOUT              = "The request timed out."
+CLIENT_CLOSED_REQUEST        = "Client closed the request before the server could respond."
+INTERNAL_ERROR               = "An internal server error occurred."
+VALIDATION_INVALID           = "Request validation failed."
+PATCH_INVALID                = "Invalid patch document for content type {content_type}."
+PATCH_UNSUPPORTED_MEDIA_TYPE = "Unsupported PATCH content type {content_type}; supported: {supported}."
 
-BOOK_NOT_FOUND           = "Book {book_id} was not found."
-BOOK_ALREADY_EXISTS      = "Book {book_id} already exists. Please use a different book_id."
-BOOK_INTERNAL_ERROR      = "An internal error occurred while processing the book request."
+# Auth domain
+AUTH_INVALID_CREDENTIALS     = "Invalid email or password."
+AUTH_TOKEN_INVALID           = "Invalid or expired token."
+AUTH_ACCOUNT_DISABLED        = "This account has been disabled."
+AUTH_EMAIL_TAKEN             = "The email {resource_name} is already registered."
+AUTH_USERNAME_TAKEN          = "The username {resource_name} is already taken."
+AUTH_INTERNAL_ERROR          = "An internal error occurred during authentication."
 
-ME_USERNAME_TAKEN        = "The username {username} is already taken."
-ME_EMAIL_TAKEN           = "The email {email} is already in use."
-ME_INVALID_PASSWORD      = "Current password is incorrect."
-ME_INTERNAL_ERROR        = "An internal error occurred while updating your profile."
+# Book domain
+BOOK_NOT_FOUND               = "Book {resource_name} was not found."
+BOOK_ALREADY_EXISTS          = "Book {resource_name} already exists. Please use a different book_id."
+BOOK_INTERNAL_ERROR          = "An internal error occurred while processing the book request."
 
-PATCH_INVALID                  = "Invalid patch document for content type {content_type}."
-PATCH_UNSUPPORTED_MEDIA_TYPE   = "Unsupported PATCH content type {content_type}; supported: {supported}."
+# Me domain
+ME_USERNAME_TAKEN            = "The username {resource_name} is already taken."
+ME_EMAIL_TAKEN               = "The email {resource_name} is already in use."
+ME_INVALID_PASSWORD          = "Current password is incorrect."
+ME_INTERNAL_ERROR            = "An internal error occurred while updating your profile."
 
-VALIDATION_INVALID       = "Request validation failed."
-
-WEATHER_UNAVAILABLE      = "Weather service is temporarily unavailable."
-WEATHER_RATE_LIMITED     = "Weather service rate limit exceeded. Please retry later."
-WEATHER_INTERNAL_ERROR   = "An internal error occurred while contacting the weather service."
+# Weather external API client
+WEATHER_UNAVAILABLE          = "Weather service is temporarily unavailable."
+WEATHER_RATE_LIMITED         = "Weather service rate limit exceeded. Please retry later."
+WEATHER_INTERNAL_ERROR       = "An internal error occurred while contacting the weather service."
 
 [validation]
-required         = "{field} is required."
-min_length       = "{field} must be at least {min} characters."
-max_length       = "{field} must be at most {max} characters."
-length_range     = "{field} must be between {min} and {max} characters."
-username_charset = "{field} may only contain ASCII letters, digits, underscores, and hyphens."
-email            = "{field} must be a valid email address."
-password_weak    = "{field} must contain at least one letter and one digit."
-integer          = "{field} must be a valid integer."
-number           = "{field} must be a valid number."
-boolean          = "{field} must be a valid boolean."
-non_negative     = "{field} must be non-negative."
-min_value        = "{field} must be at least {min}."
-max_value        = "{field} must be at most {max}."
-pattern          = "{field} does not match the required format."
-one_of           = "{field} must be one of: {allowed}."
-invalid_type     = "{field} has an invalid value type."
-must_differ      = "{field} must differ from {other}."
-uuid             = "{field} must be a valid UUID."
-invalid_order_by_clause = "Invalid order_by clause {clause}; expected \"field\" or \"field desc\"."
+required                   = "{field} is required."
+min_length                 = "{field} must be at least {min} characters."
+max_length                 = "{field} must be at most {max} characters."
+length_range               = "{field} must be between {min} and {max} characters."
+username_charset           = "{field} may only contain ASCII letters, digits, underscores, and hyphens."
+email                      = "{field} must be a valid email address."
+password_weak              = "{field} must contain at least one letter and one digit."
+integer                    = "{field} must be a valid integer."
+number                     = "{field} must be a valid number."
+boolean                    = "{field} must be a valid boolean."
+non_negative               = "{field} must be non-negative."
+min_value                  = "{field} must be at least {min}."
+max_value                  = "{field} must be at most {max}."
+pattern                    = "{field} does not match the required format."
+one_of                     = "{field} must be one of: {allowed}."
+invalid_type               = "{field} has an invalid value type."
+must_differ                = "{field} must differ from {other}."
+uuid                       = "{field} must be a valid UUID."
+invalid_order_by_clause    = "Invalid order_by clause {clause}; expected \"field\" or \"field desc\"."
 invalid_order_by_direction = "Invalid order_by direction {direction} in {clause}; use \"desc\" or omit for ascending."
-unknown_order_by_field = "Unknown order_by field {field}; supported: {allowed}."
-
-[fallback]
-internal                 = "An internal server error occurred."
-bad_request              = "Invalid JSON request body."
-not_found                = "The requested resource was not found."
-method_not_allowed       = "HTTP method not allowed for this resource."
-request_entity_too_large = "Request body exceeds the maximum allowed size."
-gateway_timeout          = "The request timed out."
-client_closed_request    = "Client closed the request before the server could respond."
+unknown_order_by_field     = "Unknown order_by field {value}; supported: {allowed}."

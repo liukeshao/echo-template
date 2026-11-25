@@ -2,37 +2,66 @@ package validator
 
 import (
 	"net/mail"
+	"slices"
 	"strings"
 	"unicode"
 	"uuid"
 )
 
-// 翻译键常量。集中定义避免字符串散落各处；任何新规则须同时新增 key 与翻译。
-//
-// 与 internal/i18n/messages/*.toml 中 [validation] section 的键一一对应。
+// 校验规则码常量。既作为 rest.FieldError.Code 对外暴露，又与
+// internal/i18n/messages/*.toml 中 [validation] section 的键名 1:1 对应。
 const (
-	KeyRequired                = "validation.required"
-	KeyMinLength               = "validation.min_length"
-	KeyMaxLength               = "validation.max_length"
-	KeyLengthRange             = "validation.length_range"
-	KeyUsernameCharset         = "validation.username_charset"
-	KeyEmail                   = "validation.email"
-	KeyPasswordWeak            = "validation.password_weak"
-	KeyInteger                 = "validation.integer"
-	KeyNumber                  = "validation.number"
-	KeyBoolean                 = "validation.boolean"
-	KeyNonNegative             = "validation.non_negative"
-	KeyMinValue                = "validation.min_value"
-	KeyMaxValue                = "validation.max_value"
-	KeyPattern                 = "validation.pattern"
-	KeyOneOf                   = "validation.one_of"
-	KeyInvalidType             = "validation.invalid_type"
-	KeyMustDiffer              = "validation.must_differ"
-	KeyUUID                    = "validation.uuid"
-	KeyInvalidOrderByClause    = "validation.invalid_order_by_clause"
-	KeyInvalidOrderByDirection = "validation.invalid_order_by_direction"
-	KeyUnknownOrderByField     = "validation.unknown_order_by_field"
+	CodeRequired                = "required"
+	CodeMinLength               = "min_length"
+	CodeMaxLength               = "max_length"
+	CodeLengthRange             = "length_range"
+	CodeUsernameCharset         = "username_charset"
+	CodeEmail                   = "email"
+	CodePasswordWeak            = "password_weak"
+	CodeInteger                 = "integer"
+	CodeNumber                  = "number"
+	CodeBoolean                 = "boolean"
+	CodeNonNegative             = "non_negative"
+	CodeMinValue                = "min_value"
+	CodeMaxValue                = "max_value"
+	CodePattern                 = "pattern"
+	CodeOneOf                   = "one_of"
+	CodeInvalidType             = "invalid_type"
+	CodeMustDiffer              = "must_differ"
+	CodeUUID                    = "uuid"
+	CodeInvalidOrderByClause    = "invalid_order_by_clause"
+	CodeInvalidOrderByDirection = "invalid_order_by_direction"
+	CodeUnknownOrderByField     = "unknown_order_by_field"
 )
+
+var registeredRules = []string{
+	CodeRequired,
+	CodeMinLength,
+	CodeMaxLength,
+	CodeLengthRange,
+	CodeUsernameCharset,
+	CodeEmail,
+	CodePasswordWeak,
+	CodeInteger,
+	CodeNumber,
+	CodeBoolean,
+	CodeNonNegative,
+	CodeMinValue,
+	CodeMaxValue,
+	CodePattern,
+	CodeOneOf,
+	CodeInvalidType,
+	CodeMustDiffer,
+	CodeUUID,
+	CodeInvalidOrderByClause,
+	CodeInvalidOrderByDirection,
+	CodeUnknownOrderByField,
+}
+
+// RegisteredRules 返回所有内置校验规则码副本，供 i18n 在启动与测试阶段做 100% 翻译覆盖率门禁。
+func RegisteredRules() []string {
+	return slices.Clone(registeredRules)
+}
 
 // --- 原子级规则（供外部直接判断） ---
 
@@ -88,35 +117,35 @@ func HasPasswordComplexity(s string) bool {
 // CheckUsername 校验用户名长度（3..50，与 TypeSpec 及数据库列一致）与字符集，失败时写入 v。
 func CheckUsername(v *FieldViolations, field, username string) {
 	if strings.TrimSpace(username) == "" {
-		v.Add(field, KeyRequired, map[string]string{"field": field})
+		v.Add(field, CodeRequired, nil)
 		return
 	}
 	if len(username) < 3 || len(username) > 50 {
-		v.Add(field, KeyLengthRange, map[string]string{
-			"field": field, "min": "3", "max": "50",
+		v.Add(field, CodeLengthRange, map[string]string{
+			"min": "3", "max": "50",
 		})
 		return
 	}
 	if !IsValidUsername(username) {
-		v.Add(field, KeyUsernameCharset, map[string]string{"field": field})
+		v.Add(field, CodeUsernameCharset, nil)
 	}
 }
 
 // CheckPassword 校验密码长度（8..72 字节，受 bcrypt 上限约束）与复杂度，失败时写入 v。
 func CheckPassword(v *FieldViolations, field, password string) {
 	if len(password) < 8 {
-		v.Add(field, KeyMinLength, map[string]string{
-			"field": field, "min": "8",
+		v.Add(field, CodeMinLength, map[string]string{
+			"min": "8",
 		})
 		return
 	}
 	if len(password) > 72 {
-		v.Add(field, KeyMaxLength, map[string]string{
-			"field": field, "max": "72",
+		v.Add(field, CodeMaxLength, map[string]string{
+			"max": "72",
 		})
 		return
 	}
 	if !HasPasswordComplexity(password) {
-		v.Add(field, KeyPasswordWeak, map[string]string{"field": field})
+		v.Add(field, CodePasswordWeak, nil)
 	}
 }

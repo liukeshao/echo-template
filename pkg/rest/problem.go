@@ -33,38 +33,48 @@ const (
 // StatusClientClosedRequest 是客户端提前断开连接时使用的非标准 HTTP 状态码（499）。
 const StatusClientClosedRequest = 499
 
-// Problem 遵循 RFC 9457 (Problem Details for HTTP APIs) 的扁平、强类型 HTTP 错误响应。
+// Problem 遵循 RFC 9457 (Problem Details for HTTP APIs) 的扁平、强类型 HTTP 错误响应，
+// 结合 AIP-193 风格结构化 Metadata 与字段级 FieldError。
 type Problem struct {
-	Type      string            `json:"type"`
-	Title     string            `json:"title"`
-	Status    int               `json:"status"`
-	Detail    string            `json:"detail"`
-	Instance  string            `json:"instance,omitempty"`
-	Code      string            `json:"code"`
-	RequestID string            `json:"request_id,omitempty"`
-	Params    map[string]string `json:"params,omitempty"`
-	Errors    []FieldError      `json:"errors,omitempty"`
+	Type      string       `json:"type"`
+	Title     string       `json:"title"`
+	Status    int          `json:"status"`
+	Detail    string       `json:"detail"`
+	Instance  string       `json:"instance,omitempty"`
+	Code      string       `json:"code"`
+	RequestID string       `json:"request_id,omitempty"`
+	Metadata  any          `json:"metadata,omitempty"`
+	Errors    []FieldError `json:"errors,omitempty"`
 }
 
-// Error 实现 error 接口，便于直接作为 error 返回或供 HTTP 客户端消费。
+// Error 实现 error 接口，便于作为协议错误传递或供 HTTP 客户端消费。
 func (p Problem) Error() string {
-	return fmt.Sprintf("http %d %s: %s", p.Status, p.Code, p.Detail)
+	if p.Detail != "" {
+		return fmt.Sprintf("http %d %s: %s", p.Status, p.Code, p.Detail)
+	}
+	return fmt.Sprintf("http %d %s", p.Status, p.Code)
 }
 
-// FieldError 描述单个请求字段的校验失败原因。
+// FieldError 描述单个请求字段的校验失败原因、规则码及约束元数据。
 type FieldError struct {
-	Field   string `json:"field"`
-	Message string `json:"message"`
+	Field    string            `json:"field"`
+	Code     string            `json:"code"`
+	Message  string            `json:"message"`
+	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
 // ErrorEncoder 将任意 error 渲染为 HTTP 错误响应（通常为 RFC 9457 application/problem+json）。
-// 应用层可注入自定义 ErrorEncoder 以接入业务错误码注册表、i18n 与链路追踪 ID。
+// 应用层可注入自定义 ErrorEncoder 以接入业务错误码注册表、统一 i18n 与链路追踪 ID。
 type ErrorEncoder func(w http.ResponseWriter, r *http.Request, err error)
 
 // WriteProblem 补全 Problem 缺省字段并写出 RFC 9457 (application/problem+json) 响应。
 func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 	if p.Status == 0 {
 		p.Status = http.StatusInternalServerError
+	}
+	if p.Status >= http.StatusInternalServerError {
+		// 纵深防御：5xx 错误绝不对外输出任何元数据。
+		p.Metadata = nil
 	}
 	if p.Type == "" {
 		p.Type = "about:blank"
@@ -91,7 +101,7 @@ func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 }
 
 // DefaultErrorEncoder 是不依赖外部业务错误库或 i18n 的默认 RFC 9457 编码器，
-// 适合独立单测或轻量服务零配置运行。
+// 仅输出标准 HTTP 短标题与结构化 Metadata，适合独立单测或轻量服务零配置运行。
 func DefaultErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 	if err == nil {
 		return
@@ -99,7 +109,6 @@ func DefaultErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
 
 	p := classifyDefaultError(err)
 	if p.Status >= http.StatusInternalServerError {
-		p.Params = nil
 		slog.ErrorContext(r.Context(), "unhandled error", "status", p.Status, "code", p.Code, "error", err)
 	}
 	WriteProblem(w, r, p)
@@ -112,34 +121,35 @@ func classifyDefaultError(err error) Problem {
 	if p, ok := errors.AsType[*Problem](err); ok && p != nil {
 		return *p
 	}
-	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok {
+	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok && fv != nil {
 		viols := fv.Items()
 		fieldErrs := make([]FieldError, 0, len(viols))
 		for _, it := range viols {
 			fieldErrs = append(fieldErrs, FieldError{
-				Field:   it.Field,
-				Message: it.Key,
+				Field:    it.Field,
+				Code:     it.Code,
+				Message:  it.Code,
+				Metadata: it.Metadata,
 			})
 		}
 		return Problem{
-			Status: http.StatusBadRequest,
-			Code:   CodeValidationInvalid,
-			Detail: "Request validation failed.",
-			Errors: fieldErrs,
+			Status:   http.StatusBadRequest,
+			Code:     CodeValidationInvalid,
+			Metadata: ValidationInfo{ErrorCount: len(viols)},
+			Errors:   fieldErrs,
 		}
 	}
-	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+	if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxErr != nil {
 		return Problem{
-			Status: http.StatusRequestEntityTooLarge,
-			Code:   CodeRequestEntityTooLarge,
-			Detail: "Request body exceeds the maximum allowed size.",
+			Status:   http.StatusRequestEntityTooLarge,
+			Code:     CodeRequestEntityTooLarge,
+			Metadata: RequestLimitInfo{MaxBytes: maxErr.Limit},
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return Problem{
 			Status: http.StatusGatewayTimeout,
 			Code:   CodeGatewayTimeout,
-			Detail: "The request timed out.",
 		}
 	}
 	if errors.Is(err, context.Canceled) {
@@ -147,13 +157,11 @@ func classifyDefaultError(err error) Problem {
 			Status: StatusClientClosedRequest,
 			Title:  "Client Closed Request",
 			Code:   CodeClientClosedRequest,
-			Detail: "Client closed the request before the server could respond.",
 		}
 	}
 	return Problem{
 		Status: http.StatusInternalServerError,
 		Code:   CodeInternalError,
-		Detail: "An internal server error occurred.",
 	}
 }
 

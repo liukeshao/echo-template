@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"maps"
 	"net/http"
-	"strings"
 
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
@@ -17,15 +17,10 @@ import (
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// NewProblemEncoder 返回应用级 RFC 9457 ErrorEncoder，将错误统一分类并本地化：
-//
-// 分类优先级：
-//  1. rest.Problem / *rest.Problem         — 优先按 errors.<CODE> / fallback.<code> 本地化
-//  2. oops.OopsError（含 Code）             — 经 internal/codes 映射 HTTP 状态码并本地化
-//  3. *validator.FieldViolations           — 400 VALIDATION_INVALID + 本地化字段 errors
-//  4. *http.MaxBytesError                  — 413 REQUEST_ENTITY_TOO_LARGE
-//  5. context.DeadlineExceeded / Canceled  — 504 / 499
-//  6. 其他未知错误                          — 500 INTERNAL_ERROR（隐藏内部细节）
+// NewProblemEncoder 返回应用级 RFC 9457 ErrorEncoder，按三段式流水线处理所有错误：
+//  1. Classify：纯提取 Status + Code + 强类型 Metadata + FieldErrors（不生成自然语言文案，不读取 oops.Public）
+//  2. Sanitize & Log：注入 RequestID；5xx 记录完整结构化错误链（含 oops stack/context/user）并清空对外 Metadata
+//  3. Unified Localize：唯一国际化出口，按请求 Locale 统一渲染 errors.<CODE> 与 validation.<CODE>
 func NewProblemEncoder(tr i18n.Translator) rest.ErrorEncoder {
 	if tr == nil {
 		tr = noopTranslator{}
@@ -45,45 +40,75 @@ func (e *problemEncoder) Encode(w http.ResponseWriter, r *http.Request, err erro
 	ctx := r.Context()
 	loc := i18n.Locale(ctx, e.translator.Default())
 
-	p := e.classifyError(err, loc)
+	// Stage 1: 纯分类与强类型 Metadata 提取
+	p := classifyError(err)
+
+	// Stage 2: 安全隔离与结构化日志
 	if p.RequestID == "" {
 		p.RequestID = logging.RequestID(ctx)
 	}
 	if p.Status >= http.StatusInternalServerError {
-		p.Params = nil
+		p.Metadata = nil
 		slog.ErrorContext(ctx, "unhandled error", "status", p.Status, "code", p.Code, "error", err)
 	}
+
+	// Stage 3: 终端统一国际化
+	e.localizeProblem(&p, loc)
 
 	rest.WriteProblem(w, r, p)
 }
 
-func (e *problemEncoder) classifyError(err error, loc language.Tag) rest.Problem {
+func classifyError(err error) rest.Problem {
 	if p, ok := errors.AsType[rest.Problem](err); ok {
-		return e.localizeProblem(p, loc)
+		return p
 	}
 	if p, ok := errors.AsType[*rest.Problem](err); ok && p != nil {
-		return e.localizeProblem(*p, loc)
+		return *p
 	}
-	if oopsErr, ok := errors.AsType[oops.OopsError](err); ok {
-		if codeStr, _ := oopsErr.Code().(string); codeStr != "" {
-			return e.classifyOops(oopsErr, codeStr, loc)
+	if oopsErr, ok := oops.AsOops(err); ok {
+		if code, ok := codes.FromAny(oopsErr.Code()); ok {
+			status := codes.HTTPStatus(code)
+			var meta rest.Metadata
+			if status < http.StatusInternalServerError {
+				if m, ok := oopsErr.Context()[rest.MetaKey].(rest.Metadata); ok {
+					meta = m
+				}
+			}
+			return rest.Problem{
+				Status:   status,
+				Code:     code.String(),
+				Metadata: meta,
+			}
 		}
 	}
-	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok {
-		return e.classifyFieldViolations(fv, loc)
-	}
-	if _, ok := errors.AsType[*http.MaxBytesError](err); ok {
+	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok && fv != nil {
+		viols := fv.Items()
+		fieldErrs := make([]rest.FieldError, 0, len(viols))
+		for _, it := range viols {
+			fieldErrs = append(fieldErrs, rest.FieldError{
+				Field:    it.Field,
+				Code:     it.Code,
+				Metadata: it.Metadata,
+			})
+		}
 		return rest.Problem{
-			Status: http.StatusRequestEntityTooLarge,
-			Code:   rest.CodeRequestEntityTooLarge,
-			Detail: e.translateFallback(loc, "fallback.request_entity_too_large", "Request body exceeds the maximum allowed size."),
+			Status:   codes.HTTPStatus(codes.ValidationInvalid),
+			Code:     codes.ValidationInvalid.String(),
+			Metadata: rest.ValidationInfo{ErrorCount: len(viols)},
+			Errors:   fieldErrs,
+		}
+	}
+	if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxErr != nil {
+		return rest.Problem{
+			Status:   http.StatusRequestEntityTooLarge,
+			Code:     rest.CodeRequestEntityTooLarge,
+			Metadata: rest.RequestLimitInfo{MaxBytes: maxErr.Limit},
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return rest.Problem{
 			Status: http.StatusGatewayTimeout,
 			Code:   rest.CodeGatewayTimeout,
-			Detail: e.translateFallback(loc, "fallback.gateway_timeout", "The request timed out."),
 		}
 	}
 	if errors.Is(err, context.Canceled) {
@@ -91,98 +116,60 @@ func (e *problemEncoder) classifyError(err error, loc language.Tag) rest.Problem
 			Status: rest.StatusClientClosedRequest,
 			Title:  "Client Closed Request",
 			Code:   rest.CodeClientClosedRequest,
-			Detail: e.translateFallback(loc, "fallback.client_closed_request", "Client closed the request before the server could respond."),
 		}
 	}
 	return rest.Problem{
 		Status: http.StatusInternalServerError,
 		Code:   rest.CodeInternalError,
-		Detail: e.translateFallbackInternal(loc),
 	}
 }
 
-func (e *problemEncoder) localizeProblem(p rest.Problem, loc language.Tag) rest.Problem {
+func (e *problemEncoder) localizeProblem(p *rest.Problem, loc language.Tag) {
 	if p.Code != "" {
-		if msg, _, ok := e.translator.T(loc, "errors."+p.Code, p.Params); ok {
+		vars := metadataI18nVars(p.Metadata)
+		if msg, _, ok := e.translator.T(loc, "errors."+p.Code, vars); ok {
 			p.Detail = msg
-			return p
-		}
-	}
-	if p.Detail == "" && p.Code != "" {
-		if msg, _, ok := e.translator.T(loc, "fallback."+strings.ToLower(p.Code), nil); ok {
-			p.Detail = msg
-			return p
 		}
 	}
 	if p.Detail == "" {
 		p.Detail = rest.StatusTitle(p.Status)
 	}
-	return p
-}
 
-func (e *problemEncoder) classifyOops(oopsErr oops.OopsError, codeStr string, loc language.Tag) rest.Problem {
-	status := codes.HTTPStatus(codes.Code(codeStr))
-	params, _ := oopsErr.Context()[codes.CtxKeyParams].(map[string]string)
-
-	detail, _, ok := e.translator.T(loc, "errors."+codeStr, params)
-	if !ok {
-		if status >= http.StatusInternalServerError {
-			detail = e.translateFallbackInternal(loc)
-		} else if pub := oops.GetPublic(oopsErr, ""); pub != "" {
-			detail = pub
-		} else {
-			detail = rest.StatusTitle(status)
+	for i := range p.Errors {
+		fe := &p.Errors[i]
+		if fe.Code == "" {
+			continue
+		}
+		vars := withFieldVar(fe.Field, fe.Metadata)
+		if msg, _, ok := e.translator.T(loc, "validation."+fe.Code, vars); ok {
+			fe.Message = msg
+		} else if fe.Message == "" {
+			fe.Message = fe.Code
 		}
 	}
+}
 
-	// 5xx 错误不对外透出 params，防止意外泄漏内部上下文。
-	var publicParams map[string]string
-	if status < http.StatusInternalServerError && len(params) > 0 {
-		publicParams = params
-	}
-	return rest.Problem{
-		Status: status,
-		Code:   codeStr,
-		Detail: detail,
-		Params: publicParams,
+func metadataI18nVars(meta any) map[string]string {
+	switch m := meta.(type) {
+	case rest.Metadata:
+		return m.I18nVars()
+	case map[string]string:
+		return m
+	default:
+		return nil
 	}
 }
 
-func (e *problemEncoder) classifyFieldViolations(fv *validator.FieldViolations, loc language.Tag) rest.Problem {
-	viols := fv.Items()
-	fieldErrs := make([]rest.FieldError, 0, len(viols))
-	for _, it := range viols {
-		msg, _, ok := e.translator.T(loc, it.Key, it.Vars)
-		if !ok {
-			msg = it.Key
-		}
-		fieldErrs = append(fieldErrs, rest.FieldError{
-			Field:   it.Field,
-			Message: msg,
-		})
+func withFieldVar(field string, meta map[string]string) map[string]string {
+	if field == "" {
+		return meta
 	}
-	codeStr := codes.ValidationInvalid.String()
-	detail, _, ok := e.translator.T(loc, "errors."+codeStr, nil)
-	if !ok {
-		detail = "Request validation failed."
+	out := make(map[string]string, len(meta)+1)
+	maps.Copy(out, meta)
+	if _, exists := out["field"]; !exists {
+		out["field"] = field
 	}
-	return rest.Problem{
-		Status: codes.HTTPStatus(codes.ValidationInvalid),
-		Code:   codeStr,
-		Detail: detail,
-		Errors: fieldErrs,
-	}
-}
-
-func (e *problemEncoder) translateFallback(loc language.Tag, key, defaultMsg string) string {
-	if msg, _, ok := e.translator.T(loc, key, nil); ok {
-		return msg
-	}
-	return defaultMsg
-}
-
-func (e *problemEncoder) translateFallbackInternal(loc language.Tag) string {
-	return e.translateFallback(loc, "fallback.internal", "An internal server error occurred.")
+	return out
 }
 
 type noopTranslator struct{}

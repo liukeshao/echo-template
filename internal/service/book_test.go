@@ -64,12 +64,13 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 	})
 	testutil.AssertOopsCode(t, err, codes.BookAlreadyExists)
 
-	// Invalid order_by returns *validator.FieldViolations with i18n keys.
+	// Invalid order_by returns *validator.FieldViolations with rule codes & metadata.
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "unknown_col"})
 	var fv *validator.FieldViolations
 	require.ErrorAs(t, err, &fv)
 	require.Len(t, fv.Items(), 1)
-	assert.Equal(t, validator.KeyUnknownOrderByField, fv.Items()[0].Key)
+	assert.Equal(t, validator.CodeUnknownOrderByField, fv.Items()[0].Code)
+	assert.Equal(t, "unknown_col", fv.Items()[0].Metadata["value"])
 
 	// Comma-only order_by falls back to default sort without error.
 	res, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: " , , "})
@@ -147,9 +148,9 @@ func TestBook_ListQueryFieldsAndOrderBy(t *testing.T) {
 	var fv *validator.FieldViolations
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc extra"})
 	require.ErrorAs(t, err, &fv)
-	assert.Equal(t, validator.KeyInvalidOrderByClause, fv.Items()[0].Key)
+	assert.Equal(t, validator.CodeInvalidOrderByClause, fv.Items()[0].Code)
 
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc"})
 	require.ErrorAs(t, err, &fv)
-	assert.Equal(t, validator.KeyInvalidOrderByDirection, fv.Items()[0].Key)
+	assert.Equal(t, validator.CodeInvalidOrderByDirection, fv.Items()[0].Code)
 }

@@ -2,6 +2,8 @@ package i18n
 
 import (
 	"context"
+	"regexp"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,7 +15,6 @@ import (
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// newTestTranslator 构造包含默认 en + zh-CN 的 Translator；测试通用。
 func newTestTranslator(t *testing.T) Translator {
 	t.Helper()
 	tr, err := newTranslator(config.I18n{
@@ -43,7 +44,6 @@ func TestTranslator_Match(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			got := tr.Match(tc.header, tc.query)
-			// Matcher 可能返回 base 或 region 变体；用 Base 比较更稳定。
 			gotBase, _ := got.Base()
 			wantBase, _ := tc.want.Base()
 			assert.Equal(t, wantBase, gotBase, "got=%s want=%s", got, tc.want)
@@ -55,12 +55,12 @@ func TestTranslator_T_ErrorsWithMetadata(t *testing.T) {
 	tr := newTestTranslator(t)
 
 	zh := language.SimplifiedChinese
-	text, used, ok := tr.T(zh, "errors.BOOK_NOT_FOUND", map[string]string{"book_id": "01ABC"})
+	text, used, ok := tr.T(zh, "errors.BOOK_NOT_FOUND", map[string]string{"resource_name": "01ABC"})
 	require.True(t, ok)
 	assert.Equal(t, "未找到 ID 为 01ABC 的书籍。", text)
 	assert.Equal(t, "zh-CN", used.String())
 
-	text, _, ok = tr.T(language.English, "errors.BOOK_NOT_FOUND", map[string]string{"book_id": "01ABC"})
+	text, _, ok = tr.T(language.English, "errors.BOOK_NOT_FOUND", map[string]string{"resource_name": "01ABC"})
 	require.True(t, ok)
 	assert.Equal(t, "Book 01ABC was not found.", text)
 }
@@ -68,7 +68,6 @@ func TestTranslator_T_ErrorsWithMetadata(t *testing.T) {
 func TestTranslator_T_FallbackToDefault(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	// Japanese 未配置，应该回退到默认 en。
 	jp := language.Japanese
 	text, used, ok := tr.T(jp, "errors.VALIDATION_INVALID", nil)
 	require.True(t, ok)
@@ -86,10 +85,9 @@ func TestTranslator_T_UnknownKey(t *testing.T) {
 func TestTranslator_T_MissingVarKeepsPlaceholder(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	// 缺失 book_id 时占位符应保留，便于排查。
 	text, _, ok := tr.T(language.English, "errors.BOOK_NOT_FOUND", nil)
 	require.True(t, ok)
-	assert.Contains(t, text, "{book_id}")
+	assert.Contains(t, text, "{resource_name}")
 }
 
 func TestTranslator_T_ValidationRuleKeys(t *testing.T) {
@@ -129,16 +127,14 @@ func TestNewTranslator_UnknownLocaleFile(t *testing.T) {
 func TestTranslator_MatchAndTranslate_RegionalVariants(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	// zh-Hans / zh-SG should normalize to supported zh-CN and actually return Chinese text.
 	for _, header := range []string{"zh-Hans", "zh-SG", "zh-CN,zh;q=0.9"} {
 		loc := tr.Match(header, "")
-		text, used, ok := tr.T(loc, "errors.BOOK_NOT_FOUND", map[string]string{"book_id": "01XYZ"})
+		text, used, ok := tr.T(loc, "errors.BOOK_NOT_FOUND", map[string]string{"resource_name": "01XYZ"})
 		require.True(t, ok, "header=%s", header)
 		assert.Equal(t, "zh-CN", used.String(), "header=%s", header)
 		assert.Equal(t, "未找到 ID 为 01XYZ 的书籍。", text, "header=%s", header)
 	}
 
-	// en-US should normalize to supported en (not en-u-rg-uszzzz).
 	loc := tr.Match("en-US,en;q=0.9", "")
 	assert.Equal(t, "en", loc.String())
 	text, used, ok := tr.T(loc, "errors.VALIDATION_INVALID", nil)
@@ -155,17 +151,38 @@ func TestRender_SinglePassNoReexpansion(t *testing.T) {
 	assert.Equal(t, "{b} and VALUE", got)
 }
 
-// TestMessages_LocaleKeyParityAndCompleteCoverage is a template invariant gate:
-// every registered error code and validation key must exist in BOTH en.toml and zh-CN.toml,
-// and both locale files must define the exact same set of keys.
-func TestMessages_LocaleKeyParityAndCompleteCoverage(t *testing.T) {
+var placeholderRE = regexp.MustCompile(`\{([a-zA-Z0-9_]+)\}`)
+
+func extractPlaceholders(tmpl string) []string {
+	matches := placeholderRE.FindAllStringSubmatch(tmpl, -1)
+	seen := make(map[string]struct{}, len(matches))
+	out := make([]string, 0, len(matches))
+	for _, m := range matches {
+		if _, ok := seen[m[1]]; !ok {
+			seen[m[1]] = struct{}{}
+			out = append(out, m[1])
+		}
+	}
+	slices.Sort(out)
+	return out
+}
+
+// TestMessages_LocaleKeyAndPlaceholderParity is a template invariant gate:
+//   - every registered error code and validation rule must exist in BOTH en.toml and zh-CN.toml;
+//   - both locale files must define the exact same set of keys;
+//   - every key must reference the exact same {placeholder} set across locales.
+func TestMessages_LocaleKeyAndPlaceholderParity(t *testing.T) {
 	enTable, err := loadLocale(language.English)
 	require.NoError(t, err)
 	zhTable, err := loadLocale(language.MustParse("zh-CN"))
 	require.NoError(t, err)
 
-	for k := range enTable {
-		assert.Contains(t, zhTable, k, "zh-CN.toml missing key %q present in en.toml", k)
+	for k, enTmpl := range enTable {
+		zhTmpl, ok := zhTable[k]
+		if assert.True(t, ok, "zh-CN.toml missing key %q present in en.toml", k) {
+			assert.Equal(t, extractPlaceholders(enTmpl), extractPlaceholders(zhTmpl),
+				"placeholder mismatch for key %q (en=%q, zh-CN=%q)", k, enTmpl, zhTmpl)
+		}
 	}
 	for k := range zhTable {
 		assert.Contains(t, enTable, k, "en.toml missing key %q present in zh-CN.toml", k)
@@ -177,39 +194,19 @@ func TestMessages_LocaleKeyParityAndCompleteCoverage(t *testing.T) {
 		assert.Contains(t, zhTable, key)
 	}
 
-	validationKeys := []string{
-		validator.KeyRequired,
-		validator.KeyMinLength,
-		validator.KeyMaxLength,
-		validator.KeyLengthRange,
-		validator.KeyUsernameCharset,
-		validator.KeyEmail,
-		validator.KeyPasswordWeak,
-		validator.KeyInteger,
-		validator.KeyNumber,
-		validator.KeyBoolean,
-		validator.KeyNonNegative,
-		validator.KeyMinValue,
-		validator.KeyMaxValue,
-		validator.KeyPattern,
-		validator.KeyOneOf,
-		validator.KeyInvalidType,
-		validator.KeyMustDiffer,
-		validator.KeyUUID,
-		validator.KeyInvalidOrderByClause,
-		validator.KeyInvalidOrderByDirection,
-		validator.KeyUnknownOrderByField,
-	}
-	for _, key := range validationKeys {
+	for _, rule := range validator.RegisteredRules() {
+		key := "validation." + rule
 		assert.Contains(t, enTable, key)
 		assert.Contains(t, zhTable, key)
 	}
 }
 
-func TestAssertCoverage_DetectsMissingCode(t *testing.T) {
+func TestAssertCoverage_DetectsMissingCodeAndRule(t *testing.T) {
 	err := assertCoverage(map[string]string{}, language.English)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing translations")
+	assert.Contains(t, err.Error(), "errors.BOOK_NOT_FOUND")
+	assert.Contains(t, err.Error(), "validation.required")
 	assert.Error(t, assertCoverage(nil, language.English))
 }
 

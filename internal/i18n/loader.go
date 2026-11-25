@@ -9,6 +9,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/liukeshao/echo-template/internal/codes"
+	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
 //go:embed messages/*.toml
@@ -20,8 +21,7 @@ const messagesDir = "messages"
 // loadMessages 从 embed.FS 读取所有已支持 locale 的翻译表。
 //
 // 文件命名约定：messages/<BCP-47>.toml。缺失文件直接返回错误（fail-fast）。
-// 文件内为两层 TOML：[section].<key> = "template"，加载后扁平化为
-// "section.key"。
+// 文件内为两层 TOML：[section].<key> = "template"，加载后扁平化为 "section.key"。
 func loadMessages(supported []language.Tag) (map[language.Tag]map[string]string, error) {
 	out := make(map[language.Tag]map[string]string, len(supported))
 	for _, tag := range supported {
@@ -56,10 +56,10 @@ func loadLocale(tag language.Tag) (map[string]string, error) {
 	return flat, nil
 }
 
-// assertCoverage 保证默认 locale 中的 [errors] section 覆盖了所有已注册的业务错误码。
+// assertCoverage 保证默认 locale 中的 [errors] 与 [validation] 100% 覆盖
+// 所有已注册错误码（internal/codes）与校验规则码（pkg/validator）。
 //
-// 缺失任一注册 Code 的翻译 → 返回错误，由 NewTranslator 在启动时暴露给 DI 容器。
-// 附加 locale 的缺失不会致命，运行期会回落到默认 locale。
+// 缺失任一键 → 返回错误，由 NewTranslator 在启动时暴露给 DI 容器（fail-fast）。
 func assertCoverage(defaultTable map[string]string, defaultTag language.Tag) error {
 	if defaultTable == nil {
 		return fmt.Errorf("i18n: default locale %s has no messages loaded", defaultTag)
@@ -68,6 +68,12 @@ func assertCoverage(defaultTable map[string]string, defaultTag language.Tag) err
 	var missing []string
 	for _, code := range codes.RegisteredCodes() {
 		key := "errors." + code.String()
+		if _, ok := defaultTable[key]; !ok {
+			missing = append(missing, key)
+		}
+	}
+	for _, rule := range validator.RegisteredRules() {
+		key := "validation." + rule
 		if _, ok := defaultTable[key]; !ok {
 			missing = append(missing, key)
 		}

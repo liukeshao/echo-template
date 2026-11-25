@@ -53,11 +53,12 @@ func TestBearerAuth(t *testing.T) {
 		name     string
 		header   string
 		wantCode codes.Code
+		wantType string
 	}{
-		{"missing header", "", codes.AuthTokenInvalid},
-		{"wrong scheme", "Basic abc", codes.AuthTokenInvalid},
-		{"empty bearer", "Bearer ", codes.AuthTokenInvalid},
-		{"invalid jwt", "Bearer not.a.jwt", codes.AuthTokenInvalid},
+		{"missing header", "", codes.AuthTokenInvalid, "MISSING_HEADER"},
+		{"wrong scheme", "Basic abc", codes.AuthTokenInvalid, "MALFORMED_HEADER"},
+		{"empty bearer", "Bearer ", codes.AuthTokenInvalid, "EMPTY_TOKEN"},
+		{"invalid jwt", "Bearer not.a.jwt", codes.AuthTokenInvalid, "TOKEN_INVALID"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -75,7 +76,10 @@ func TestBearerAuth(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			assert.False(t, called)
-			testutil.AssertProblem(t, rec, http.StatusUnauthorized, tc.wantCode.String())
+			p := testutil.AssertProblem(t, rec, http.StatusUnauthorized, tc.wantCode.String())
+			meta := testutil.DecodeProblemMeta[rest.PreconditionInfo](t, p)
+			assert.Equal(t, tc.wantType, meta.Type)
+			assert.Equal(t, "authorization", meta.Subject)
 		})
 	}
 

@@ -37,27 +37,27 @@ func TestIsValidEmail(t *testing.T) {
 func TestCheckUsername(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name    string
-		in      string
-		wantKey string
+		name     string
+		in       string
+		wantCode string
 	}{
 		{"valid", "alice_01-x", ""},
 		{"valid max 50", strings.Repeat("a", 50), ""},
-		{"empty", "   ", validator.KeyRequired},
-		{"too short", "ab", validator.KeyLengthRange},
-		{"too long", strings.Repeat("a", 51), validator.KeyLengthRange},
-		{"invalid charset", "alice@bad", validator.KeyUsernameCharset},
-		{"non-ascii rejected", "中文用户", validator.KeyUsernameCharset},
+		{"empty", "   ", validator.CodeRequired},
+		{"too short", "ab", validator.CodeLengthRange},
+		{"too long", strings.Repeat("a", 51), validator.CodeLengthRange},
+		{"invalid charset", "alice@bad", validator.CodeUsernameCharset},
+		{"non-ascii rejected", "中文用户", validator.CodeUsernameCharset},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var v validator.FieldViolations
 			validator.CheckUsername(&v, "username", tc.in)
-			if tc.wantKey == "" {
+			if tc.wantCode == "" {
 				assert.NoError(t, v.Err())
 			} else {
 				require.True(t, v.HasErrors())
-				assert.Equal(t, tc.wantKey, v.Items()[0].Key)
+				assert.Equal(t, tc.wantCode, v.Items()[0].Code)
 			}
 		})
 	}
@@ -66,25 +66,25 @@ func TestCheckUsername(t *testing.T) {
 func TestCheckPassword(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
-		name    string
-		in      string
-		wantKey string
+		name     string
+		in       string
+		wantCode string
 	}{
 		{"valid", "password123", ""},
-		{"too short", "pass12", validator.KeyMinLength},
-		{"exceeds bcrypt 72 bytes", strings.Repeat("a", 72) + "1", validator.KeyMaxLength},
-		{"letters only", "abcdefghij", validator.KeyPasswordWeak},
-		{"digits only", "1234567890", validator.KeyPasswordWeak},
+		{"too short", "pass12", validator.CodeMinLength},
+		{"exceeds bcrypt 72 bytes", strings.Repeat("a", 72) + "1", validator.CodeMaxLength},
+		{"letters only", "abcdefghij", validator.CodePasswordWeak},
+		{"digits only", "1234567890", validator.CodePasswordWeak},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			var v validator.FieldViolations
 			validator.CheckPassword(&v, "password", tc.in)
-			if tc.wantKey == "" {
+			if tc.wantCode == "" {
 				assert.NoError(t, v.Err())
 			} else {
 				require.True(t, v.HasErrors())
-				assert.Equal(t, tc.wantKey, v.Items()[0].Key)
+				assert.Equal(t, tc.wantCode, v.Items()[0].Code)
 			}
 		})
 	}
@@ -96,14 +96,17 @@ func TestFieldViolations_ErrorFormattingAndCopy(t *testing.T) {
 	assert.Nil(t, v.Items())
 	assert.NoError(t, v.Err())
 
-	vars := map[string]string{"field": "title"}
-	v.Add("title", validator.KeyRequired, vars)
-	v.Add("", validator.KeyMustDiffer, nil)
-	vars["field"] = "mutated" // caller mutation must not affect stored violation
+	meta := map[string]string{"max": "200"}
+	v.Add("title", validator.CodeMaxLength, meta)
+	v.Add("", validator.CodeMustDiffer, nil)
+	meta["max"] = "999" // caller mutation must not affect stored violation
 
 	items := v.Items()
 	require.Len(t, items, 2)
-	assert.Equal(t, "title", items[0].Vars["field"])
-	assert.Contains(t, v.Error(), "title: validation.required{field=title}")
-	assert.Contains(t, v.Error(), "validation.must_differ")
+	assert.Equal(t, "200", items[0].Metadata["max"])
+	assert.Contains(t, v.Error(), "title: max_length{max=200}")
+	assert.Contains(t, v.Error(), "must_differ")
+
+	assert.Contains(t, validator.RegisteredRules(), validator.CodeRequired)
+	assert.Contains(t, validator.RegisteredRules(), validator.CodeUnknownOrderByField)
 }

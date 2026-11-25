@@ -2,7 +2,6 @@ package testutil
 
 import (
 	"encoding/json"
-	"errors"
 	"net/http/httptest"
 	"testing"
 
@@ -14,13 +13,16 @@ import (
 	"github.com/liukeshao/echo-template/pkg/rest"
 )
 
-// AssertOopsCode 断言 err 包含指定的业务错误码（oops.OopsError）。
-func AssertOopsCode(t testing.TB, err error, want codes.Code) {
+// AssertOopsCode 断言 err 包含指定的业务错误码（oops.OopsError），并返回提取出的 OopsError 供进一步校验。
+func AssertOopsCode(t testing.TB, err error, want codes.Code) oops.OopsError {
 	t.Helper()
 	require.Error(t, err)
-	oe, ok := errors.AsType[oops.OopsError](err)
+	oe, ok := oops.AsOops(err)
 	require.True(t, ok, "expected oops error, got %T: %v", err, err)
-	assert.Equal(t, want.String(), oe.Code())
+	got, ok := codes.FromAny(oe.Code())
+	require.True(t, ok, "expected oops error code, got %v", oe.Code())
+	assert.Equal(t, want, got)
+	return oe
 }
 
 // DecodeJSON 将 HTTP 响应体反序列化为目标类型 T。
@@ -43,4 +45,12 @@ func AssertProblem(t testing.TB, rec *httptest.ResponseRecorder, wantStatus int,
 	assert.NotEmpty(t, p.Title)
 	assert.NotEmpty(t, p.Detail)
 	return p
+}
+
+// DecodeProblemMeta 将 Problem.Metadata 解码为强类型 AIP-193 Metadata 结构体 T。
+func DecodeProblemMeta[T any](t testing.TB, p rest.Problem) T {
+	t.Helper()
+	meta, err := rest.DecodeMetadata[T](p)
+	require.NoError(t, err, "problem code=%s metadata=%#v", p.Code, p.Metadata)
+	return meta
 }

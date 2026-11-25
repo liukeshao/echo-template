@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -16,9 +17,9 @@ import (
 )
 
 // DecodeJSON 从请求体解码单个 JSON 值；
-//   - 请求体超限时原样返回 *http.MaxBytesError（→ 413）
-//   - 字段类型不匹配时返回 *validator.FieldViolations（不泄漏内部 Go 类型名）
-//   - 空主体、语法错误或尾随多余 JSON 时返回 400 BAD_REQUEST Problem
+//   - 请求体超限时原样返回 *http.MaxBytesError（→ 413 + RequestLimitInfo）
+//   - 字段类型不匹配时返回 *validator.FieldViolations（附带 expected/actual JSON 类型，不泄漏 Go 类型名）
+//   - 空主体、语法错误或尾随多余 JSON 时返回 400 BAD_REQUEST Problem（附带 DecodeInfo）
 func DecodeJSON(r *http.Request, dst any) error {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -28,25 +29,78 @@ func DecodeJSON(r *http.Request, dst any) error {
 		return err
 	}
 
+	if len(bytes.TrimSpace(body)) == 0 {
+		return Problem{
+			Status:   http.StatusBadRequest,
+			Code:     CodeBadRequest,
+			Metadata: DecodeInfo{Reason: "empty_body"},
+		}
+	}
+
 	dec := json.NewDecoder(bytes.NewReader(body))
 	if err := dec.Decode(dst); err != nil {
 		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
 			var v validator.FieldViolations
-			v.Add(typeErr.Field, validator.KeyInvalidType, map[string]string{"field": typeErr.Field})
+			meta := map[string]string{
+				"expected": jsonValueKind(typeErr.Type),
+			}
+			if typeErr.Value != "" {
+				meta["actual"] = typeErr.Value
+			}
+			v.Add(typeErr.Field, validator.CodeInvalidType, meta)
 			return v.Err()
 		}
+		if synErr, ok := errors.AsType[*json.SyntaxError](err); ok {
+			return Problem{
+				Status: http.StatusBadRequest,
+				Code:   CodeBadRequest,
+				Metadata: DecodeInfo{
+					Reason: "invalid_json",
+					Offset: synErr.Offset,
+				},
+			}
+		}
 		return Problem{
-			Status: http.StatusBadRequest,
-			Code:   CodeBadRequest,
+			Status:   http.StatusBadRequest,
+			Code:     CodeBadRequest,
+			Metadata: DecodeInfo{Reason: "invalid_json"},
 		}
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
 		return Problem{
-			Status: http.StatusBadRequest,
-			Code:   CodeBadRequest,
+			Status:   http.StatusBadRequest,
+			Code:     CodeBadRequest,
+			Metadata: DecodeInfo{Reason: "trailing_data"},
 		}
 	}
 	return nil
+}
+
+// jsonValueKind 将 encoding/json 已填充的字段目标类型映射为安全的通用 JSON 类型名，绝不暴露 Go 包名或结构体名。
+func jsonValueKind(t reflect.Type) string {
+	for t != nil && t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if t == nil {
+		return "value"
+	}
+	switch t.Kind() {
+	case reflect.Bool:
+		return "boolean"
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return "integer"
+	case reflect.Float32, reflect.Float64:
+		return "number"
+	case reflect.String:
+		return "string"
+	case reflect.Slice, reflect.Array:
+		return "array"
+	case reflect.Struct, reflect.Map:
+		return "object"
+	default:
+		return "value"
+	}
 }
 
 // ParseInt32Query 零反射解析 int32 query 参数；非法数字直接记录为字段校验错误。
@@ -57,7 +111,7 @@ func ParseInt32Query(q url.Values, name string, v *validator.FieldViolations) in
 	}
 	n, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
-		v.Add(name, validator.KeyInteger, map[string]string{"field": name})
+		v.Add(name, validator.CodeInteger, map[string]string{"expected": "int32"})
 		return 0
 	}
 	return int32(n)
@@ -71,7 +125,7 @@ func ParseInt64Query(q url.Values, name string, v *validator.FieldViolations) in
 	}
 	n, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		v.Add(name, validator.KeyInteger, map[string]string{"field": name})
+		v.Add(name, validator.CodeInteger, map[string]string{"expected": "int64"})
 		return 0
 	}
 	return n
@@ -85,7 +139,7 @@ func ParseFloat64Query(q url.Values, name string, v *validator.FieldViolations) 
 	}
 	n, err := strconv.ParseFloat(raw, 64)
 	if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
-		v.Add(name, validator.KeyNumber, map[string]string{"field": name})
+		v.Add(name, validator.CodeNumber, map[string]string{"expected": "float64"})
 		return 0
 	}
 	return n
@@ -99,7 +153,7 @@ func ParseOptionalFloat64Query(q url.Values, name string, v *validator.FieldViol
 	}
 	n, err := strconv.ParseFloat(raw, 64)
 	if err != nil || math.IsNaN(n) || math.IsInf(n, 0) {
-		v.Add(name, validator.KeyNumber, map[string]string{"field": name})
+		v.Add(name, validator.CodeNumber, map[string]string{"expected": "float64"})
 		return nil
 	}
 	return &n
@@ -113,7 +167,7 @@ func ParseBoolQuery(q url.Values, name string, v *validator.FieldViolations) boo
 	}
 	b, err := strconv.ParseBool(raw)
 	if err != nil {
-		v.Add(name, validator.KeyBoolean, map[string]string{"field": name})
+		v.Add(name, validator.CodeBoolean, map[string]string{"expected": "boolean"})
 		return false
 	}
 	return b
@@ -127,7 +181,7 @@ func ParseOptionalBoolQuery(q url.Values, name string, v *validator.FieldViolati
 	}
 	b, err := strconv.ParseBool(raw)
 	if err != nil {
-		v.Add(name, validator.KeyBoolean, map[string]string{"field": name})
+		v.Add(name, validator.CodeBoolean, map[string]string{"expected": "boolean"})
 		return nil
 	}
 	return &b
