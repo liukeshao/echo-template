@@ -31,7 +31,7 @@ connection = "dbs/main.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pr
 autoMigrate = true
 
 # Third-party API clients.
-# Each sub-table corresponds to a field in config.ClientsConfig.
+# Each sub-table corresponds to a field in config.Clients.
 [clients.weather]
 baseURL = "https://api.weather.com/v1"
 apiKey  = "change-me"

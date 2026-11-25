@@ -1,14 +1,18 @@
 package codes
 
-import "net/http"
+import (
+	"net/http"
 
-// Patch 域错误码，供 pkg/rest 与 internal/server 在 RFC 7386 JSON Merge Patch 流程中使用：
+	"github.com/liukeshao/echo-template/pkg/rest"
+)
+
+// Patch 域错误码，与 pkg/rest 保持单一事实来源（SSOT）：
 //
 //   - PatchInvalid              → 400 Bad Request（补丁文档语法或结构非法）
 //   - PatchUnsupportedMediaType → 415 Unsupported Media Type（Content-Type 不在白名单内）
 const (
-	PatchInvalid              Code = "PATCH_INVALID"
-	PatchUnsupportedMediaType Code = "PATCH_UNSUPPORTED_MEDIA_TYPE"
+	PatchInvalid              Code = rest.CodePatchInvalid
+	PatchUnsupportedMediaType Code = rest.CodePatchUnsupportedMediaType
 )
 
 func init() {

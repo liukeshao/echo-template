@@ -93,15 +93,15 @@ func WithInjector(fn func(do.Injector)) Option {
 // DefaultConfig 返回测试专用的默认配置（独立内存 SQLite、测试 JWT、en + zh-CN 国际化）。
 func DefaultConfig() config.Config {
 	return config.Config{
-		App: config.AppConfig{
+		App: config.App{
 			Name:        "echo-template-test",
 			Host:        "http://localhost:8000",
 			Environment: config.EnvTest,
 		},
-		Auth: config.AuthConfig{
+		Auth: config.Auth{
 			BcryptCost: service.MinBcryptCost,
 		},
-		HTTP: config.HTTPConfig{
+		HTTP: config.HTTP{
 			Hostname:        "127.0.0.1",
 			Port:            8000,
 			GracefulTimeout: time.Second,
@@ -109,26 +109,26 @@ func DefaultConfig() config.Config {
 			WriteTimeout:    10 * time.Second,
 			IdleTimeout:     time.Minute,
 		},
-		Database: config.DatabaseConfig{
+		Database: config.Database{
 			Driver:      "sqlite",
 			Connection:  fmt.Sprintf("file:test_%s?mode=memory&cache=shared&_pragma=foreign_keys(1)", uuid.NewV7().String()),
 			AutoMigrate: true,
 		},
-		JWT: config.JWTConfig{
+		JWT: config.JWT{
 			Secret:             "test-secret-key-at-least-32-bytes-long",
 			AccessTokenExpiry:  15 * time.Minute,
 			RefreshTokenExpiry: 24 * time.Hour,
 			Issuer:             "echo-template-test",
 		},
-		Clients: config.ClientsConfig{
-			Weather: config.ExternalClientConfig{
+		Clients: config.Clients{
+			Weather: config.ExternalClient{
 				BaseURL: "https://weather.example.com/v1",
 				APIKey:  "test-api-key",
 				Timeout: 2 * time.Second,
 				Retry:   0,
 			},
 		},
-		I18n: config.I18nConfig{
+		I18n: config.I18n{
 			DefaultLocale:    "en",
 			SupportedLocales: []string{"en", "zh-CN"},
 		},

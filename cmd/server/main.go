@@ -19,9 +19,9 @@ import (
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/internal/handler"
 	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/logging"
 	"github.com/liukeshao/echo-template/internal/server"
 	"github.com/liukeshao/echo-template/internal/service"
+	"github.com/liukeshao/echo-template/pkg/logging"
 )
 
 func main() {
@@ -30,7 +30,11 @@ func main() {
 	fatal("load config", err)
 
 	// 2. Log
-	logging.Setup(&cfg)
+	logLevel := slog.LevelDebug
+	if cfg.App.Environment == config.EnvProduction {
+		logLevel = slog.LevelInfo
+	}
+	logging.Setup(logLevel)
 
 	// 3. DI container
 	i := do.New(database.Package, i18n.Package, client.Package, service.Package, handler.Package, server.Package)

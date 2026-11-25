@@ -19,7 +19,7 @@ func TestNewDBAndORM_FileSQLiteAndAutoMigrate(t *testing.T) {
 
 	inj := do.New(database.Package)
 	do.ProvideValue(inj, &config.Config{
-		Database: config.DatabaseConfig{
+		Database: config.Database{
 			Driver:      "sqlite",
 			Connection:  dbPath + "?_pragma=foreign_keys(1)",
 			AutoMigrate: true,
@@ -37,7 +37,7 @@ func TestNewDB_InvalidDriverFailsFast(t *testing.T) {
 	t.Parallel()
 	inj := do.New(database.Package)
 	do.ProvideValue(inj, &config.Config{
-		Database: config.DatabaseConfig{
+		Database: config.Database{
 			Driver:     "nonexistent_driver",
 			Connection: "dsn",
 		},

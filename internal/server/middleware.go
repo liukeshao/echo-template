@@ -5,7 +5,7 @@ import (
 	"uuid"
 
 	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/logging"
+	"github.com/liukeshao/echo-template/pkg/logging"
 	"github.com/liukeshao/echo-template/pkg/rest"
 )
 

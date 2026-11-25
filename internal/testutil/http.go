@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"testing"
 
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
@@ -25,11 +26,11 @@ type reqConfig struct {
 }
 
 // ReqOption 自定义测试 HTTP 请求的请求体与请求头。
-type ReqOption func(t interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig)
+type ReqOption func(t testing.TB, cfg *reqConfig)
 
 // WithJSON 将任意值序列化为 JSON 请求体并自动设置 Content-Type: application/json。
 func WithJSON(v any) ReqOption {
-	return func(t interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig) {
+	return func(t testing.TB, cfg *reqConfig) {
 		t.Helper()
 		b, err := json.Marshal(v)
 		if err != nil {
@@ -42,7 +43,7 @@ func WithJSON(v any) ReqOption {
 
 // WithBody 设置原始字符串请求体和指定的 Content-Type（适合 PATCH / 畸形 JSON 测试）。
 func WithBody(contentType, body string) ReqOption {
-	return func(_ interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig) {
+	return func(_ testing.TB, cfg *reqConfig) {
 		cfg.body = strings.NewReader(body)
 		cfg.contentType = contentType
 	}
@@ -50,7 +51,7 @@ func WithBody(contentType, body string) ReqOption {
 
 // WithRawBody 设置原始 io.Reader 请求体和指定的 Content-Type（适合大请求体等流式测试）。
 func WithRawBody(contentType string, body io.Reader) ReqOption {
-	return func(_ interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig) {
+	return func(_ testing.TB, cfg *reqConfig) {
 		cfg.body = body
 		cfg.contentType = contentType
 	}
@@ -63,7 +64,7 @@ func WithBearer(accessToken string) ReqOption {
 
 // WithHeader 添加自定义请求头（例如 Accept-Language）。
 func WithHeader(key, value string) ReqOption {
-	return func(_ interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig) {
+	return func(_ testing.TB, cfg *reqConfig) {
 		if cfg.headers == nil {
 			cfg.headers = make(http.Header)
 		}

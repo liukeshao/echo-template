@@ -9,8 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/liukeshao/echo-template/config"
 )
 
 func TestContextHandler_PreservesRequestIDAcrossWithAttrsAndWithGroup(t *testing.T) {
@@ -30,15 +28,15 @@ func TestContextHandler_PreservesRequestIDAcrossWithAttrsAndWithGroup(t *testing
 	assert.Equal(t, "v", sub["k"])
 }
 
-func TestSetup_LogLevelsByEnvironment(t *testing.T) {
+func TestSetup_LogLevels(t *testing.T) {
 	orig := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(orig) })
 
-	Setup(&config.Config{App: config.AppConfig{Environment: config.EnvProduction}})
+	Setup(slog.LevelInfo)
 	assert.False(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
 	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelInfo))
 
-	Setup(&config.Config{App: config.AppConfig{Environment: config.EnvLocal}})
+	Setup(slog.LevelDebug)
 	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
 }
 

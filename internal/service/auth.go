@@ -37,7 +37,7 @@ type jwtClaims struct {
 // Auth 认证服务
 type Auth struct {
 	orm        *ent.Client
-	jwtConfig  config.JWTConfig
+	jwtConfig  config.JWT
 	bcryptCost int
 }
 

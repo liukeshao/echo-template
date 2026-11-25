@@ -18,7 +18,7 @@ import (
 // Client is the concrete implementation of [API].
 // Obtain it via the DI container; do not construct it manually.
 type Client struct {
-	cfg  config.ExternalClientConfig
+	cfg  config.ExternalClient
 	http *httpclient.Client
 }
 

@@ -7,7 +7,7 @@ Rules and invariants for AI agents working in this repository.
 ## Architecture
 
 - **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (HTTP router wiring, ErrorEncoder, RequestID/Locale middleware, BearerAuth, Docs, Server lifecycle)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
-- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/rest`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, and business logic live under `internal/`.
+- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/logging`, `pkg/rest`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, and business logic live under `internal/`.
 - **HTTP Transport**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) encapsulated by `pkg/rest` (`rest.Router`, `rest.Handler`, `rest.ErrorEncoder`, stateless codecs, RFC 9457 `rest.Problem`, RFC 7386 Merge Patch) and wired by `internal/server` (`server.Server`, `server.NewProblemEncoder`). No third-party HTTP framework.
 - **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Book`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Generated `api.NewXxxHandler(impl, opts...) rest.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `rest.ErrorEncoder`.
 - **DI**: All singletons are registered via `samber/do`. Use `do.Lazy(NewFoo)` for lazy init; use `do.Provide(NewFoo)` only when eager init is necessary.
@@ -39,7 +39,7 @@ make ent
 
 - Each third-party API lives in `internal/client/<apiname>/` with four files: `interface.go`, `client.go`, `errors.go`, `package.go`.
 - Services depend on the **interface** (`<apiname>.API`), never on `*Client` directly.
-- Config goes in `config.ClientsConfig.<ApiName>` (type `ExternalClientConfig`); add a `[clients.<apiname>]` block in `config.toml`.
+- Config goes in `config.Clients.<ApiName>` (type `config.ExternalClient`); add a `[clients.<apiname>]` block in `config.toml`.
 - Error codes go in `internal/codes/<apiname>.go`. Typical set: `<API>_UNAVAILABLE` → `http.StatusServiceUnavailable` (503), `<API>_RATE_LIMITED` → `http.StatusTooManyRequests` (429), `<API>_INTERNAL_ERROR` → `http.StatusInternalServerError` (500).
 - Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with exponential backoff and jitter (within the total `Timeout`). Map final responses to domain errors: HTTP 429 → `<api>RateLimited`, 502/503/504 and network errors → `<api>Unavailable`, everything else → `<api>Internal`.
 - Register the package in `internal/client/package.go` and wire `client.Package` in `cmd/server/main.go` between `database.Package` and `service.Package`.
@@ -115,7 +115,7 @@ oops.Code(codes.DomainNotFound.String()).
 
 ## Logging
 
-- `log/slog` with `ContextHandler` (`internal/logging`) — always pass `ctx` to `slog.InfoContext` / `slog.ErrorContext`.
+- `log/slog` with `ContextHandler` (`pkg/logging`) — always pass `ctx` to `slog.InfoContext` / `slog.ErrorContext`.
 - `request_id` is injected into context by `server.RequestID()` (via `logging.WithRequestID`) and surfaces automatically in both logs and `Problem.RequestID`.
 - Never call `slog.Info` (without context) in request-scoped code.
 

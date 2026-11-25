@@ -3,7 +3,7 @@
 // To add a new external API integration:
 //  1. Create internal/client/<apiname>/ with interface.go, client.go, errors.go, package.go.
 //  2. Add the corresponding error codes in internal/codes/<apiname>.go.
-//  3. Add a field to config.ClientsConfig in config/config.go.
+//  3. Add a field to config.Clients in config/config.go.
 //  4. Append <apiname>.Package to the do.Package call below.
 package client
 

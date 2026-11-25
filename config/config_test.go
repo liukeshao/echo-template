@@ -13,12 +13,12 @@ import (
 
 func validBaseConfig() Config {
 	return Config{
-		App: AppConfig{Environment: EnvLocal},
-		Database: DatabaseConfig{
+		App: App{Environment: EnvLocal},
+		Database: Database{
 			Driver:     "sqlite",
 			Connection: ":memory:",
 		},
-		JWT: JWTConfig{
+		JWT: JWT{
 			Secret:             defaultInsecureJWTSecret,
 			AccessTokenExpiry:  time.Hour,
 			RefreshTokenExpiry: 24 * time.Hour,

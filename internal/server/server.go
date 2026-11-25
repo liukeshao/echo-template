@@ -15,7 +15,7 @@ import (
 // Server 封装标准库 *http.Server 并实现优雅停机，供 DI 容器在关闭 ORM/DB 前排空在途请求。
 type Server struct {
 	srv *http.Server
-	cfg config.HTTPConfig
+	cfg config.HTTP
 
 	mu      sync.Mutex
 	started bool
@@ -23,8 +23,8 @@ type Server struct {
 	stopped chan struct{}
 }
 
-// NewServer 使用给定 HTTP 配置与根 http.Handler 构造 Server。
-func NewServer(cfg config.HTTPConfig, handler http.Handler) *Server {
+// New 使用给定 HTTP 配置与根 http.Handler 构造 Server。
+func New(cfg config.HTTP, handler http.Handler) *Server {
 	return &Server{
 		cfg: cfg,
 		srv: &http.Server{
@@ -38,14 +38,14 @@ func NewServer(cfg config.HTTPConfig, handler http.Handler) *Server {
 	}
 }
 
-// New 构建路由并返回已接入 DI 生命周期（优雅停机）的 *Server。
-func New(i do.Injector) (*Server, error) {
+// newServer 供 DI 容器构造已绑定路由与优雅停机生命周期的 *Server。
+func newServer(i do.Injector) (*Server, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	h, err := BuildRouter(i)
 	if err != nil {
 		return nil, err
 	}
-	return NewServer(cfg.HTTP, h), nil
+	return New(cfg.HTTP, h), nil
 }
 
 // Start 阻塞式启动 HTTP 服务，直到 Shutdown 触发优雅停机或监听出错。

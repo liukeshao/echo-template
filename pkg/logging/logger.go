@@ -1,21 +1,20 @@
+// Package logging provides a zero-dependency log/slog ContextHandler that
+// automatically enriches log records with request_id from context.
 package logging
 
 import (
 	"context"
 	"log/slog"
 	"os"
-
-	"github.com/liukeshao/echo-template/config"
 )
 
+// ContextHandler 包装底层 slog.Handler，自动将 context 中的 request_id 写入日志属性。
 type ContextHandler struct {
 	slog.Handler
 }
 
 func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
-	// 从 Context 中提取 Request ID
-	requestID, ok := LookupRequestID(ctx)
-	if ok {
+	if requestID, ok := LookupRequestID(ctx); ok {
 		r = r.Clone()
 		r.AddAttrs(slog.String("request_id", requestID))
 	}
@@ -30,26 +29,15 @@ func (h *ContextHandler) WithGroup(name string) slog.Handler {
 	return &ContextHandler{Handler: h.Handler.WithGroup(name)}
 }
 
-// NewContextHandler 包装原始 Handler
+// NewContextHandler 包装原始 Handler。
 func NewContextHandler(h slog.Handler) *ContextHandler {
 	return &ContextHandler{Handler: h}
 }
 
-func Setup(cfg *config.Config) {
-	var opt slog.HandlerOptions
-	// Configure logging.
-	switch cfg.App.Environment {
-	case config.EnvProduction:
-		opt.Level = slog.LevelInfo
-	default:
-		opt.Level = slog.LevelDebug
-	}
-	// 原始 Handler（如 JSON Handler）
-	baseHandler := slog.NewJSONHandler(os.Stdout, &opt)
-
-	// 使用自定义 ContextHandler 包装
-	handler := NewContextHandler(baseHandler)
-
-	// 设置为全局 Logger
-	slog.SetDefault(slog.New(handler))
+// Setup 以指定最低日志级别初始化全局 JSON slog.Logger（自动附带 ContextHandler）。
+func Setup(level slog.Level) {
+	baseHandler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: level,
+	})
+	slog.SetDefault(slog.New(NewContextHandler(baseHandler)))
 }

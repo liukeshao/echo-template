@@ -36,39 +36,39 @@ const (
 type (
 	// Config stores complete configuration.
 	Config struct {
-		HTTP     HTTPConfig
-		App      AppConfig
-		Auth     AuthConfig
-		Database DatabaseConfig
-		JWT      JWTConfig
-		Clients  ClientsConfig
-		I18n     I18nConfig
+		HTTP     HTTP
+		App      App
+		Auth     Auth
+		Database Database
+		JWT      JWT
+		Clients  Clients
+		I18n     I18n
 	}
 
-	// AuthConfig stores authentication policy settings.
-	AuthConfig struct {
+	// Auth stores authentication policy settings.
+	Auth struct {
 		// BcryptCost sets the bcrypt hashing cost (4–31).
-		// Zero uses services.DefaultBcryptCost (12).
+		// Zero uses service.DefaultBcryptCost (12).
 		BcryptCost int
 	}
 
-	// I18nConfig 控制错误消息与字段校验消息的本地化行为。
+	// I18n 控制错误消息与字段校验消息的本地化行为。
 	//
 	// 加载的翻译文件位于 internal/i18n/messages/<locale>.toml，通过 embed.FS 打包进二进制。
 	// DefaultLocale 必须同时出现在 SupportedLocales 中，否则 i18n.NewTranslator 启动失败。
-	I18nConfig struct {
+	I18n struct {
 		// DefaultLocale 为 fallback 语言；所有已注册错误码必须在该 locale 存在翻译。
 		DefaultLocale string
 		// SupportedLocales 列出服务端可返回的 locale，按偏好顺序排列。
 		SupportedLocales []string
 	}
 
-	// HTTPConfig stores HTTP server configuration for server.Server (*http.Server).
-	HTTPConfig struct {
+	// HTTP stores HTTP server configuration for server.Server (*http.Server).
+	HTTP struct {
 		Hostname string
 		Port     uint16
 
-		// GracefulTimeout controls how long rest.Server.Shutdown waits for
+		// GracefulTimeout controls how long server.Server.Shutdown waits for
 		// active requests to finish before closing connections.
 		GracefulTimeout time.Duration
 
@@ -78,39 +78,39 @@ type (
 		IdleTimeout  time.Duration
 	}
 
-	// AppConfig stores application configuration.
-	AppConfig struct {
+	// App stores application configuration.
+	App struct {
 		Name        string
 		Host        string
 		Environment Environment
 	}
 
-	// JWTConfig stores JWT configuration.
-	JWTConfig struct {
+	// JWT stores JWT configuration.
+	JWT struct {
 		Secret             string        // JWT签名密钥
 		AccessTokenExpiry  time.Duration // Access token 过期时间
 		RefreshTokenExpiry time.Duration // Refresh token 过期时间
 		Issuer             string        // Token发行者
 	}
 
-	// DatabaseConfig stores the database configuration.
-	DatabaseConfig struct {
+	// Database stores the database configuration.
+	Database struct {
 		Driver      string
 		Connection  string
 		AutoMigrate bool
 	}
 
-	// ClientsConfig aggregates configuration for all third-party API clients.
+	// Clients aggregates configuration for all third-party API clients.
 	// Add a new field here for each external API your service integrates with.
-	ClientsConfig struct {
+	Clients struct {
 		// Weather is the example client config; replace or extend as needed.
-		Weather ExternalClientConfig
+		Weather ExternalClient
 	}
 
-	// ExternalClientConfig holds the common settings shared by every third-party
-	// HTTP API client. Embed or alias this struct inside ClientsConfig when adding
+	// ExternalClient holds the common settings shared by every third-party
+	// HTTP API client. Embed or alias this struct inside Clients when adding
 	// a new integration.
-	ExternalClientConfig struct {
+	ExternalClient struct {
 		// BaseURL is the root URL of the external API (no trailing slash).
 		BaseURL string
 		// APIKey is the credential passed via the Authorization / X-API-Key header.

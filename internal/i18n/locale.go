@@ -8,14 +8,14 @@ import (
 	"github.com/liukeshao/echo-template/config"
 )
 
-// parseSupported 将 config.I18nConfig 中的 locale 字符串解析为 BCP-47 标签。
+// parseSupported 将 config.I18n 中的 locale 字符串解析为 BCP-47 标签。
 //
 // 约束：
 //   - DefaultLocale 必须同时出现在 SupportedLocales 中。
 //   - 所有 locale 字符串必须符合 BCP-47。
 //
 // 默认 locale 放在 supported 列表首位，language.NewMatcher 会把它当作 fallback。
-func parseSupported(cfg config.I18nConfig) (language.Tag, []language.Tag, error) {
+func parseSupported(cfg config.I18n) (language.Tag, []language.Tag, error) {
 	if cfg.DefaultLocale == "" {
 		return language.Und, nil, fmt.Errorf("i18n: default_locale is required")
 	}

@@ -16,7 +16,7 @@ import (
 // newTestTranslator 构造包含默认 en + zh-CN 的 Translator；测试通用。
 func newTestTranslator(t *testing.T) Translator {
 	t.Helper()
-	tr, err := newTranslator(config.I18nConfig{
+	tr, err := newTranslator(config.I18n{
 		DefaultLocale:    "en",
 		SupportedLocales: []string{"en", "zh-CN"},
 	})
@@ -102,7 +102,7 @@ func TestTranslator_T_ValidationRuleKeys(t *testing.T) {
 }
 
 func TestNewTranslator_MissingDefaultLocale(t *testing.T) {
-	_, err := newTranslator(config.I18nConfig{
+	_, err := newTranslator(config.I18n{
 		DefaultLocale:    "",
 		SupportedLocales: []string{"en"},
 	})
@@ -110,7 +110,7 @@ func TestNewTranslator_MissingDefaultLocale(t *testing.T) {
 }
 
 func TestNewTranslator_DefaultNotInSupported(t *testing.T) {
-	_, err := newTranslator(config.I18nConfig{
+	_, err := newTranslator(config.I18n{
 		DefaultLocale:    "en",
 		SupportedLocales: []string{"zh-CN"},
 	})
@@ -119,7 +119,7 @@ func TestNewTranslator_DefaultNotInSupported(t *testing.T) {
 }
 
 func TestNewTranslator_UnknownLocaleFile(t *testing.T) {
-	_, err := newTranslator(config.I18nConfig{
+	_, err := newTranslator(config.I18n{
 		DefaultLocale:    "en",
 		SupportedLocales: []string{"en", "fr"},
 	})

@@ -14,9 +14,9 @@ import (
 
 	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/logging"
 	"github.com/liukeshao/echo-template/internal/server"
 	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/pkg/logging"
 	"github.com/liukeshao/echo-template/pkg/rest"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )

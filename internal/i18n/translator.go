@@ -48,7 +48,7 @@ func NewTranslator(i do.Injector) (Translator, error) {
 }
 
 // newTranslator 是 NewTranslator 的纯函数内核，便于直接在测试中构造。
-func newTranslator(cfg config.I18nConfig) (Translator, error) {
+func newTranslator(cfg config.I18n) (Translator, error) {
 	defaultTag, supported, err := parseSupported(cfg)
 	if err != nil {
 		return nil, err

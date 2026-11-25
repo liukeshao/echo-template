@@ -35,6 +35,7 @@ ent/
 pkg/                    纯公共、零 internal/ 与零三方依赖的可复用包
   api/                  TypeSpec 生成的平铺 DTO、Validate()、Handler 接口与 api.NewXxxHandler 适配器
   httpclient/           共享 HTTPClient 连接池与内置超时/重试 RoundTripper（通过 Config/WithOptions 参数注入，零外部依赖）
+  logging/              slog ContextHandler（日志自动带 request_id + request_id context，零外部依赖）
   rest/                 纯标准库 net/http REST 原语（Router、Handler、ErrorEncoder、无状态编解码、RFC 9457 Problem、RFC 7386 Merge Patch）
   validator/            FieldViolations + 原子校验规则（含 UUID / Email / Username / Password）
 internal/               应用私有实现
@@ -48,7 +49,6 @@ internal/               应用私有实现
   database/             DB / ORM 基础设施（DI 生命周期）
   handler/              纯 Go 业务编排与 DTO 投影 Handler（Auth / Me / Book，彻底零 net/http 依赖）
   i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商 + locale context）
-  logging/              slog ContextHandler（日志自动带 request_id + request_id context）
   server/               HTTP 传输装配层（Server 优雅停机、NewProblemEncoder、RequestID/Locale 中间件、BuildRouter、BearerAuth、Docs）
   service/              领域服务（业务逻辑、分页规范化、bcrypt 密码策略与各自资源的 ent 查询条件）
   testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
