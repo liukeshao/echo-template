@@ -40,7 +40,7 @@ func WithJSON(v any) ReqOption {
 	}
 }
 
-// WithBody 设置原始字符串请求体和指定的 Content-Type（适合多协议 PATCH 测试）。
+// WithBody 设置原始字符串请求体和指定的 Content-Type（适合 PATCH / 畸形 JSON 测试）。
 func WithBody(contentType, body string) ReqOption {
 	return func(_ interface{ Helper(); Fatalf(string, ...any) }, cfg *reqConfig) {
 		cfg.body = strings.NewReader(body)

@@ -2,44 +2,37 @@ package handlers
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/httpruntime"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
-var _ api.MeHandler = (*MeHandler)(nil)
+var _ api.MeHandler = (*Me)(nil)
 
-// MeHandler 当前登录用户的处理器（实现 TypeSpec 生成的 api.MeHandler 接口）。
+// Me 当前登录用户的处理器（纯 Go 业务编排层，实现 api.MeHandler，零 net/http 依赖）。
 // PATCH /api/v1/me 由 TypeSpec @autoPatch(Me.get, Me.replace) 自动串联 GetMe + ReplaceMe。
-type MeHandler struct {
+type Me struct {
 	me *services.MeService
 }
 
-// NewMeHandler 构造 MeHandler 并注入依赖。
-func NewMeHandler(i do.Injector) (*MeHandler, error) {
-	return &MeHandler{
+// NewMe 构造 Me 并注入依赖。
+func NewMe(i do.Injector) (*Me, error) {
+	return &Me{
 		me: do.MustInvoke[*services.MeService](i),
 	}, nil
 }
 
-// Mount 将 /api/v1/me 路由挂载到标准 *http.ServeMux。
-func (h *MeHandler) Mount(mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler) {
-	api.MountMeHandler(mux, h, rt, auth)
-}
-
-func (h *MeHandler) GetMe(ctx context.Context) (*api.User, error) {
+func (h *Me) GetMe(ctx context.Context) (*api.User, error) {
 	user := appctx.MustGetUserFromContext(ctx)
 	u := toUser(user)
 	return &u, nil
 }
 
-func (h *MeHandler) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*api.User, error) {
+func (h *Me) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*api.User, error) {
 	user := appctx.MustGetUserFromContext(ctx)
 	updated, err := h.me.Replace(ctx, user.ID, req)
 	if err != nil {
@@ -49,7 +42,7 @@ func (h *MeHandler) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*
 	return &u, nil
 }
 
-func (h *MeHandler) ChangePassword(ctx context.Context, req *api.ChangePasswordRequest) error {
+func (h *Me) ChangePassword(ctx context.Context, req *api.ChangePasswordRequest) error {
 	user := appctx.MustGetUserFromContext(ctx)
 	return h.me.ChangePassword(ctx, user.ID, req)
 }
@@ -60,7 +53,7 @@ func toUser(u *ent.User) api.User {
 		ID:          u.ID,
 		Username:    u.Username,
 		Email:       u.Email,
-		Status:      string(u.Status),
+		Status:      api.UserStatus(u.Status),
 		LastLoginAt: u.LastLoginAt,
 		CreatedAt:   u.CreatedAt,
 		UpdatedAt:   u.UpdatedAt,

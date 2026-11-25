@@ -1,4 +1,4 @@
-package httpruntime
+package rest
 
 import (
 	"context"

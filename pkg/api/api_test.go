@@ -1,15 +1,14 @@
 package api_test
 
 import (
-	"net/http"
 	"strings"
 	"testing"
+	"uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -52,13 +51,17 @@ func TestValidate_BookAndListRequests(t *testing.T) {
 
 	neg := -1.0
 	pos := 10.0
-	validID := utils.GenerateULID()
+	validID := uuid.NewV7().String()
 
 	assert.NoError(t, (&api.CreateBookRequest{
 		BookID: validID,
-		Title:  "Go",
+		Title:  strings.Repeat("书", 200),
 		Author: "Alan",
 		Price:  &pos,
+	}).Validate())
+	assert.Error(t, (&api.CreateBookRequest{
+		Title:  strings.Repeat("书", 201),
+		Author: "Alan",
 	}).Validate())
 	assert.Error(t, (&api.CreateBookRequest{
 		BookID: "bad-id",
@@ -84,15 +87,4 @@ func TestValidate_BookAndListRequests(t *testing.T) {
 
 	assert.NoError(t, (&api.ListBooksRequest{Page: 1, PageSize: 20}).Validate())
 	assert.Error(t, (&api.ListBooksRequest{Page: -1, PageSize: -5}).Validate())
-}
-
-func TestProblem_ErrorString(t *testing.T) {
-	t.Parallel()
-
-	p := api.Problem{
-		Status: http.StatusNotFound,
-		Code:   "BOOK_NOT_FOUND",
-		Detail: "Book 01TEST was not found.",
-	}
-	assert.Equal(t, "http 404 BOOK_NOT_FOUND: Book 01TEST was not found.", p.Error())
 }

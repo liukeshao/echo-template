@@ -54,19 +54,16 @@ type (
 		SupportedLocales []string
 	}
 
-	// HTTPConfig stores HTTP configuration.
-	// Field names align with echo v5 StartConfig and net/http.Server.
+	// HTTPConfig stores HTTP server configuration for rest.Server (*http.Server).
 	HTTPConfig struct {
 		Hostname string
 		Port     uint16
 
-		// GracefulTimeout is passed to echo.StartConfig.GracefulTimeout.
-		// It controls how long the server waits for active requests to finish
-		// before shutting down.
+		// GracefulTimeout controls how long rest.Server.Shutdown waits for
+		// active requests to finish before closing connections.
 		GracefulTimeout time.Duration
 
-		// The following three fields are applied to the underlying http.Server
-		// via echo.StartConfig.BeforeServeFunc.
+		// The following three fields are applied directly to the underlying net/http.Server.
 		ReadTimeout  time.Duration
 		WriteTimeout time.Duration
 		IdleTimeout  time.Duration

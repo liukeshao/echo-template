@@ -4,20 +4,21 @@
 //   - FieldViolations 以 (field, key, vars) 的抽象形式收集错误；
 //     key 为稳定的翻译键（如 "validation.required"、"validation.max_length"）。
 //   - vars 用于模板占位符（{field}、{max} 等）。
-//   - 渲染与本地化由 handler 层的 error_handler 通过 i18n.Translator 完成，
+//   - 渲染与本地化由 rest.Runtime.WriteProblem 通过 i18n.Translator 完成，
 //     validator 包不直接产生面向用户的字符串，从而获得完整的 i18n 能力。
 package validator
 
 import (
 	"fmt"
 	"maps"
+	"slices"
 	"strings"
 )
 
 // Violation 是 FieldViolations 的内部表示，对应一条字段级校验错误。
 //
-// 面向 wire 的形式是 types.FieldError，其 Message 由
-// error_handler 在渲染阶段基于 Translator 填充。
+// 面向 wire 的形式是 rest.FieldError，其 Message 由
+// rest.Runtime.WriteProblem 在渲染阶段基于 Translator 填充。
 type Violation struct {
 	// Field 为 JSON 字段名；空字符串表示跨字段错误（如 "at least one field must be provided"）。
 	Field string
@@ -28,7 +29,7 @@ type Violation struct {
 }
 
 // FieldViolations 收集字段级校验错误列表，实现 error 接口。
-// 在各 ValidateXxx 函数中声明为零值，逐条 Add，最终 Err() 返回。
+// 在各 Validate() 方法中声明为零值，逐条 Add，最终 Err() 返回。
 type FieldViolations struct {
 	items []Violation
 }
@@ -69,15 +70,16 @@ func (v *FieldViolations) Items() []Violation {
 
 // Error 实现 error 接口，返回调试用的非本地化拼接字符串。
 // 输出格式为 "field: key{k=v,...}; ..."，**不应作为面向用户的消息使用**；
-// 面向用户的本地化消息由 error_handler 通过 i18n.Translator 生成。
+// 面向用户的本地化消息由 rest.Runtime.WriteProblem 通过 i18n.Translator 生成。
 func (v *FieldViolations) Error() string {
 	parts := make([]string, 0, len(v.items))
 	for _, it := range v.items {
 		var varStr string
 		if len(it.Vars) > 0 {
-			pieces := make([]string, 0, len(it.Vars))
-			for k, vv := range it.Vars {
-				pieces = append(pieces, fmt.Sprintf("%s=%s", k, vv))
+			keys := slices.Sorted(maps.Keys(it.Vars))
+			pieces := make([]string, 0, len(keys))
+			for _, k := range keys {
+				pieces = append(pieces, fmt.Sprintf("%s=%s", k, it.Vars[k]))
 			}
 			varStr = "{" + strings.Join(pieces, ",") + "}"
 		}
@@ -91,7 +93,7 @@ func (v *FieldViolations) Error() string {
 }
 
 // Err 当存在错误时返回 *FieldViolations（作为 error），否则返回 nil。
-// 通常在 ValidateXxx 末尾调用：return v.Err()
+// 通常在 Validate() 末尾调用：return v.Err()
 func (v *FieldViolations) Err() error {
 	if v.HasErrors() {
 		return v

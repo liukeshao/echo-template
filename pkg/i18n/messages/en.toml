@@ -1,7 +1,7 @@
 # English translations.
 # Structure:
 #   [errors]     key must equal a Code string registered in pkg/codes (e.g. "BOOK_NOT_FOUND").
-#   [validation] stable keys used by pkg/validator rules and types.*.Validate().
+#   [validation] stable keys used by pkg/validator rules and api.*.Validate().
 #   [fallback]   generic messages for paths that bypass code translation.
 #
 # Placeholders use the {name} form and are populated by oops.With(codes.CtxKeyParams, ...)
@@ -34,19 +34,33 @@ WEATHER_RATE_LIMITED     = "Weather service rate limit exceeded. Please retry la
 WEATHER_INTERNAL_ERROR   = "An internal error occurred while contacting the weather service."
 
 [validation]
-required       = "{field} is required."
-min_length     = "{field} must be at least {min} characters."
-max_length     = "{field} must be at most {max} characters."
-length_range   = "{field} must be between {min} and {max} characters."
-charset        = "{field} may only contain {charset}."
-email          = "{field} must be a valid email address."
-password_weak  = "{field} must contain at least one letter and one digit."
-non_negative   = "{field} must be non-negative."
-must_differ    = "{field} must differ from {other}."
-ulid           = "{field} must be a valid ULID (26 uppercase alphanumeric characters)."
+required         = "{field} is required."
+min_length       = "{field} must be at least {min} characters."
+max_length       = "{field} must be at most {max} characters."
+length_range     = "{field} must be between {min} and {max} characters."
+username_charset = "{field} may only contain ASCII letters, digits, underscores, and hyphens."
+email            = "{field} must be a valid email address."
+password_weak    = "{field} must contain at least one letter and one digit."
+integer          = "{field} must be a valid integer."
+number           = "{field} must be a valid number."
+boolean          = "{field} must be a valid boolean."
+non_negative     = "{field} must be non-negative."
+min_value        = "{field} must be at least {min}."
+max_value        = "{field} must be at most {max}."
+pattern          = "{field} does not match the required format."
+one_of           = "{field} must be one of: {allowed}."
+invalid_type     = "{field} has an invalid value type."
+must_differ      = "{field} must differ from {other}."
+uuid             = "{field} must be a valid UUID."
 invalid_order_by_clause = "Invalid order_by clause {clause}; expected \"field\" or \"field desc\"."
 invalid_order_by_direction = "Invalid order_by direction {direction} in {clause}; use \"desc\" or omit for ascending."
 unknown_order_by_field = "Unknown order_by field {field}; supported: {allowed}."
 
 [fallback]
-internal = "An internal server error occurred."
+internal                 = "An internal server error occurred."
+bad_request              = "Invalid JSON request body."
+not_found                = "The requested resource was not found."
+method_not_allowed       = "HTTP method not allowed for this resource."
+request_entity_too_large = "Request body exceeds the maximum allowed size."
+gateway_timeout          = "The request timed out."
+client_closed_request    = "Client closed the request before the server could respond."

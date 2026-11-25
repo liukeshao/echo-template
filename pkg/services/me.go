@@ -14,7 +14,6 @@ import (
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
 // MeService 用户服务
@@ -37,13 +36,28 @@ func meInternal(err error, op string) error {
 		Wrapf(err, "%s", op)
 }
 
+func meUsernameTaken(username string) error {
+	return oops.
+		Code(codes.MeUsernameTaken.String()).
+		With(codes.CtxKeyParams, map[string]string{"username": username}).
+		Public(fmt.Sprintf("the username %q is already taken", username)).
+		Errorf("username taken")
+}
+
+func meEmailTaken(email string) error {
+	return oops.
+		Code(codes.MeEmailTaken.String()).
+		With(codes.CtxKeyParams, map[string]string{"email": email}).
+		Public(fmt.Sprintf("the email %q is already in use", email)).
+		Errorf("email taken")
+}
+
 // Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
 //
 // 唯一性约束：username 与 email 全局唯一（排除当前用户自身），冲突时返回
 // ME_USERNAME_TAKEN / ME_EMAIL_TAKEN，对应 HTTP 409。
 //
-// PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
-// 故 RFC 6902 / 7386 / Shorthand 三种 patch 协议共享同一份服务端校验逻辑。
+// PATCH handler 通过"GET → apply merge patch → Replace"流程复用本方法，共享同一份服务端校验逻辑。
 func (s *MeService) Replace(ctx context.Context, userID string, req *api.ReplaceMeRequest) (*ent.User, error) {
 	usernameTaken, err := s.orm.User.Query().
 		Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).
@@ -52,11 +66,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *api.Replace
 		return nil, meInternal(err, "checking username uniqueness")
 	}
 	if usernameTaken {
-		return nil, oops.
-			Code(codes.MeUsernameTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
-			Public(fmt.Sprintf("the username %q is already taken", req.Username)).
-			Errorf("username taken: %s", req.Username)
+		return nil, meUsernameTaken(req.Username)
 	}
 
 	emailTaken, err := s.orm.User.Query().
@@ -66,11 +76,7 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *api.Replace
 		return nil, meInternal(err, "checking email uniqueness")
 	}
 	if emailTaken {
-		return nil, oops.
-			Code(codes.MeEmailTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
-			Public(fmt.Sprintf("the email %q is already in use", req.Email)).
-			Errorf("email taken: %s", req.Email)
+		return nil, meEmailTaken(req.Email)
 	}
 
 	u, err := s.orm.User.UpdateOneID(userID).
@@ -80,18 +86,10 @@ func (s *MeService) Replace(ctx context.Context, userID string, req *api.Replace
 	if err != nil {
 		if ent.IsConstraintError(err) {
 			if taken, checkErr := s.orm.User.Query().Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, oops.
-					Code(codes.MeUsernameTaken.String()).
-					With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
-					Public(fmt.Sprintf("the username %q is already taken", req.Username)).
-					Errorf("username taken: %s", req.Username)
+				return nil, meUsernameTaken(req.Username)
 			}
 			if taken, checkErr := s.orm.User.Query().Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, oops.
-					Code(codes.MeEmailTaken.String()).
-					With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
-					Public(fmt.Sprintf("the email %q is already in use", req.Email)).
-					Errorf("email taken: %s", req.Email)
+				return nil, meEmailTaken(req.Email)
 			}
 		}
 		return nil, meInternal(err, "replacing user profile")
@@ -112,7 +110,7 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, req *api.
 		return meInternal(err, "fetching user for password change")
 	}
 
-	if err := utils.VerifyPassword(u.PasswordHash, req.OldPassword); err != nil {
+	if err := verifyPassword(u.PasswordHash, req.OldPassword); err != nil {
 		slog.WarnContext(ctx, "invalid old password", "user_id", userID)
 		return oops.
 			Code(codes.MeInvalidPassword.String()).
@@ -120,7 +118,7 @@ func (s *MeService) ChangePassword(ctx context.Context, userID string, req *api.
 			Errorf("invalid old password: user_id=%s", userID)
 	}
 
-	newHash, err := utils.HashPassword(req.NewPassword)
+	newHash, err := hashPassword(req.NewPassword)
 	if err != nil {
 		return meInternal(err, "hashing new password")
 	}

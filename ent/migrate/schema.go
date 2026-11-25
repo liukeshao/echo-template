@@ -10,11 +10,11 @@ import (
 var (
 	// BooksColumns holds the columns for the "books" table.
 	BooksColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 36},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
-		{Name: "title", Type: field.TypeString, Size: 255},
+		{Name: "title", Type: field.TypeString, Size: 200},
 		{Name: "author", Type: field.TypeString, Size: 100},
 		{Name: "description", Type: field.TypeString, Nullable: true, Size: 1000},
 		{Name: "price", Type: field.TypeFloat64, Nullable: true},
@@ -55,7 +55,7 @@ var (
 	}
 	// TokensColumns holds the columns for the "tokens" table.
 	TokensColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 36},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
@@ -63,7 +63,7 @@ var (
 		{Name: "type", Type: field.TypeEnum, Enums: []string{"access", "refresh"}},
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "is_revoked", Type: field.TypeBool, Default: false},
-		{Name: "user_id", Type: field.TypeString, Size: 26},
+		{Name: "user_id", Type: field.TypeString, Size: 36},
 	}
 	// TokensTable holds the schema information for the "tokens" table.
 	TokensTable = &schema.Table{
@@ -113,7 +113,7 @@ var (
 	}
 	// UsersColumns holds the columns for the "users" table.
 	UsersColumns = []*schema.Column{
-		{Name: "id", Type: field.TypeString, Unique: true, Size: 26},
+		{Name: "id", Type: field.TypeString, Unique: true, Size: 36},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},

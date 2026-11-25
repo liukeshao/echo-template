@@ -2,38 +2,31 @@ package handlers
 
 import (
 	"context"
-	"net/http"
 
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httpruntime"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
-var _ api.BooksHandler = (*BookHandler)(nil)
+var _ api.BooksHandler = (*Book)(nil)
 
-// BookHandler 书籍处理器（实现 TypeSpec 生成的 api.BooksHandler 接口）。
+// Book 书籍处理器（纯 Go 业务编排层，实现 api.BooksHandler，零 net/http 依赖）。
 // 负责多服务编排与 *ent.Book → api.Book 投影；
 // PATCH /api/v1/books/{book} 由 TypeSpec @autoPatch(Books.get, Books.replace) 自动串联。
-type BookHandler struct {
+type Book struct {
 	book *services.BookService
 }
 
-// NewBookHandler 构造 BookHandler 并注入依赖。
-func NewBookHandler(i do.Injector) (*BookHandler, error) {
-	return &BookHandler{
+// NewBook 构造 Book 并注入依赖。
+func NewBook(i do.Injector) (*Book, error) {
+	return &Book{
 		book: do.MustInvoke[*services.BookService](i),
 	}, nil
 }
 
-// Mount 将 /api/v1/books 路由挂载到标准 *http.ServeMux。
-func (h *BookHandler) Mount(mux *http.ServeMux, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler) {
-	api.MountBooksHandler(mux, h, rt, auth)
-}
-
-func (h *BookHandler) CreateBook(ctx context.Context, req *api.CreateBookRequest) (*api.Book, error) {
+func (h *Book) CreateBook(ctx context.Context, req *api.CreateBookRequest) (*api.Book, error) {
 	b, err := h.book.Create(ctx, req)
 	if err != nil {
 		return nil, err
@@ -42,21 +35,20 @@ func (h *BookHandler) CreateBook(ctx context.Context, req *api.CreateBookRequest
 	return &res, nil
 }
 
-func (h *BookHandler) ListBooks(ctx context.Context, req *api.ListBooksRequest) (*api.BookList, error) {
-	opts, page := resolveListOptions(req.Page, req.PageSize, req.OrderBy, req.Filter, defaultPageSize, maxPageSize)
-	books, total, err := h.book.List(ctx, opts)
+func (h *Book) ListBooks(ctx context.Context, req *api.ListBooksRequest) (*api.BookList, error) {
+	res, err := h.book.List(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 	return &api.BookList{
-		Items:     mapSlice(books, toBook),
-		Page:      page,
-		PageSize:  opts.Limit,
-		TotalSize: total,
+		Items:     mapSlice(res.Items, toBook),
+		Page:      res.Page,
+		PageSize:  res.PageSize,
+		TotalSize: res.TotalSize,
 	}, nil
 }
 
-func (h *BookHandler) GetBook(ctx context.Context, req *api.GetBookRequest) (*api.Book, error) {
+func (h *Book) GetBook(ctx context.Context, req *api.GetBookRequest) (*api.Book, error) {
 	b, err := h.book.Get(ctx, req.Book)
 	if err != nil {
 		return nil, err
@@ -65,7 +57,7 @@ func (h *BookHandler) GetBook(ctx context.Context, req *api.GetBookRequest) (*ap
 	return &res, nil
 }
 
-func (h *BookHandler) ReplaceBook(ctx context.Context, req *api.ReplaceBookRequest) (*api.Book, error) {
+func (h *Book) ReplaceBook(ctx context.Context, req *api.ReplaceBookRequest) (*api.Book, error) {
 	b, err := h.book.Replace(ctx, req.Book, req)
 	if err != nil {
 		return nil, err
@@ -74,7 +66,7 @@ func (h *BookHandler) ReplaceBook(ctx context.Context, req *api.ReplaceBookReque
 	return &res, nil
 }
 
-func (h *BookHandler) DeleteBook(ctx context.Context, req *api.DeleteBookRequest) error {
+func (h *Book) DeleteBook(ctx context.Context, req *api.DeleteBookRequest) error {
 	return h.book.Delete(ctx, req.Book)
 }
 

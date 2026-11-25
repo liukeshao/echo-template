@@ -4,10 +4,12 @@ using TypeSpec.Http;
 namespace EchoTemplate;
 
 model ListQuery {
+  @doc("1-based page number (0 or omitted defaults to 1).")
   @query @minValue(0) page?: int32 = 1;
-  @query @minValue(0) @maxValue(1000) page_size?: int32 = 50;
+  @doc("Items per page (0 or omitted defaults to 50; values above 1000 are clamped to 1000).")
+  @query @minValue(0) page_size?: int32 = 50;
+  @doc("Comma-separated sort clauses, e.g. \"created_at desc, title\".")
   @query order_by?: string;
-  @query filter?: string;
 }
 
 model Page<T> {

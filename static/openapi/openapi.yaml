@@ -9,7 +9,7 @@ tags:
 paths:
   /api/v1/auth/login:
     post:
-      operationId: Auth_login
+      operationId: login
       description: 用户登录
       parameters: []
       responses:
@@ -47,7 +47,7 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
   /api/v1/auth/logout:
     post:
-      operationId: Auth_logout
+      operationId: logout
       description: 用户登出（撤销该用户全部活跃令牌）
       parameters: []
       responses:
@@ -65,7 +65,7 @@ paths:
         - BearerAuth: []
   /api/v1/auth/refresh:
     post:
-      operationId: Auth_refreshToken
+      operationId: refreshToken
       description: 刷新访问令牌
       parameters: []
       responses:
@@ -103,12 +103,12 @@ paths:
               $ref: '#/components/schemas/RefreshTokenRequest'
   /api/v1/auth/register:
     post:
-      operationId: Auth_register
+      operationId: register
       description: 用户注册
       parameters: []
       responses:
-        '200':
-          description: The request has succeeded.
+        '201':
+          description: The request has succeeded and a new resource has been created as a result.
           content:
             application/json:
               schema:
@@ -135,7 +135,7 @@ paths:
               $ref: '#/components/schemas/RegisterRequest'
   /api/v1/books:
     post:
-      operationId: Books_create
+      operationId: createBook
       description: 创建书籍
       parameters: []
       responses:
@@ -174,13 +174,44 @@ paths:
       security:
         - BearerAuth: []
     get:
-      operationId: Books_list
+      operationId: listBooks
       description: 获取书籍列表
       parameters:
         - $ref: '#/components/parameters/ListQuery.page'
         - $ref: '#/components/parameters/ListQuery.page_size'
         - $ref: '#/components/parameters/ListQuery.order_by'
-        - $ref: '#/components/parameters/ListQuery.filter'
+        - name: title
+          in: query
+          required: false
+          description: 按书名模糊匹配
+          schema:
+            type: string
+          explode: false
+        - name: author
+          in: query
+          required: false
+          description: 按作者模糊匹配
+          schema:
+            type: string
+          explode: false
+        - name: min_price
+          in: query
+          required: false
+          description: 最低价格（含）
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          explode: false
+        - name: max_price
+          in: query
+          required: false
+          description: 最高价格（含）
+          schema:
+            type: number
+            format: double
+            minimum: 0
+          explode: false
       responses:
         '200':
           description: The request has succeeded.
@@ -206,14 +237,14 @@ paths:
         - BearerAuth: []
   /api/v1/books/{book}:
     get:
-      operationId: Books_get
+      operationId: getBook
       description: 获取书籍详情
       parameters:
         - name: book
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ULID'
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -238,14 +269,14 @@ paths:
       security:
         - BearerAuth: []
     put:
-      operationId: Books_replace
+      operationId: replaceBook
       description: 全量替换书籍（幂等 PUT）
       parameters:
         - name: book
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ULID'
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -282,14 +313,14 @@ paths:
       security:
         - BearerAuth: []
     patch:
-      operationId: Books_patch
-      description: 局部更新书籍（支持 RFC 7386 Merge Patch / RFC 6902 JSON Patch / Shorthand）
+      operationId: patchBook
+      description: 局部更新书籍（RFC 7386 JSON Merge Patch）
       parameters:
         - name: book
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ULID'
+            $ref: '#/components/schemas/UUID'
       responses:
         '200':
           description: The request has succeeded.
@@ -328,51 +359,21 @@ paths:
         content:
           application/merge-patch+json:
             schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
-          application/json-patch+json:
-            schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
-          application/merge-patch+shorthand:
-            schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
+              $ref: '#/components/schemas/PatchBookRequest'
           application/json:
             schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
+              $ref: '#/components/schemas/PatchBookRequest'
       security:
         - BearerAuth: []
     delete:
-      operationId: Books_delete
+      operationId: deleteBook
       description: 删除书籍
       parameters:
         - name: book
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/ULID'
+            $ref: '#/components/schemas/UUID'
       responses:
         '204':
           description: 'There is no content to send for this request, but the headers may be useful. '
@@ -394,7 +395,7 @@ paths:
         - BearerAuth: []
   /api/v1/me:
     get:
-      operationId: Me_get
+      operationId: getMe
       description: 获取当前用户信息
       parameters: []
       responses:
@@ -415,7 +416,7 @@ paths:
       security:
         - BearerAuth: []
     put:
-      operationId: Me_replace
+      operationId: replaceMe
       description: 替换当前用户资料（幂等全量更新）
       parameters: []
       responses:
@@ -454,8 +455,8 @@ paths:
       security:
         - BearerAuth: []
     patch:
-      operationId: Me_patch
-      description: 局部更新当前用户资料（支持 RFC 7386 Merge Patch / RFC 6902 JSON Patch / Shorthand）
+      operationId: patchMe
+      description: 局部更新当前用户资料（RFC 7386 JSON Merge Patch）
       parameters: []
       responses:
         '200':
@@ -495,45 +496,15 @@ paths:
         content:
           application/merge-patch+json:
             schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
-          application/json-patch+json:
-            schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
-          application/merge-patch+shorthand:
-            schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
+              $ref: '#/components/schemas/PatchMeRequest'
           application/json:
             schema:
-              anyOf:
-                - type: object
-                  additionalProperties: {}
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/JsonPatchOperation'
-                - type: string
+              $ref: '#/components/schemas/PatchMeRequest'
       security:
         - BearerAuth: []
   /api/v1/me/change-password:
     post:
-      operationId: Me_changePassword
+      operationId: changePassword
       description: 修改当前用户密码
       parameters: []
       responses:
@@ -563,17 +534,11 @@ paths:
         - BearerAuth: []
 components:
   parameters:
-    ListQuery.filter:
-      name: filter
-      in: query
-      required: false
-      schema:
-        type: string
-      explode: false
     ListQuery.order_by:
       name: order_by
       in: query
       required: false
+      description: Comma-separated sort clauses, e.g. "created_at desc, title".
       schema:
         type: string
       explode: false
@@ -581,6 +546,7 @@ components:
       name: page
       in: query
       required: false
+      description: 1-based page number (0 or omitted defaults to 1).
       schema:
         type: integer
         format: int32
@@ -591,11 +557,11 @@ components:
       name: page_size
       in: query
       required: false
+      description: Items per page (0 or omitted defaults to 50; values above 1000 are clamped to 1000).
       schema:
         type: integer
         format: int32
         minimum: 0
-        maximum: 1000
         default: 50
       explode: false
   schemas:
@@ -609,7 +575,7 @@ components:
         - updated_at
       properties:
         id:
-          $ref: '#/components/schemas/ULID'
+          $ref: '#/components/schemas/UUID'
         title:
           type: string
         author:
@@ -667,8 +633,8 @@ components:
         - author
       properties:
         book_id:
-          $ref: '#/components/schemas/ULID'
-          description: Optional custom ULID. Auto-generated when omitted.
+          $ref: '#/components/schemas/UUID'
+          description: Optional custom UUID. Auto-generated when omitted.
         title:
           type: string
           minLength: 1
@@ -701,26 +667,6 @@ components:
           type: string
         message:
           type: string
-    JsonPatchOperation:
-      type: object
-      required:
-        - op
-        - path
-      properties:
-        op:
-          type: string
-          enum:
-            - add
-            - remove
-            - replace
-            - move
-            - copy
-            - test
-        path:
-          type: string
-        from:
-          type: string
-        value: {}
     LoginRequest:
       type: object
       required:
@@ -735,8 +681,44 @@ components:
     Password:
       type: string
       minLength: 8
-      maxLength: 128
-      description: Password (8-128 chars, must include at least one letter and one digit)
+      maxLength: 72
+      description: Password (8-72 bytes, must include at least one letter and one digit)
+    PatchBookRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 200
+        author:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          anyOf:
+            - type: string
+            - type: 'null'
+          maxLength: 1000
+        price:
+          anyOf:
+            - type: number
+              format: double
+            - type: 'null'
+          minimum: 0
+        published_at:
+          anyOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+      description: RFC 7386 JSON Merge Patch for Book (omit field to keep, set null to clear optional fields).
+    PatchMeRequest:
+      type: object
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+        email:
+          $ref: '#/components/schemas/Email'
+      description: RFC 7386 JSON Merge Patch for current user profile (omit field to keep).
     Problem:
       type: object
       required:
@@ -840,12 +822,12 @@ components:
         expires_at:
           type: integer
           format: int64
-    ULID:
+    UUID:
       type: string
-      minLength: 26
-      maxLength: 26
-      pattern: ^[0-9A-HJKMNP-TV-Z]{26}$
-      description: 26-character ULID identifier
+      minLength: 36
+      maxLength: 36
+      format: uuid
+      description: RFC 9562 UUID identifier
     User:
       type: object
       required:
@@ -857,13 +839,13 @@ components:
         - updated_at
       properties:
         id:
-          $ref: '#/components/schemas/ULID'
+          $ref: '#/components/schemas/UUID'
         username:
           type: string
         email:
           type: string
         status:
-          type: string
+          $ref: '#/components/schemas/UserStatus'
         last_login_at:
           type: string
           format: date-time
@@ -873,6 +855,12 @@ components:
         updated_at:
           type: string
           format: date-time
+    UserStatus:
+      type: string
+      enum:
+        - active
+        - inactive
+        - suspended
     Username:
       type: string
       minLength: 3

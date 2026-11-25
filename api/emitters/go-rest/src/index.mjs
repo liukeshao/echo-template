@@ -2,8 +2,8 @@ import { emitFile, resolvePath } from "@typespec/compiler";
 import { getAllHttpServices } from "@typespec/http";
 
 import { $autoPatch, $lib, getAutoPatch } from "./lib.mjs";
-import { emitModelStruct, emitParamRequestStruct, emitValidateMethod } from "./go-types.mjs";
-import { emitInterfaceAndMount, operationMethodName, requiresAuth, resolveSuccessResponse } from "./go-server.mjs";
+import { baseScalarName, emitEnumType, emitModelStruct, emitParamRequestStruct } from "./go-types.mjs";
+import { emitInterfaceAndMount, operationMethodName, resolveAuthOptions, resolveSuccessResponse } from "./go-server.mjs";
 
 export { $lib };
 
@@ -16,9 +16,8 @@ export const $decorators = {
 export async function $onEmit(context) {
   const { program, emitterOutputDir, options } = context;
   const pkgName = options["package-name"] || "api";
-  const runtimeImport = options["runtime-import"] || "github.com/liukeshao/echo-template/pkg/httpruntime";
+  const runtimeImport = options["runtime-import"] || "github.com/liukeshao/echo-template/pkg/rest";
   const validatorImport = options["validator-import"] || "github.com/liukeshao/echo-template/pkg/validator";
-  const utilsImport = options["utils-import"] || "github.com/liukeshao/echo-template/pkg/utils";
 
   const [services] = getAllHttpServices(program);
   if (!services || services.length === 0) return;
@@ -41,7 +40,6 @@ export async function $onEmit(context) {
       pkgName,
       runtimeImport,
       validatorImport,
-      utilsImport,
     });
     const fileName = `${ifaceName.toLowerCase()}.gen.go`;
     await emitFile(program, {
@@ -52,14 +50,25 @@ export async function $onEmit(context) {
 }
 
 function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
-  const imports = new Set(["context", "net/http", "httpruntime"]);
-  const emittedModels = new Set();
+  const imports = new Set(["context", "net/http", "rest"]);
+  const emittedTypes = new Set();
+  const validatedModels = new Set();
   const typeBlocks = [];
+  const extraDecls = [];
   const opInfos = [];
+  const seenAutoPatchRoutes = new Set();
 
   for (const httpOp of httpOps) {
     const autoPatch = getAutoPatch(program, httpOp.operation);
-    const methodName = operationMethodName(ifaceName, httpOp.operation.name);
+    if (autoPatch) {
+      const routeKey = `${httpOp.verb.toUpperCase()} ${httpOp.path}`;
+      if (seenAutoPatchRoutes.has(routeKey)) {
+        continue;
+      }
+      seenAutoPatchRoutes.add(routeKey);
+    }
+
+    const methodName = operationMethodName(httpOp.operation.name);
     const pathParams = httpOp.parameters.parameters.filter((p) => p.type === "path");
     const queryParams = httpOp.parameters.parameters.filter((p) => p.type === "query");
     const body = httpOp.parameters.body;
@@ -72,7 +81,7 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
     if (respModel) {
       const respType = findSuccessModel(httpOp);
       if (respType) {
-        emitReferencedModels(program, respType, emittedModels, typeBlocks, imports);
+        emitReferencedTypes(program, respType, emittedTypes, typeBlocks, imports);
       }
     }
 
@@ -82,31 +91,45 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
     if (!autoPatch) {
       if (bodyModel) {
         reqStruct = bodyModel.name;
-        if (!emittedModels.has(bodyModel.name)) {
-          emittedModels.add(bodyModel.name);
-          const validateProps = [...pathParams.map((p) => p.param), ...bodyModel.properties.values()];
-          hasValidate = Boolean(emitValidateMethod(program, bodyModel.name, validateProps, new Set()));
+        if (!emittedTypes.has(bodyModel.name)) {
+          emitReferencedPropertyTypes(program, bodyModel, emittedTypes, typeBlocks, imports);
+          emittedTypes.add(bodyModel.name);
           typeBlocks.push(
             emitModelStruct(program, bodyModel, {
               extraPathFields: pathParams,
               emitValidate: true,
               imports,
+              validatedModels,
+              extraDecls,
             }),
           );
         }
+        hasValidate = validatedModels.has(bodyModel.name);
       } else if (pathParams.length > 0 || queryParams.length > 0) {
         reqStruct = `${methodName}Request`;
         const allParams = [...pathParams, ...queryParams];
-        hasValidate = Boolean(emitValidateMethod(program, reqStruct, allParams.map((p) => p.param), new Set()));
-        if (queryParams.some((p) => p.param.type.kind === "Scalar" && (p.param.type.name === "int32" || p.param.type.name === "int64"))) {
+        for (const p of allParams) {
+          if (p.param.type.kind === "Enum") {
+            emitReferencedTypes(program, p.param.type, emittedTypes, typeBlocks, imports);
+          }
+        }
+        if (
+          queryParams.some((p) => {
+            const base = p.param.type.kind === "Scalar" ? baseScalarName(p.param.type) : "";
+            return base === "int32" || base === "int64" || base === "float64" || base === "boolean";
+          })
+        ) {
           imports.add("validator");
         }
         typeBlocks.push(
           emitParamRequestStruct(program, reqStruct, allParams, {
             emitValidate: true,
             imports,
+            validatedModels,
+            extraDecls,
           }),
         );
+        hasValidate = validatedModels.has(reqStruct);
       }
     }
 
@@ -121,7 +144,7 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
       hasValidate,
       status,
       respModel,
-      needAuth: requiresAuth(httpOp),
+      authOptions: resolveAuthOptions(httpOp),
     });
   }
 
@@ -130,12 +153,10 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
   const stdImports = [];
   const extImports = [];
   for (const imp of imports) {
-    if (imp === "httpruntime") {
+    if (imp === "rest") {
       extImports.push(cfg.runtimeImport);
     } else if (imp === "validator") {
       extImports.push(cfg.validatorImport);
-    } else if (imp === "utils") {
-      extImports.push(cfg.utilsImport);
     } else {
       stdImports.push(imp);
     }
@@ -155,6 +176,7 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
     "",
     ...importLines,
     "",
+    ...(extraDecls.length > 0 ? [...extraDecls, ""] : []),
     ...typeBlocks.flatMap((b) => [b, ""]),
     serverBlock,
     "",
@@ -175,20 +197,31 @@ function findSuccessModel(httpOp) {
   return null;
 }
 
-function emitReferencedModels(program, model, emitted, blocks, imports) {
-  if (!model || model.kind !== "Model" || !model.name || emitted.has(model.name)) return;
-  if (model.name === "Array" || model.name === "Record") return;
-  emitted.add(model.name);
-
+function emitReferencedPropertyTypes(program, model, emitted, blocks, imports) {
   for (const prop of model.properties.values()) {
-    if (prop.type.kind === "Model") {
-      if (prop.type.name === "Array" && prop.type.indexer) {
-        emitReferencedModels(program, prop.type.indexer.value, emitted, blocks, imports);
+    if (prop.type.kind === "Enum") {
+      emitReferencedTypes(program, prop.type, emitted, blocks, imports);
+    } else if (prop.type.kind === "Model") {
+      if ((prop.type.name === "Array" || prop.type.name === "Record") && prop.type.indexer) {
+        emitReferencedTypes(program, prop.type.indexer.value, emitted, blocks, imports);
       } else if (prop.type.name !== "Record") {
-        emitReferencedModels(program, prop.type, emitted, blocks, imports);
+        emitReferencedTypes(program, prop.type, emitted, blocks, imports);
       }
     }
   }
+}
 
-  blocks.push(emitModelStruct(program, model, { emitValidate: false, imports }));
+function emitReferencedTypes(program, type, emitted, blocks, imports) {
+  if (!type || !type.name || emitted.has(type.name)) return;
+  if (type.kind === "Enum") {
+    emitted.add(type.name);
+    blocks.push(emitEnumType(program, type));
+    return;
+  }
+  if (type.kind !== "Model") return;
+  if (type.name === "Array" || type.name === "Record") return;
+  emitted.add(type.name);
+
+  emitReferencedPropertyTypes(program, type, emitted, blocks, imports);
+  blocks.push(emitModelStruct(program, type, { emitValidate: false, imports }));
 }

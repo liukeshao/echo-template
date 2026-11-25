@@ -1,8 +1,10 @@
 import "@typespec/http";
+import "@typespec/openapi";
 import "../common/scalars.tsp";
 import "../common/problem.tsp";
 
 using TypeSpec.Http;
+using TypeSpec.OpenAPI;
 
 namespace EchoTemplate;
 
@@ -31,14 +33,16 @@ model TokenPair {
 @tag("auth")
 interface Auth {
   @doc("用户注册")
+  @operationId("register")
   @post
   @route("/register")
   register(@body body: RegisterRequest):
-    | TokenPair
+    | { @statusCode statusCode: 201; @body body: TokenPair }
     | BadRequestProblem
     | ConflictProblem;
 
   @doc("用户登录")
+  @operationId("login")
   @post
   @route("/login")
   login(@body body: LoginRequest):
@@ -48,6 +52,7 @@ interface Auth {
     | ForbiddenProblem;
 
   @doc("刷新访问令牌")
+  @operationId("refreshToken")
   @post
   @route("/refresh")
   refreshToken(@body body: RefreshTokenRequest):
@@ -57,6 +62,7 @@ interface Auth {
     | ForbiddenProblem;
 
   @doc("用户登出（撤销该用户全部活跃令牌）")
+  @operationId("logout")
   @useAuth(BearerAuth)
   @post
   @route("/logout")

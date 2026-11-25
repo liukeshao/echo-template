@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -13,20 +14,85 @@ import (
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/appctx"
+	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/handlers"
-	"github.com/liukeshao/echo-template/pkg/httpruntime"
-	"github.com/liukeshao/echo-template/pkg/patch"
+	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/testutil"
 )
 
 func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
-	srv := do.MustInvoke[*handlers.Server](env.Injector)
+	srv := do.MustInvoke[*rest.Server](env.Injector)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, srv.Shutdown(ctx))
+}
+
+func TestBearerAuth(t *testing.T) {
+	t.Parallel()
+	env := testutil.New(t)
+	authSvc := do.MustInvoke[*services.AuthService](env.Injector)
+	rt := do.MustInvoke[*rest.Runtime](env.Injector)
+	tok := env.MustAuthUser("mwuser", "mw@example.com", "password123")
+
+	cfg := rest.ApplyHandlerOptions(
+		rest.WithRuntime(rt),
+		rest.WithAuthScheme("BearerAuth", handlers.BearerAuth(authSvc)),
+	)
+	op := rest.Operation{
+		ID:      "testProtected",
+		Method:  http.MethodGet,
+		Pattern: "/",
+		Auth:    [][]string{{"BearerAuth"}},
+	}
+
+	cases := []struct {
+		name     string
+		header   string
+		wantCode codes.Code
+	}{
+		{"missing header", "", codes.AuthTokenInvalid},
+		{"wrong scheme", "Basic abc", codes.AuthTokenInvalid},
+		{"empty bearer", "Bearer ", codes.AuthTokenInvalid},
+		{"invalid jwt", "Bearer not.a.jwt", codes.AuthTokenInvalid},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			h := cfg.Wrap(op, func(w http.ResponseWriter, _ *http.Request) {
+				called = true
+				w.WriteHeader(http.StatusOK)
+			})
+
+			req := httptest.NewRequest(http.MethodGet, "/", nil)
+			if tc.header != "" {
+				req.Header.Set("Authorization", tc.header)
+			}
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			assert.False(t, called)
+			testutil.AssertProblem(t, rec, http.StatusUnauthorized, tc.wantCode.String())
+		})
+	}
+
+	var gotUsername string
+	h := cfg.Wrap(op, func(w http.ResponseWriter, r *http.Request) {
+		gotUsername = appctx.MustGetUserFromContext(r.Context()).Username
+		w.WriteHeader(http.StatusOK)
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "bearer "+tok.AccessToken)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "mwuser", gotUsername)
 }
 
 func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
@@ -36,7 +102,7 @@ func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
 	rec := env.DoRequest(http.MethodGet, "/api/v1/does-not-exist",
 		testutil.WithHeader("Accept-Language", "zh-CN"),
 	)
-	assert.NotEmpty(t, rec.Header().Get(httpruntime.HeaderRequestID), "404 should still run RequestID middleware")
+	assert.NotEmpty(t, rec.Header().Get(rest.HeaderRequestID), "404 should still run RequestID middleware")
 	p := testutil.AssertProblem(t, rec, http.StatusNotFound, "NOT_FOUND")
 	assert.Equal(t, "/api/v1/does-not-exist", p.Instance)
 
@@ -58,7 +124,7 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 
 	// Wrong type for price -> 400 PATCH_INVALID (not 500).
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
-		testutil.WithBody(patch.ContentTypeMergePatch, `{"price":"not-a-number"}`),
+		testutil.WithBody(rest.ContentTypeMergePatch, `{"price":"not-a-number"}`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
 	testutil.AssertProblem(t, patchRec, http.StatusBadRequest, "PATCH_INVALID")
@@ -125,10 +191,10 @@ func TestRouter_AuthBoundary(t *testing.T) {
 		{http.MethodPost, "/api/v1/me/change-password"},
 		{http.MethodPost, "/api/v1/books"},
 		{http.MethodGet, "/api/v1/books"},
-		{http.MethodGet, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
-		{http.MethodPut, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
-		{http.MethodPatch, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
-		{http.MethodDelete, "/api/v1/books/01ARZ3NDEKTSV4RRFFQ69G5FAV"},
+		{http.MethodGet, "/api/v1/books/0195a3b0-7c4e-7000-8000-000000000001"},
+		{http.MethodPut, "/api/v1/books/0195a3b0-7c4e-7000-8000-000000000001"},
+		{http.MethodPatch, "/api/v1/books/0195a3b0-7c4e-7000-8000-000000000001"},
+		{http.MethodDelete, "/api/v1/books/0195a3b0-7c4e-7000-8000-000000000001"},
 	}
 	for _, tc := range protectedCases {
 		rec := env.DoRequest(tc.method, tc.path)
@@ -152,13 +218,29 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
 
-	// Register
+	// Register -> 201 Created
 	rec := env.DoRequest(http.MethodPost, "/api/v1/auth/register",
 		testutil.WithJSON(map[string]any{"username": "httpuser", "email": "http@example.com", "password": "password123"}),
 	)
-	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, http.StatusCreated, rec.Code)
 	reg := testutil.DecodeJSON[api.TokenPair](t, rec)
 	assert.NotEmpty(t, reg.AccessToken)
+
+	// Malformed JSON -> localized 400 BAD_REQUEST; JSON type mismatch -> 400 VALIDATION_INVALID without leaking Go struct names
+	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
+		testutil.WithBody("application/json", `{bad json`),
+		testutil.WithHeader("Accept-Language", "zh-CN"),
+	)
+	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, "BAD_REQUEST")
+	assert.Equal(t, "请求体不是合法的 JSON 格式。", p.Detail)
+
+	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
+		testutil.WithBody("application/json", `{"email":123,"password":"x"}`),
+	)
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
+	require.Len(t, p.Errors, 1)
+	assert.Equal(t, "email", p.Errors[0].Field)
+	assert.NotContains(t, p.Errors[0].Message, "LoginRequest")
 
 	// Login
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
@@ -179,7 +261,7 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 	assert.Equal(t, http.StatusNoContent, rec.Code)
 }
 
-func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
+func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
 	tok := env.MustAuthUser("bookuser", "bookuser@example.com", "password123")
@@ -198,12 +280,29 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Go", testutil.DecodeJSON[api.Book](t, rec).Title)
 
-	// Get invalid ULID -> 400 VALIDATION_INVALID
-	rec = env.DoRequest(http.MethodGet, "/api/v1/books/not-a-ulid", auth)
+	// Get invalid UUID -> 400 VALIDATION_INVALID
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books/not-a-uuid", auth)
 	testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
 
-	// List
-	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&filter=price%20%3E%2010", auth)
+	// List invalid integer query -> 400 VALIDATION_INVALID
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=abc", auth)
+	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
+	require.Len(t, p.Errors, 1)
+	assert.Contains(t, p.Errors[0].Message, "valid integer")
+
+	// List invalid float query -> 400 VALIDATION_INVALID
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=not-a-number", auth)
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
+	require.Len(t, p.Errors, 1)
+	assert.Equal(t, "min_price", p.Errors[0].Field)
+	assert.Contains(t, p.Errors[0].Message, "valid number")
+
+	// List negative min_price -> 400 VALIDATION_INVALID
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=-1", auth)
+	testutil.AssertProblem(t, rec, http.StatusBadRequest, "VALIDATION_INVALID")
+
+	// List with explicit typed query fields
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&title=go&min_price=10&max_price=30", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
 	list := testutil.DecodeJSON[api.BookList](t, rec)
 	assert.Equal(t, int32(1), list.TotalSize)
@@ -222,7 +321,7 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 
 	// PATCH RFC 7386 Merge Patch + attempt to mutate read-only id (must be ignored)
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
-		testutil.WithBody(patch.ContentTypeMergePatch, `{"id":"FAKE","title":"Merged","price":null}`),
+		testutil.WithBody(rest.ContentTypeMergePatch, `{"id":"FAKE","title":"Merged","price":null}`),
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -231,22 +330,14 @@ func TestBookHandler_CRUDAndAllPatchProtocols(t *testing.T) {
 	assert.Equal(t, "Merged", got.Title)
 	assert.Nil(t, got.Price)
 
-	// PATCH RFC 6902 JSON Patch
+	// PATCH with application/json compatibility
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
-		testutil.WithBody(patch.ContentTypeJSONPatch, `[{"op":"replace","path":"/title","value":"JSONPatched"}]`),
-		auth,
-	)
-	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "JSONPatched", testutil.DecodeJSON[api.Book](t, rec).Title)
-
-	// PATCH Shorthand
-	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
-		testutil.WithBody(patch.ContentTypeShorthandPatch, `title: "Shorthand", price: 15.5`),
+		testutil.WithBody(rest.ContentTypeJSON, `{"title":"JSONCompat","price":15.5}`),
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
 	got = testutil.DecodeJSON[api.Book](t, rec)
-	assert.Equal(t, "Shorthand", got.Title)
+	assert.Equal(t, "JSONCompat", got.Title)
 	require.NotNil(t, got.Price)
 	assert.InDelta(t, 15.5, *got.Price, 1e-9)
 
@@ -264,7 +355,9 @@ func TestMeHandler_HTTPMethods(t *testing.T) {
 	// GET /me
 	rec := env.DoRequest(http.MethodGet, "/api/v1/me", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "meuser", testutil.DecodeJSON[api.User](t, rec).Username)
+	me := testutil.DecodeJSON[api.User](t, rec)
+	assert.Equal(t, "meuser", me.Username)
+	assert.NotNil(t, me.LastLoginAt)
 
 	// PUT /me
 	rec = env.DoRequest(http.MethodPut, "/api/v1/me",
@@ -274,9 +367,9 @@ func TestMeHandler_HTTPMethods(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "meuser2", testutil.DecodeJSON[api.User](t, rec).Username)
 
-	// PATCH /me (auto-generated by @autoPatch(Me.get, Me.replace))
+	// PATCH /me (auto-generated by @autoPatch(Me.getMe, Me.replaceMe))
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/me",
-		testutil.WithBody(patch.ContentTypeMergePatch, `{"email":"meuser3@example.com"}`),
+		testutil.WithBody(rest.ContentTypeMergePatch, `{"email":"meuser3@example.com"}`),
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)

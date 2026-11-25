@@ -1,23 +1,13 @@
 import { getDoc } from "@typespec/compiler";
-import { toGoName } from "./go-types.mjs";
-
-const CRUD_VERBS = new Set(["create", "get", "replace", "delete", "list"]);
+import { getOperationId } from "@typespec/openapi";
+import { baseScalarName, toGoName } from "./go-types.mjs";
 
 /**
- * Derive idiomatic Go method name for an operation in an interface:
- *   - Standard CRUD verbs append the resource noun: Books.create -> CreateBook, Books.list -> ListBooks, Me.get -> GetMe
- *   - Custom action verbs use the verb directly: Auth.login -> Login, Auth.refreshToken -> RefreshToken, Me.changePassword -> ChangePassword
+ * Derive the Go method name directly from the TypeSpec operation name (1:1 PascalCase mapping):
+ *   Books.createBook -> CreateBook, Books.listBooks -> ListBooks, Me.getMe -> GetMe, Auth.login -> Login
  */
-export function operationMethodName(ifaceName, opName) {
-  const verb = toGoName(opName);
-  if (!CRUD_VERBS.has(opName)) {
-    return verb;
-  }
-  if (opName === "list") {
-    return `${verb}${ifaceName}`;
-  }
-  const singular = ifaceName.endsWith("s") ? ifaceName.slice(0, -1) : ifaceName;
-  return `${verb}${singular}`;
+export function operationMethodName(opName) {
+  return toGoName(opName);
 }
 
 /** Extract success status code and optional response model name from an HttpOperation. */
@@ -36,10 +26,70 @@ export function resolveSuccessResponse(httpOp) {
   return { status: 200, modelName: null };
 }
 
-/** Check whether an HttpOperation requires authentication (@useAuth). */
-export function requiresAuth(httpOp) {
+/**
+ * Extract TypeSpec @useAuth requirements as OpenAPI-style DNF:
+ *   - []                              => public (no auth or NoAuth only)
+ *   - [["BearerAuth"]]                => BearerAuth
+ *   - [["BearerAuth"], ["ApiKeyAuth"]]=> BearerAuth OR ApiKeyAuth
+ *   - [["BearerAuth", "ApiKeyAuth"]]  => BearerAuth AND ApiKeyAuth
+ *   - [["BearerAuth"], []]            => BearerAuth OR anonymous (NoAuth placed last)
+ */
+export function resolveAuthOptions(httpOp) {
   const auth = httpOp.authentication;
-  return Boolean(auth && auth.options && auth.options.some((o) => o.schemes && o.schemes.length > 0));
+  if (!auth || !auth.options || auth.options.length === 0) {
+    return [];
+  }
+  const nonEmpty = [];
+  let hasNoAuth = false;
+  for (const opt of auth.options) {
+    const ids = (opt.schemes || [])
+      .filter((s) => s.type !== "noAuth" && s.id)
+      .map((s) => s.id);
+    if (ids.length === 0) {
+      hasNoAuth = true;
+    } else {
+      nonEmpty.push(ids);
+    }
+  }
+  if (nonEmpty.length === 0) {
+    return [];
+  }
+  if (hasNoAuth) {
+    nonEmpty.push([]);
+  }
+  return nonEmpty;
+}
+
+function formatOperationLiteral(opID, method, path, authOptions) {
+  const fields = [
+    `ID: ${JSON.stringify(opID)}`,
+    `Method: ${httpMethodConst(method)}`,
+    `Pattern: ${JSON.stringify(path)}`,
+  ];
+  if (authOptions && authOptions.length > 0) {
+    const alts = authOptions
+      .map((alt) => `{${alt.map((s) => JSON.stringify(s)).join(", ")}}`)
+      .join(", ");
+    fields.push(`Auth: [][]string{${alts}}`);
+  }
+  return `rest.Operation{${fields.join(", ")}}`;
+}
+
+function httpMethodConst(method) {
+  switch (method) {
+    case "GET":
+      return "http.MethodGet";
+    case "POST":
+      return "http.MethodPost";
+    case "PUT":
+      return "http.MethodPut";
+    case "PATCH":
+      return "http.MethodPatch";
+    case "DELETE":
+      return "http.MethodDelete";
+    default:
+      return JSON.stringify(method);
+  }
 }
 
 /**
@@ -70,25 +120,23 @@ export function emitInterfaceAndMount(program, ifaceName, opInfos) {
   lines.push("}");
   lines.push("");
 
-  // 2. Mount function targeting Go 1.22+ net/http.ServeMux.
-  lines.push(`// Mount${handlerName} 将 ${handlerName} 挂载到标准 *http.ServeMux。`);
-  lines.push(`// 自动处理路由注册、鉴权包装、零反射参数解码、Validate()、@autoPatch 适配以及 RFC 9457 错误响应。`);
-  lines.push(`func Mount${handlerName}(mux *http.ServeMux, impl ${handlerName}, rt *httpruntime.Runtime, auth func(http.Handler) http.Handler) {`);
-  lines.push(`\twrap := func(needAuth bool, fn http.HandlerFunc) http.Handler {`);
-  lines.push(`\t\tvar h http.Handler = fn`);
-  lines.push(`\t\tif needAuth && auth != nil {`);
-  lines.push(`\t\t\th = auth(h)`);
-  lines.push(`\t\t}`);
-  lines.push(`\t\treturn h`);
-  lines.push(`\t}`);
-  lines.push("");
+  // 2. Connect-Go style constructor returning rest.Handler (implements http.Handler + Mount(*http.ServeMux)).
+  lines.push(`// New${handlerName} 构造符合 Connect-Go 风格的 rest.Handler（同时实现标准 http.Handler）。`);
+  lines.push(`// 可直接挂载到 rest.Router（router.Mount(api.New${handlerName}(impl, ...))），也可独立用于 httptest。`);
+  lines.push(`func New${handlerName}(impl ${handlerName}, opts ...rest.HandlerOption) rest.Handler {`);
+  lines.push(`\tcfg := rest.ApplyHandlerOptions(opts...)`);
+  lines.push(`\trt := cfg.Runtime`);
+  lines.push(`\treturn rest.NewHandler(func(mux *http.ServeMux) {`);
 
   const opByRef = new Map(opInfos.map((info) => [info.httpOp.operation, info]));
 
   for (const info of opInfos) {
-    const pattern = `${info.httpOp.verb.toUpperCase()} ${info.httpOp.path}`;
-    lines.push(`\tmux.Handle(${JSON.stringify(pattern)}, wrap(${info.needAuth}, func(w http.ResponseWriter, r *http.Request) {`);
-    lines.push(`\t\tctx := r.Context()`);
+    const verbUpper = info.httpOp.verb.toUpperCase();
+    const pattern = `${verbUpper} ${info.httpOp.path}`;
+    const opID = getOperationId(program, info.httpOp.operation) || info.httpOp.operation.name;
+    const opLiteral = formatOperationLiteral(opID, verbUpper, info.httpOp.path, info.authOptions);
+    lines.push(`\t\tmux.Handle(${JSON.stringify(pattern)}, cfg.Wrap(${opLiteral}, func(w http.ResponseWriter, r *http.Request) {`);
+    lines.push(`\t\t\tctx := r.Context()`);
 
     if (info.autoPatch) {
       const getInfo = opByRef.get(info.autoPatch.getOp);
@@ -98,10 +146,11 @@ export function emitInterfaceAndMount(program, ifaceName, opInfos) {
       lines.push(...emitStandardOpBody(info));
     }
 
-    lines.push(`\t}))`);
+    lines.push(`\t\t}))`);
     lines.push("");
   }
 
+  lines.push(`\t})`);
   lines.push("}");
   return lines.join("\n");
 }
@@ -120,28 +169,43 @@ function emitStandardOpBody(info) {
     }
 
     for (const p of info.pathParams) {
-      lines.push(`\t\treq.${toGoName(p.name)} = r.PathValue(${JSON.stringify(p.name)})`);
+      const expr = p.param.type.kind === "Enum"
+        ? `${p.param.type.name}(r.PathValue(${JSON.stringify(p.name)}))`
+        : `r.PathValue(${JSON.stringify(p.name)})`;
+      lines.push(`\t\treq.${toGoName(p.name)} = ${expr}`);
     }
 
     if (info.queryParams.length > 0) {
       lines.push(`\t\tq := r.URL.Query()`);
-      const hasIntQuery = info.queryParams.some((p) => {
-        const base = p.param.type.kind === "Scalar" ? p.param.type.name : "";
-        return base === "int32" || base === "int64";
+      const hasTypedQuery = info.queryParams.some((p) => {
+        const base = p.param.type.kind === "Scalar" ? baseScalarName(p.param.type) : "";
+        return base === "int32" || base === "int64" || base === "float64" || base === "boolean";
       });
-      if (hasIntQuery) {
+      if (hasTypedQuery) {
         lines.push(`\t\tvar qv validator.FieldViolations`);
       }
       for (const p of info.queryParams) {
         const goField = toGoName(p.name);
-        const scalarName = p.param.type.kind === "Scalar" ? p.param.type.name : "string";
+        if (p.param.type.kind === "Enum") {
+          lines.push(`\t\treq.${goField} = ${p.param.type.name}(q.Get(${JSON.stringify(p.name)}))`);
+          continue;
+        }
+        const scalarName = p.param.type.kind === "Scalar" ? baseScalarName(p.param.type) : "string";
         if (scalarName === "int32") {
           lines.push(`\t\treq.${goField} = rt.ParseInt32Query(q, ${JSON.stringify(p.name)}, &qv)`);
+        } else if (scalarName === "int64") {
+          lines.push(`\t\treq.${goField} = rt.ParseInt64Query(q, ${JSON.stringify(p.name)}, &qv)`);
+        } else if (scalarName === "float64") {
+          const fn = p.param.optional ? "ParseOptionalFloat64Query" : "ParseFloat64Query";
+          lines.push(`\t\treq.${goField} = rt.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
+        } else if (scalarName === "boolean") {
+          const fn = p.param.optional ? "ParseOptionalBoolQuery" : "ParseBoolQuery";
+          lines.push(`\t\treq.${goField} = rt.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
         } else {
           lines.push(`\t\treq.${goField} = q.Get(${JSON.stringify(p.name)})`);
         }
       }
-      if (hasIntQuery) {
+      if (hasTypedQuery) {
         lines.push(`\t\tif err := qv.Err(); err != nil {`);
         lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
         lines.push(`\t\t\treturn`);
@@ -170,7 +234,11 @@ function emitStandardOpBody(info) {
     lines.push(`\t\t\trt.WriteProblem(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
-    lines.push(`\t\trt.WriteNoContent(w)`);
+    if (info.status === 204) {
+      lines.push(`\t\trt.WriteNoContent(w)`);
+    } else {
+      lines.push(`\t\tw.WriteHeader(${httpStatusConst(info.status)})`);
+    }
   }
   return lines;
 }

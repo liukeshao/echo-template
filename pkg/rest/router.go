@@ -1,61 +1,114 @@
-package httpruntime
+package rest
 
 import (
 	"fmt"
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"sync"
 	"time"
+	"uuid"
 
 	"github.com/liukeshao/echo-template/pkg/appctx"
-	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
 // HeaderRequestID 是请求追踪 ID 使用的标准 HTTP 头。
 const HeaderRequestID = "X-Request-ID"
 
-// WrapMux 为标准 *http.ServeMux 挂载完整全局中间件链：
-// Recover → RequestID → Locale → AccessLog → BodyLimit → 404/405 RFC 9457 拦截。
-func (rt *Runtime) WrapMux(mux *http.ServeMux, maxBodyBytes int64) http.Handler {
-	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		h, pattern := mux.Handler(r)
+// Router 封装标准库 *http.ServeMux、Runtime、全局中间件链以及 404/405 RFC 9457 兜底。
+// Router 自身实现 http.Handler，可直接传入 rest.NewServer 或用于测试。
+type Router struct {
+	mux          *http.ServeMux
+	rt           *Runtime
+	maxBodyBytes int64
+
+	once    sync.Once
+	wrapped http.Handler
+}
+
+// NewRouter 创建 Router 实例。
+func NewRouter(rt *Runtime, opts ...RouterOption) *Router {
+	if rt == nil {
+		rt = DefaultRuntime()
+	}
+	r := &Router{
+		mux: http.NewServeMux(),
+		rt:  rt,
+	}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(r)
+		}
+	}
+	return r
+}
+
+// Mount 将一个或多个 rest.Handler（如 api.NewBooksHandler(...)）挂载到 Router。
+func (r *Router) Mount(handlers ...Handler) {
+	for _, h := range handlers {
+		if h != nil {
+			h.Mount(r.mux)
+		}
+	}
+}
+
+// Handle 直接向底层 *http.ServeMux 注册原生 http.Handler。
+func (r *Router) Handle(pattern string, h http.Handler) {
+	r.mux.Handle(pattern, h)
+}
+
+// HandleFunc 直接向底层 *http.ServeMux 注册原生 http.HandlerFunc。
+func (r *Router) HandleFunc(pattern string, fn http.HandlerFunc) {
+	r.mux.HandleFunc(pattern, fn)
+}
+
+// ServeHTTP 按全局中间件链执行请求分发：
+// RequestID → Locale → AccessLog → Recover → BodyLimit → 404/405 RFC 9457 拦截 → ServeMux。
+func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	r.once.Do(func() {
+		r.wrapped = r.buildHandler()
+	})
+	r.wrapped.ServeHTTP(w, req)
+}
+
+func (r *Router) buildHandler() http.Handler {
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		h, pattern := r.mux.Handler(req)
 		if pattern == "" {
 			probe := &statusProbeWriter{header: make(http.Header)}
-			h.ServeHTTP(probe, r)
+			h.ServeHTTP(probe, req)
 			if probe.status == http.StatusMethodNotAllowed {
 				if allow := probe.header.Get("Allow"); allow != "" {
 					w.Header().Set("Allow", allow)
 				}
-				rt.WriteProblem(w, r, Problem{
+				r.rt.WriteProblem(w, req, Problem{
 					Status: http.StatusMethodNotAllowed,
 					Code:   "METHOD_NOT_ALLOWED",
-					Detail: http.StatusText(http.StatusMethodNotAllowed),
 				})
 				return
 			}
-			rt.WriteProblem(w, r, Problem{
+			r.rt.WriteProblem(w, req, Problem{
 				Status: http.StatusNotFound,
 				Code:   "NOT_FOUND",
-				Detail: http.StatusText(http.StatusNotFound),
 			})
 			return
 		}
-		// 必须调用 mux.ServeHTTP 才会填充 Go 1.22+ 的 r.PathValue(...)。
-		mux.ServeHTTP(w, r)
+		// 必须调用 mux.ServeHTTP 才会填充 Go 1.22+ 的 req.PathValue(...)。
+		r.mux.ServeHTTP(w, req)
 	})
 
-	if maxBodyBytes > 0 {
-		handler = BodyLimit(maxBodyBytes)(handler)
+	if r.maxBodyBytes > 0 {
+		handler = BodyLimit(r.maxBodyBytes)(handler)
 	}
+	handler = r.rt.Recover()(handler)
 	handler = AccessLog()(handler)
-	handler = rt.Locale()(handler)
+	handler = r.rt.Locale()(handler)
 	handler = RequestID()(handler)
-	handler = rt.Recover()(handler)
 	return handler
 }
 
 // BodyLimit 使用标准库 http.MaxBytesReader 限制单次请求体最大字节数。
-func BodyLimit(maxBytes int64) func(http.Handler) http.Handler {
+func BodyLimit(maxBytes int64) Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			r.Body = http.MaxBytesReader(w, r.Body, maxBytes)
@@ -64,13 +117,13 @@ func BodyLimit(maxBytes int64) func(http.Handler) http.Handler {
 	}
 }
 
-// RequestID 读取或生成 ULID 格式的 X-Request-ID，写入响应头与 context（供 slog 和 Problem 复用）。
-func RequestID() func(http.Handler) http.Handler {
+// RequestID 读取或生成 UUID v7 格式的 X-Request-ID，写入响应头与 context（供 slog 和 Problem 复用）。
+func RequestID() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			rid := r.Header.Get(HeaderRequestID)
 			if rid == "" {
-				rid = utils.GenerateULID()
+				rid = uuid.NewV7().String()
 			}
 			w.Header().Set(HeaderRequestID, rid)
 			next.ServeHTTP(w, r.WithContext(appctx.WithRequestID(r.Context(), rid)))
@@ -79,7 +132,7 @@ func RequestID() func(http.Handler) http.Handler {
 }
 
 // Locale 协商请求语言（?lang= > Accept-Language > Default）并写入 context。
-func (rt *Runtime) Locale() func(http.Handler) http.Handler {
+func (rt *Runtime) Locale() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tag := rt.translator.Match(
@@ -92,7 +145,7 @@ func (rt *Runtime) Locale() func(http.Handler) http.Handler {
 }
 
 // Recover 捕获下游 panic，记录堆栈日志并返回标准 500 RFC 9457 Problem。
-func (rt *Runtime) Recover() func(http.Handler) http.Handler {
+func (rt *Runtime) Recover() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
@@ -110,7 +163,7 @@ func (rt *Runtime) Recover() func(http.Handler) http.Handler {
 }
 
 // AccessLog 使用 slog 记录每个 HTTP 请求的方法、路径、状态码与耗时。
-func AccessLog() func(http.Handler) http.Handler {
+func AccessLog() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -138,6 +191,13 @@ func (w *statusCaptureWriter) WriteHeader(code int) {
 		w.wroteHeader = true
 	}
 	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *statusCaptureWriter) Write(b []byte) (int, error) {
+	if !w.wroteHeader {
+		w.wroteHeader = true
+	}
+	return w.ResponseWriter.Write(b)
 }
 
 func (w *statusCaptureWriter) Unwrap() http.ResponseWriter {

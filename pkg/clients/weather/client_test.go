@@ -36,17 +36,33 @@ func TestClient_GetCurrent_EscapesCityAndParsesResponse(t *testing.T) {
 
 	env := testutil.New(t,
 		testutil.WithConfig(func(cfg *config.Config) {
+			cfg.Clients.Weather.BaseURL = "https://weather.example.com/v1/"
 			cfg.Clients.Weather.APIKey = "secret-key"
 		}),
 		testutil.WithHTTPTransport(rt),
 	)
 
-	c := do.MustInvoke[*weather.Client](env.Injector)
+	c := do.MustInvoke[weather.API](env.Injector)
 	res, err := c.GetCurrent(context.Background(), "New York&evil=1")
 	require.NoError(t, err)
 	assert.Equal(t, "city=New+York%26evil%3D1", gotRawQuery)
 	assert.Equal(t, "New York", res.City)
 	assert.InDelta(t, 22.5, res.TempCelsius, 1e-9)
+}
+
+func TestClient_GetCurrent_CallerContextCanceledPropagatesDirectly(t *testing.T) {
+	t.Parallel()
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rt := roundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return nil, r.Context().Err()
+	})
+
+	env := testutil.New(t, testutil.WithHTTPTransport(rt))
+	c := do.MustInvoke[weather.API](env.Injector)
+	_, err := c.GetCurrent(ctx, "Tokyo")
+	assert.ErrorIs(t, err, context.Canceled)
 }
 
 func TestClient_GetCurrent_RateLimited(t *testing.T) {

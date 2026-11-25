@@ -1,11 +1,13 @@
 import {
   getDoc,
   getMaxLength,
+  getMaxValue,
   getMinLength,
   getMinValue,
+  getPattern,
 } from "@typespec/compiler";
 
-const INITIALISMS = new Set(["id", "ulid", "url", "uri", "http", "ip", "jwt", "api", "json"]);
+const INITIALISMS = new Set(["id", "uuid", "url", "uri", "http", "ip", "jwt", "api", "json"]);
 
 /** Convert snake_case / kebab-case / camelCase to Go PascalCase with idiomatic initialisms. */
 export function toGoName(name) {
@@ -24,11 +26,34 @@ export function toGoName(name) {
 
 /** Return the semantic scalar name if `type` is (or derives from) one of our custom scalars. */
 export function semanticScalarName(type) {
-  const semantic = new Set(["ULID", "Email", "Username", "Password"]);
+  const semantic = new Set(["UUID", "Email", "Username", "Password"]);
   let cur = type;
   while (cur && cur.kind === "Scalar") {
     if (semantic.has(cur.name)) return cur.name;
     cur = cur.baseScalar;
+  }
+  return null;
+}
+
+/** Return allowed string literal values if `type` is a string Enum or a Union of string literals. */
+export function stringLiteralValues(type) {
+  if (!type) return null;
+  if (type.kind === "Enum") {
+    const vals = [];
+    for (const member of type.members.values()) {
+      const v = member.value ?? member.name;
+      if (typeof v !== "string") return null;
+      vals.push(v);
+    }
+    return vals.length > 0 ? vals : null;
+  }
+  if (type.kind === "Union") {
+    const vals = [];
+    for (const variant of type.variants.values()) {
+      if (variant.type.kind !== "String") return null;
+      vals.push(variant.type.value);
+    }
+    return vals.length > 0 ? vals : null;
   }
   return null;
 }
@@ -56,6 +81,12 @@ export function resolveGoType(type, optional, imports) {
         return "string";
     }
   }
+  if (type.kind === "Enum") {
+    return type.name;
+  }
+  if (type.kind === "Union" && stringLiteralValues(type)) {
+    return "string";
+  }
   if (type.kind === "Model") {
     if (type.name === "Array" && type.indexer) {
       const elem = resolveGoType(type.indexer.value, false, imports);
@@ -70,7 +101,7 @@ export function resolveGoType(type, optional, imports) {
   return "any";
 }
 
-function baseScalarName(scalar) {
+export function baseScalarName(scalar) {
   const builtin = new Set(["string", "int32", "int64", "float64", "boolean", "utcDateTime", "offsetDateTime"]);
   let cur = scalar;
   while (cur && cur.kind === "Scalar") {
@@ -80,11 +111,38 @@ function baseScalarName(scalar) {
   return scalar.name;
 }
 
+/** Emit a Go typed string enum and its constants from a TypeSpec Enum. */
+export function emitEnumType(program, enumType) {
+  const lines = [];
+  const doc = getDoc(program, enumType);
+  if (doc) {
+    lines.push(`// ${enumType.name} ${doc}`);
+  }
+  lines.push(`type ${enumType.name} string`);
+  lines.push("");
+  lines.push("const (");
+  for (const member of enumType.members.values()) {
+    const val = member.value ?? member.name;
+    const constName = `${enumType.name}${toGoName(member.name)}`;
+    const memberDoc = getDoc(program, member);
+    if (memberDoc) {
+      lines.push(`\t// ${constName} ${memberDoc}`);
+    }
+    lines.push(`\t${constName} ${enumType.name} = ${JSON.stringify(String(val))}`);
+  }
+  lines.push(")");
+  return lines.join("\n");
+}
+
 /**
  * Emit a flat Go struct for a TypeSpec model, optionally prepending extra path fields
  * (e.g. `Book string \`json:"-"\`` on ReplaceBookRequest).
  */
-export function emitModelStruct(program, model, { extraPathFields = [], emitValidate = false, imports }) {
+export function emitModelStruct(
+  program,
+  model,
+  { extraPathFields = [], emitValidate = false, imports, validatedModels, extraDecls },
+) {
   const lines = [];
   const doc = getDoc(program, model);
   if (doc) {
@@ -113,8 +171,9 @@ export function emitModelStruct(program, model, { extraPathFields = [], emitVali
       ...extraPathFields.map((pf) => pf.param),
       ...model.properties.values(),
     ];
-    const vCode = emitValidateMethod(program, model.name, validateProps, imports);
+    const vCode = emitValidateMethod(program, model.name, validateProps, imports, extraDecls);
     if (vCode) {
+      if (validatedModels) validatedModels.add(model.name);
       lines.push("");
       lines.push(vCode);
     }
@@ -123,21 +182,27 @@ export function emitModelStruct(program, model, { extraPathFields = [], emitVali
 }
 
 /** Emit a request struct constructed from HTTP parameters (path/query) when there is no body model. */
-export function emitParamRequestStruct(program, structName, params, { emitValidate = false, imports }) {
+export function emitParamRequestStruct(
+  program,
+  structName,
+  params,
+  { emitValidate = false, imports, validatedModels, extraDecls },
+) {
   const lines = [`type ${structName} struct {`];
   const props = [];
   for (const p of params) {
     const prop = p.param;
     props.push(prop);
     const goField = toGoName(prop.name);
-    const goType = resolveGoType(prop.type, false, imports);
+    const goType = resolveGoType(prop.type, prop.optional, imports);
     lines.push(`\t${goField} ${goType}`);
   }
   lines.push("}");
 
   if (emitValidate) {
-    const vCode = emitValidateMethod(program, structName, props, imports);
+    const vCode = emitValidateMethod(program, structName, props, imports, extraDecls);
     if (vCode) {
+      if (validatedModels) validatedModels.add(structName);
       lines.push("");
       lines.push(vCode);
     }
@@ -145,8 +210,12 @@ export function emitParamRequestStruct(program, structName, params, { emitValida
   return lines.join("\n");
 }
 
-/** Generate Validate() error directly targeting pkg/validator (with i18n keys) and optional validateExtra hook. */
-export function emitValidateMethod(program, structName, props, imports) {
+/**
+ * Generate Validate() error directly targeting pkg/validator (with i18n keys) and optional validateExtra hook.
+ * Always emitted for request structs so hand-written validateExtra(*validator.FieldViolations) hooks work
+ * even when a request struct has no single-field TypeSpec decorators.
+ */
+export function emitValidateMethod(program, structName, props, imports, extraDecls = []) {
   const checks = [];
 
   for (const prop of props) {
@@ -154,18 +223,17 @@ export function emitValidateMethod(program, structName, props, imports) {
     const jsonName = prop.name;
     const semantic = semanticScalarName(prop.type);
 
-    if (semantic === "ULID") {
-      imports.add("utils");
+    if (semantic === "UUID") {
       if (prop.optional) {
         checks.push(
-          `\tif r.${goField} != "" && !utils.IsValidULID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyULID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\tif r.${goField} != "" && !validator.IsValidUUID(r.${goField}) {`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyUUID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
           `\t}`,
         );
       } else {
         checks.push(
-          `\tif !utils.IsValidULID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyULID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\tif !validator.IsValidUUID(r.${goField}) {`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyUUID, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
           `\t}`,
         );
       }
@@ -173,83 +241,90 @@ export function emitValidateMethod(program, structName, props, imports) {
     }
 
     if (semantic === "Email") {
-      checks.push(
-        `\tif !validator.IsValidEmail(r.${goField}) {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyEmail, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-        `\t}`,
-      );
+      if (prop.optional) {
+        checks.push(
+          `\tif r.${goField} != "" && !validator.IsValidEmail(r.${goField}) {`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyEmail, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t}`,
+        );
+      } else {
+        checks.push(
+          `\tif !validator.IsValidEmail(r.${goField}) {`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyEmail, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+          `\t}`,
+        );
+      }
       continue;
     }
 
     if (semantic === "Username") {
-      checks.push(`\tvalidator.CheckUsername(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
+      if (prop.optional) {
+        checks.push(
+          `\tif r.${goField} != "" {`,
+          `\t\tvalidator.CheckUsername(&v, ${JSON.stringify(jsonName)}, r.${goField})`,
+          `\t}`,
+        );
+      } else {
+        checks.push(`\tvalidator.CheckUsername(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
+      }
       continue;
     }
 
     if (semantic === "Password") {
-      checks.push(`\tvalidator.CheckPassword(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
+      if (prop.optional) {
+        checks.push(
+          `\tif r.${goField} != "" {`,
+          `\t\tvalidator.CheckPassword(&v, ${JSON.stringify(jsonName)}, r.${goField})`,
+          `\t}`,
+        );
+      } else {
+        checks.push(`\tvalidator.CheckPassword(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
+      }
+      continue;
+    }
+
+    const enumVals = stringLiteralValues(prop.type);
+    if (enumVals) {
+      const allowedStr = enumVals.join(", ");
+      const cases = enumVals.map((v) => JSON.stringify(v)).join(", ");
+      const expr = prop.type.kind === "Enum" ? `string(r.${goField})` : `r.${goField}`;
+      if (prop.optional) {
+        checks.push(
+          `\tif ${expr} != "" {`,
+          `\t\tswitch ${expr} {`,
+          `\t\tcase ${cases}:`,
+          `\t\tdefault:`,
+          `\t\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyOneOf, map[string]string{"field": ${JSON.stringify(jsonName)}, "allowed": ${JSON.stringify(allowedStr)}})`,
+          `\t\t}`,
+          `\t}`,
+        );
+      } else {
+        checks.push(
+          `\tswitch ${expr} {`,
+          `\tcase ${cases}:`,
+          `\tdefault:`,
+          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyOneOf, map[string]string{"field": ${JSON.stringify(jsonName)}, "allowed": ${JSON.stringify(allowedStr)}})`,
+          `\t}`,
+        );
+      }
       continue;
     }
 
     const minLen = getMinLength(program, prop) ?? (prop.type.kind === "Scalar" ? getMinLength(program, prop.type) : undefined);
     const maxLen = getMaxLength(program, prop) ?? (prop.type.kind === "Scalar" ? getMaxLength(program, prop.type) : undefined);
-    const minVal = getMinValue(program, prop);
+    const pattern = getPattern(program, prop) ?? (prop.type.kind === "Scalar" ? getPattern(program, prop.type) : undefined);
+    const minVal = getMinValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMinValue(program, prop.type) : undefined);
+    const maxVal = getMaxValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMaxValue(program, prop.type) : undefined);
     const base = prop.type.kind === "Scalar" ? baseScalarName(prop.type) : "";
 
     if (base === "string") {
-      if (!prop.optional && minLen && minLen >= 1) {
-        imports.add("strings");
-        if (maxLen !== undefined) {
-          checks.push(
-            `\tif strings.TrimSpace(r.${goField}) == "" {`,
-            `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyRequired, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-            `\t} else if len(r.${goField}) > ${maxLen} {`,
-            `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMaxLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxLen))}})`,
-            `\t}`,
-          );
-        } else {
-          checks.push(
-            `\tif strings.TrimSpace(r.${goField}) == "" {`,
-            `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyRequired, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-            `\t}`,
-          );
-        }
-      } else if (maxLen !== undefined) {
-        checks.push(
-          `\tif len(r.${goField}) > ${maxLen} {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMaxLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxLen))}})`,
-          `\t}`,
-        );
-      }
+      emitStringChecks(checks, { structName, goField, jsonName, optional: prop.optional, minLen, maxLen, pattern, imports, extraDecls });
     }
 
-    if (base === "float64" && minVal === 0) {
-      if (prop.optional) {
-        checks.push(
-          `\tif r.${goField} != nil && *r.${goField} < 0 {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyNonNegative, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-          `\t}`,
-        );
-      } else {
-        checks.push(
-          `\tif r.${goField} < 0 {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyNonNegative, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-          `\t}`,
-        );
-      }
+    if (base === "float64" || base === "int32" || base === "int64") {
+      const isPtr = base === "float64" && prop.optional;
+      emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal });
     }
-
-    if ((base === "int32" || base === "int64") && minVal === 0) {
-      checks.push(
-        `\tif r.${goField} < 0 {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyNonNegative, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
-        `\t}`,
-      );
-    }
-  }
-
-  if (checks.length === 0) {
-    return null;
   }
 
   imports.add("validator");
@@ -265,4 +340,86 @@ export function emitValidateMethod(program, structName, props, imports) {
     `\treturn v.Err()`,
     `}`,
   ].join("\n");
+}
+
+function emitStringChecks(checks, { structName, goField, jsonName, optional, minLen, maxLen, pattern, imports, extraDecls }) {
+  const branches = [];
+
+  if (!optional && minLen !== undefined && minLen >= 1) {
+    imports.add("strings");
+    branches.push({
+      cond: `strings.TrimSpace(r.${goField}) == ""`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyRequired, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+    });
+    if (minLen > 1) {
+      imports.add("unicode/utf8");
+      branches.push({
+        cond: `utf8.RuneCountInString(r.${goField}) < ${minLen}`,
+        body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMinLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minLen))}})`,
+      });
+    }
+  } else if (optional && minLen !== undefined && minLen >= 1) {
+    imports.add("unicode/utf8");
+    branches.push({
+      cond: `r.${goField} != "" && utf8.RuneCountInString(r.${goField}) < ${minLen}`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMinLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minLen))}})`,
+    });
+  }
+
+  if (maxLen !== undefined) {
+    imports.add("unicode/utf8");
+    branches.push({
+      cond: `utf8.RuneCountInString(r.${goField}) > ${maxLen}`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyMaxLength, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxLen))}})`,
+    });
+  }
+
+  if (pattern !== undefined) {
+    imports.add("regexp");
+    const varName = `pattern${structName}${goField}`;
+    extraDecls.push(`var ${varName} = regexp.MustCompile(${JSON.stringify(pattern)})`);
+    const guard = optional ? `r.${goField} != "" && ` : "";
+    branches.push({
+      cond: `${guard}!${varName}.MatchString(r.${goField})`,
+      body: `v.Add(${JSON.stringify(jsonName)}, validator.KeyPattern, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+    });
+  }
+
+  if (branches.length === 0) return;
+
+  branches.forEach((b, idx) => {
+    const prefix = idx === 0 ? "\tif " : "\t} else if ";
+    checks.push(`${prefix}${b.cond} {`);
+    checks.push(`\t\t${b.body}`);
+  });
+  checks.push("\t}");
+}
+
+function emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal }) {
+  const valExpr = isPtr ? `*r.${goField}` : `r.${goField}`;
+  const guard = isPtr ? `r.${goField} != nil && ` : "";
+
+  if (minVal !== undefined) {
+    if (minVal === 0) {
+      checks.push(
+        `\tif ${guard}${valExpr} < 0 {`,
+        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyNonNegative, map[string]string{"field": ${JSON.stringify(jsonName)}})`,
+        `\t}`,
+      );
+    } else {
+      checks.push(
+        `\tif ${guard}${valExpr} < ${minVal} {`,
+        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMinValue, map[string]string{"field": ${JSON.stringify(jsonName)}, "min": ${JSON.stringify(String(minVal))}})`,
+        `\t}`,
+      );
+    }
+  }
+
+  if (maxVal !== undefined) {
+    checks.push(
+      `\tif ${guard}${valExpr} > ${maxVal} {`,
+      `\t\tv.Add(${JSON.stringify(jsonName)}, validator.KeyMaxValue, map[string]string{"field": ${JSON.stringify(jsonName)}, "max": ${JSON.stringify(String(maxVal))}})`,
+      `\t}`,
+    );
+  }
 }

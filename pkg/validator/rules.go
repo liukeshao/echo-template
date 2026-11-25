@@ -4,6 +4,7 @@ import (
 	"net/mail"
 	"strings"
 	"unicode"
+	"uuid"
 )
 
 // 翻译键常量。集中定义避免字符串散落各处；任何新规则须同时新增 key 与翻译。
@@ -14,18 +15,35 @@ const (
 	KeyMinLength               = "validation.min_length"
 	KeyMaxLength               = "validation.max_length"
 	KeyLengthRange             = "validation.length_range"
-	KeyCharset                 = "validation.charset"
+	KeyUsernameCharset         = "validation.username_charset"
 	KeyEmail                   = "validation.email"
 	KeyPasswordWeak            = "validation.password_weak"
+	KeyInteger                 = "validation.integer"
+	KeyNumber                  = "validation.number"
+	KeyBoolean                 = "validation.boolean"
 	KeyNonNegative             = "validation.non_negative"
+	KeyMinValue                = "validation.min_value"
+	KeyMaxValue                = "validation.max_value"
+	KeyPattern                 = "validation.pattern"
+	KeyOneOf                   = "validation.one_of"
+	KeyInvalidType             = "validation.invalid_type"
 	KeyMustDiffer              = "validation.must_differ"
-	KeyULID                    = "validation.ulid"
+	KeyUUID                    = "validation.uuid"
 	KeyInvalidOrderByClause    = "validation.invalid_order_by_clause"
 	KeyInvalidOrderByDirection = "validation.invalid_order_by_direction"
 	KeyUnknownOrderByField     = "validation.unknown_order_by_field"
 )
 
 // --- 原子级规则（供外部直接判断） ---
+
+// IsValidUUID 验证字符串是否为 RFC 9562 标准 36 字符连字符格式 UUID。
+func IsValidUUID(str string) bool {
+	if len(str) != 36 {
+		return false
+	}
+	u, err := uuid.Parse(str)
+	return err == nil && strings.EqualFold(str, u.String())
+}
 
 // IsValidEmail 使用标准库解析纯邮箱地址（不接受 "Name <addr>" 展示名形式），
 // 同时限制长度不超过数据库列上限（255）。空字符串视为无效。
@@ -37,10 +55,11 @@ func IsValidEmail(email string) bool {
 	return err == nil && addr.Address == email
 }
 
-// IsValidUsername 只允许字母、数字、下划线和连字符。
+// IsValidUsername 只允许 ASCII 字母、数字、下划线和连字符（与 TypeSpec ^[a-zA-Z0-9_-]+$ 一致）。
 func IsValidUsername(s string) bool {
 	for _, r := range s {
-		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '-' {
+		isASCIIAlphaNum := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9')
+		if !isASCIIAlphaNum && r != '_' && r != '-' {
 			return false
 		}
 	}
@@ -64,29 +83,22 @@ func HasPasswordComplexity(s string) bool {
 	return false
 }
 
-// --- 复合规则（直接写入 FieldViolations，减少 types 里的重复判断） ---
+// --- 复合规则（直接写入 FieldViolations，减少业务层重复判断） ---
 
-// usernameAllowedCharset 是 CheckUsername 在 charset 规则下填入模板的 {charset} 值。
-// 仍为英文短语；如需对 charset 描述本地化，可进一步拆分多个 key。
-const usernameAllowedCharset = "letters, digits, underscores and hyphens"
-
-// CheckUsername 校验用户名长度与字符集，失败时写入 v。
+// CheckUsername 校验用户名长度（3..50，与 TypeSpec 及数据库列一致）与字符集，失败时写入 v。
 func CheckUsername(v *FieldViolations, field, username string) {
 	if strings.TrimSpace(username) == "" {
 		v.Add(field, KeyRequired, map[string]string{"field": field})
 		return
 	}
-	if len(username) < 3 || len(username) > 32 {
+	if len(username) < 3 || len(username) > 50 {
 		v.Add(field, KeyLengthRange, map[string]string{
-			"field": field, "min": "3", "max": "32",
+			"field": field, "min": "3", "max": "50",
 		})
 		return
 	}
 	if !IsValidUsername(username) {
-		v.Add(field, KeyCharset, map[string]string{
-			"field":   field,
-			"charset": usernameAllowedCharset,
-		})
+		v.Add(field, KeyUsernameCharset, map[string]string{"field": field})
 	}
 }
 

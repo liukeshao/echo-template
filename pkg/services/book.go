@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"uuid"
 
 	"entgo.io/ent/dialect/sql"
 	"github.com/samber/do/v2"
@@ -11,12 +12,10 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/book"
+	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
-	"github.com/liukeshao/echo-template/pkg/filter"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
-	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -62,12 +61,12 @@ func bookDB(err error, op, id string) error {
 
 // Create 创建书籍。
 //
-// 若 req.BookID 非空则使用该值作为资源 ID；否则自动生成 ULID。
+// 若 req.BookID 非空则使用该值作为资源 ID；否则自动生成 UUID v7。
 // 若指定的 ID 已存在，返回 BOOK_ALREADY_EXISTS 错误。
 func (s *BookService) Create(ctx context.Context, req *api.CreateBookRequest) (*ent.Book, error) {
 	id := req.BookID
 	if id == "" {
-		id = utils.GenerateULID()
+		id = uuid.NewV7().String()
 	}
 
 	q := s.orm.Book.Create().
@@ -110,55 +109,71 @@ func (s *BookService) Get(ctx context.Context, id string) (*ent.Book, error) {
 	return b, nil
 }
 
-// List 获取书籍列表，支持分页、排序和过滤。
-// 返回值依次为：当前页书籍、总数量、错误；分页参数由调用方（handler）负责解析。
-func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.Book, int32, error) {
-	orderOpts, err := parseBookOrderBy(in.OrderBy)
-	if err != nil {
-		return nil, 0, err
+// List 获取书籍列表，支持分页、排序和按请求字段独立过滤。
+func (s *BookService) List(ctx context.Context, req *api.ListBooksRequest) (*Page[*ent.Book], error) {
+	if req == nil {
+		req = &api.ListBooksRequest{}
 	}
 
-	filterExpr, err := filter.Parse(in.Filter)
+	offset, limit, page := resolvePagination(req.Page, req.PageSize, defaultPageSize, maxPageSize)
+
+	orderOpts, err := parseBookOrderBy(req.OrderBy)
 	if err != nil {
-		return nil, 0, oops.
-			Code(codes.ValidationInvalid.String()).
-			Public(err.Error()).
-			Errorf("invalid filter: %v", err)
-	}
-	filterPred, err := translateBookFilter(filterExpr)
-	if err != nil {
-		return nil, 0, oops.
-			Code(codes.ValidationInvalid.String()).
-			Public(err.Error()).
-			Errorf("translate filter: %v", err)
+		return nil, err
 	}
 
-	countQ := s.orm.Book.Query()
-	if filterPred != nil {
-		countQ = countQ.Where(filterPred)
-	}
-	total, err := countQ.Count(ctx)
+	preds := buildBookPredicates(req)
+
+	total, err := s.orm.Book.Query().Where(preds...).Count(ctx)
 	if err != nil {
-		return nil, 0, bookDB(err, "counting books", "")
+		return nil, bookDB(err, "counting books", "")
 	}
 	if total == 0 {
-		return []*ent.Book{}, 0, nil
+		return &Page[*ent.Book]{
+			Items:     []*ent.Book{},
+			Page:      page,
+			PageSize:  limit,
+			TotalSize: 0,
+		}, nil
 	}
 
-	listQ := s.orm.Book.Query()
-	if filterPred != nil {
-		listQ = listQ.Where(filterPred)
-	}
-	books, err := listQ.
+	books, err := s.orm.Book.Query().
+		Where(preds...).
 		Order(orderOpts...).
-		Limit(int(in.Limit)).
-		Offset(int(in.Offset)).
+		Limit(int(limit)).
+		Offset(offset).
 		All(ctx)
 	if err != nil {
-		return nil, 0, bookDB(err, "listing books", "")
+		return nil, bookDB(err, "listing books", "")
 	}
 
-	return books, int32(total), nil
+	return &Page[*ent.Book]{
+		Items:     books,
+		Page:      page,
+		PageSize:  limit,
+		TotalSize: int32(total),
+	}, nil
+}
+
+// buildBookPredicates 根据 ListBooksRequest 的显式字段构造 ent 查询条件。
+func buildBookPredicates(req *api.ListBooksRequest) []predicate.Book {
+	if req == nil {
+		return nil
+	}
+	var preds []predicate.Book
+	if title := strings.TrimSpace(req.Title); title != "" {
+		preds = append(preds, book.TitleContainsFold(title))
+	}
+	if author := strings.TrimSpace(req.Author); author != "" {
+		preds = append(preds, book.AuthorContainsFold(author))
+	}
+	if req.MinPrice != nil {
+		preds = append(preds, book.PriceGTE(*req.MinPrice))
+	}
+	if req.MaxPrice != nil {
+		preds = append(preds, book.PriceLTE(*req.MaxPrice))
+	}
+	return preds
 }
 
 // Replace 全量替换书籍 —— Kubernetes 风格的幂等 PUT 语义。
@@ -168,8 +183,7 @@ func (s *BookService) List(ctx context.Context, in metav1.ListOptions) ([]*ent.B
 //   - 可选字段（description / price / published_at）有则 Set，无则 Clear
 //   - id / created_at 不会被覆盖；updated_at 由 ent hook 自动刷新
 //
-// PATCH handler 通过"GET → apply patch → Replace"流程复用本方法，
-// 因此 patch 的所有协议（RFC 6902 / 7386 / Shorthand）最终统一落到这一处幂等写入。
+// PATCH handler 通过"GET → apply merge patch → Replace"流程复用本方法，统一落到这一处幂等写入。
 func (s *BookService) Replace(ctx context.Context, id string, req *api.ReplaceBookRequest) (*ent.Book, error) {
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).

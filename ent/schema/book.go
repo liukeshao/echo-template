@@ -22,7 +22,7 @@ func (Book) Mixin() []ent.Mixin {
 func (Book) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("title").
-			MaxLen(255).
+			MaxLen(200).
 			NotEmpty().
 			Comment("书名"),
 

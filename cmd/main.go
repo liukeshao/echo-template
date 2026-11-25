@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/samber/do/v2"
@@ -18,6 +20,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/i18n"
 	"github.com/liukeshao/echo-template/pkg/infra"
 	"github.com/liukeshao/echo-template/pkg/log"
+	"github.com/liukeshao/echo-template/pkg/rest"
 	"github.com/liukeshao/echo-template/pkg/services"
 )
 
@@ -34,24 +37,41 @@ func main() {
 	do.ProvideValue(i, &cfg)
 
 	// 4. Start HTTP server
-	server := do.MustInvoke[*handlers.Server](i)
-	slog.Info("API docs", "url", fmt.Sprintf("%s/docs", cfg.App.Host))
+	server := do.MustInvoke[*rest.Server](i)
+	if cfg.App.Environment != config.EnvProduction {
+		slog.Info("API docs", "url", fmt.Sprintf("%s/docs", strings.TrimRight(cfg.App.Host, "/")))
+	}
 
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	errCh := make(chan error, 1)
 	go func() {
-		if err := server.Start(); err != nil {
-			slog.Error("server stopped", "error", err)
-		}
+		errCh <- server.Start()
 	}()
 
-	// 5. Block until SIGINT/SIGTERM, then shut down all DI services in order:
-	//    Server (drain HTTP) → ORM → DB
-	sig, report := i.ShutdownOnSignalsWithContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	slog.Info("shutdown complete", "signal", sig)
+	// 5. Block until SIGINT/SIGTERM or unexpected server startup/listen failure,
+	//    then shut down all DI services in order: Server (drain HTTP) → ORM → DB.
+	var startErr error
+	select {
+	case <-sigCtx.Done():
+		slog.Info("shutting down on signal")
+	case err := <-errCh:
+		if err != nil {
+			startErr = err
+			slog.Error("server stopped with error", "error", err)
+		}
+	}
 
+	report := i.ShutdownWithContext(context.Background())
 	if !report.Succeed {
 		slog.Error("shutdown errors", "errors", report.Errors)
 		os.Exit(1)
 	}
+	if startErr != nil {
+		os.Exit(1)
+	}
+	slog.Info("shutdown complete")
 }
 
 func fatal(msg string, err error) {

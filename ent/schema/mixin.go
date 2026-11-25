@@ -23,14 +23,14 @@ type BaseMixin struct {
 // Fields 返回基础字段
 func (BaseMixin) Fields() []ent.Field {
 	return []ent.Field{
-		// 主键：使用ULID
+		// 主键：使用 UUID v7
 		field.String("id").
-			MaxLen(26).
-			MinLen(26).
+			MaxLen(36).
+			MinLen(36).
 			NotEmpty().
 			Unique().
 			Immutable().
-			Comment("唯一标识符，ULID格式"),
+			Comment("唯一标识符，UUID v7 格式"),
 	}
 }
 
@@ -56,6 +56,8 @@ func (TimeMixin) Fields() []ent.Field {
 	}
 }
 
+const softDeleteField = "deleted_at"
+
 // SoftDeleteMixin 逻辑删除混合器 - 实现高级逻辑删除模式
 type SoftDeleteMixin struct {
 	mixin.Schema
@@ -65,7 +67,7 @@ type SoftDeleteMixin struct {
 func (SoftDeleteMixin) Fields() []ent.Field {
 	return []ent.Field{
 		// 逻辑删除时间戳（毫秒）
-		field.Int64("deleted_at").
+		field.Int64(softDeleteField).
 			Default(0).
 			Comment("逻辑删除时间戳（毫秒），0表示未删除"),
 	}
@@ -75,7 +77,7 @@ func (SoftDeleteMixin) Fields() []ent.Field {
 func (SoftDeleteMixin) Indexes() []ent.Index {
 	return []ent.Index{
 		// 逻辑删除状态索引，用于快速过滤已删除记录
-		index.Fields("deleted_at"),
+		index.Fields(softDeleteField),
 	}
 }
 
@@ -138,9 +140,9 @@ func (d SoftDeleteMixin) Hooks() []ent.Hook {
 }
 
 // P 添加存储级别的谓词到查询和变更中
-func (d SoftDeleteMixin) P(w interface{ WhereP(...func(*sql.Selector)) }) {
+func (SoftDeleteMixin) P(w interface{ WhereP(...func(*sql.Selector)) }) {
 	w.WhereP(
-		sql.FieldEQ(d.Fields()[0].Descriptor().Name, 0),
+		sql.FieldEQ(softDeleteField, 0),
 	)
 }
 

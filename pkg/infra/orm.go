@@ -12,7 +12,6 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 
 	_ "github.com/liukeshao/echo-template/ent/runtime"
-	_ "modernc.org/sqlite"
 )
 
 // schemaCreateMu serializes Ent's Schema.Create calls because Ent's generated

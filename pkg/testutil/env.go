@@ -7,7 +7,7 @@
 //	env := testutil.New(t)
 //	bookSvc := do.MustInvoke[*services.BookService](env.Injector)
 //
-//	// 2. Handler 层测试（完整 Echo 路由 + 中间件 + RFC 9457 错误处理）
+//	// 2. Handler 层测试（完整 rest.Router 路由 + 中间件 + RFC 9457 错误处理）
 //	env := testutil.New(t)
 //	tok := env.MustAuthUser("alice", "alice@example.com", "password123")
 //	rec := env.DoRequest(http.MethodGet, "/api/v1/books", testutil.WithBearer(tok.AccessToken))
@@ -23,6 +23,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"uuid"
 
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
@@ -34,7 +35,6 @@ import (
 	"github.com/liukeshao/echo-template/pkg/i18n"
 	"github.com/liukeshao/echo-template/pkg/infra"
 	"github.com/liukeshao/echo-template/pkg/services"
-	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
 // Env 封装单个测试专用的 DI 容器与按需初始化的运行时依赖。
@@ -108,7 +108,7 @@ func DefaultConfig() config.Config {
 		},
 		Database: config.DatabaseConfig{
 			Driver:      "sqlite",
-			Connection:  fmt.Sprintf("file:test_%s?mode=memory&cache=shared&_pragma=foreign_keys(1)", utils.GenerateULID()),
+			Connection:  fmt.Sprintf("file:test_%s?mode=memory&cache=shared&_pragma=foreign_keys(1)", uuid.NewV7().String()),
 			AutoMigrate: true,
 		},
 		JWT: config.JWTConfig{

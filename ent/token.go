@@ -17,7 +17,7 @@ import (
 type Token struct {
 	config `json:"-"`
 	// ID of the ent.
-	// 唯一标识符，ULID格式
+	// 唯一标识符，UUID v7 格式
 	ID string `json:"id,omitempty"`
 	// 创建时间
 	CreatedAt time.Time `json:"created_at,omitempty"`

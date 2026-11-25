@@ -35,7 +35,7 @@ timeout = "5s"
 retry   = 2
 
 # 国际化配置。翻译文件通过 embed.FS 打包进二进制（pkg/i18n/messages/*.toml）。
-# default_locale 必须同时出现在 supported_locales 中。
+# defaultLocale 必须同时出现在 supportedLocales 中。
 [i18n]
 defaultLocale    = "en"
 supportedLocales = ["en", "zh-CN"]

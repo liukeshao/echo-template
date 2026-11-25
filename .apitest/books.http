@@ -34,7 +34,7 @@ Authorization: Bearer {{accessToken}}
 %}
 
 ### 列出书籍（GET）
-GET {{baseUrl}}/api/v1/books?page=1&page_size=10&order_by=created_at desc
+GET {{baseUrl}}/api/v1/books?page=1&page_size=10&order_by=created_at%20desc
 Authorization: Bearer {{accessToken}}
 
 
@@ -64,25 +64,6 @@ Authorization: Bearer {{accessToken}}
   "price": 55,
   "description": null
 }
-
-
-### 局部更新（RFC 6902 JSON Patch）
-PATCH {{baseUrl}}/api/v1/books/{{bookId}}
-Content-Type: application/json-patch+json
-Authorization: Bearer {{accessToken}}
-
-[
-  { "op": "replace", "path": "/title", "value": "Patched via JSON Patch" },
-  { "op": "replace", "path": "/price", "value": 42.0 }
-]
-
-
-### 局部更新（Shorthand）—— 紧凑语法，无需 JSON 包装
-PATCH {{baseUrl}}/api/v1/books/{{bookId}}
-Content-Type: application/merge-patch+shorthand
-Authorization: Bearer {{accessToken}}
-
-title: "Shorthand patched", price: 33.5
 
 
 ### 删除（DELETE）

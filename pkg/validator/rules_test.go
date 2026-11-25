@@ -3,12 +3,27 @@ package validator_test
 import (
 	"strings"
 	"testing"
+	"uuid"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
+
+func TestIsValidUUID(t *testing.T) {
+	t.Parallel()
+	id1 := uuid.NewV7().String()
+	id2 := uuid.NewV7().String()
+
+	assert.Len(t, id1, 36)
+	assert.Less(t, id1, id2, "UUID v7 should be monotonically ordered")
+	assert.True(t, validator.IsValidUUID(id1))
+	assert.False(t, validator.IsValidUUID(""))
+	assert.False(t, validator.IsValidUUID("not-a-uuid"))
+	assert.False(t, validator.IsValidUUID("urn:uuid:"+id1))
+	assert.False(t, validator.IsValidUUID("f81d4fae7dec11d0a76500a0c91e6bf6"))
+}
 
 func TestIsValidEmail(t *testing.T) {
 	t.Parallel()
@@ -27,10 +42,12 @@ func TestCheckUsername(t *testing.T) {
 		wantKey string
 	}{
 		{"valid", "alice_01-x", ""},
+		{"valid max 50", strings.Repeat("a", 50), ""},
 		{"empty", "   ", validator.KeyRequired},
 		{"too short", "ab", validator.KeyLengthRange},
-		{"too long", strings.Repeat("a", 33), validator.KeyLengthRange},
-		{"invalid charset", "alice@bad", validator.KeyCharset},
+		{"too long", strings.Repeat("a", 51), validator.KeyLengthRange},
+		{"invalid charset", "alice@bad", validator.KeyUsernameCharset},
+		{"non-ascii rejected", "中文用户", validator.KeyUsernameCharset},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,10 +1,10 @@
 namespace EchoTemplate;
 
-@doc("26-character ULID identifier")
-@minLength(26)
-@maxLength(26)
-@pattern("^[0-9A-HJKMNP-TV-Z]{26}$")
-scalar ULID extends string;
+@doc("RFC 9562 UUID identifier")
+@format("uuid")
+@minLength(36)
+@maxLength(36)
+scalar UUID extends string;
 
 @doc("RFC 5322 email address")
 @format("email")
@@ -16,7 +16,7 @@ scalar Email extends string;
 @pattern("^[a-zA-Z0-9_-]+$")
 scalar Username extends string;
 
-@doc("Password (8-128 chars, must include at least one letter and one digit)")
+@doc("Password (8-72 bytes, must include at least one letter and one digit)")
 @minLength(8)
-@maxLength(128)
+@maxLength(72)
 scalar Password extends string;

@@ -1,4 +1,4 @@
-package httpruntime
+package rest
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
@@ -48,12 +49,12 @@ type FieldError struct {
 // WriteProblem 将任意 error 分类并渲染为 RFC 9457 (application/problem+json) 响应。
 //
 // 分类优先级：
-//  1. Problem / *Problem              — 直接使用并补全缺省字段
-//  2. oops.OopsError（含 Code）        — 经 pkg/codes 映射 HTTP 状态码并本地化
-//  3. *validator.FieldViolations      — 400 VALIDATION_INVALID + 本地化字段 errors
-//  4. *http.MaxBytesError             — 413 REQUEST_ENTITY_TOO_LARGE
+//  1. Problem / *Problem                  — 直接使用并补全缺省字段
+//  2. oops.OopsError（含 Code）            — 经 pkg/codes 映射 HTTP 状态码并本地化
+//  3. *validator.FieldViolations          — 400 VALIDATION_INVALID + 本地化字段 errors
+//  4. *http.MaxBytesError                 — 413 REQUEST_ENTITY_TOO_LARGE
 //  5. context.DeadlineExceeded / Canceled — 504 / 499
-//  6. 其他未知错误                     — 500 INTERNAL_ERROR（隐藏内部细节）
+//  6. 其他未知错误                         — 500 INTERNAL_ERROR（隐藏内部细节）
 func (rt *Runtime) WriteProblem(w http.ResponseWriter, r *http.Request, err error) {
 	if err == nil {
 		return
@@ -72,7 +73,7 @@ func (rt *Runtime) WriteProblem(w http.ResponseWriter, r *http.Request, err erro
 		p.Instance = r.URL.Path
 	}
 	if p.RequestID == "" {
-		p.RequestID = appctx.MustGetRequestIDFromContext(ctx)
+		p.RequestID = appctx.RequestIDFromContext(ctx)
 	}
 
 	if p.Status >= http.StatusInternalServerError {
@@ -92,10 +93,10 @@ func (rt *Runtime) WriteProblem(w http.ResponseWriter, r *http.Request, err erro
 
 func (rt *Runtime) classifyError(err error, loc language.Tag) Problem {
 	if p, ok := errors.AsType[Problem](err); ok {
-		return p
+		return rt.fillProblemDetail(p, loc)
 	}
 	if p, ok := errors.AsType[*Problem](err); ok && p != nil {
-		return *p
+		return rt.fillProblemDetail(*p, loc)
 	}
 	if oopsErr, ok := errors.AsType[oops.OopsError](err); ok {
 		if codeStr, _ := oopsErr.Code().(string); codeStr != "" {
@@ -109,14 +110,14 @@ func (rt *Runtime) classifyError(err error, loc language.Tag) Problem {
 		return Problem{
 			Status: http.StatusRequestEntityTooLarge,
 			Code:   "REQUEST_ENTITY_TOO_LARGE",
-			Detail: "Request body exceeds the maximum allowed size.",
+			Detail: rt.translateFallback(loc, "fallback.request_entity_too_large", "Request body exceeds the maximum allowed size."),
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return Problem{
 			Status: http.StatusGatewayTimeout,
 			Code:   "GATEWAY_TIMEOUT",
-			Detail: http.StatusText(http.StatusGatewayTimeout),
+			Detail: rt.translateFallback(loc, "fallback.gateway_timeout", "The request timed out."),
 		}
 	}
 	if errors.Is(err, context.Canceled) {
@@ -124,7 +125,7 @@ func (rt *Runtime) classifyError(err error, loc language.Tag) Problem {
 			Status: statusClientClosedRequest,
 			Title:  "Client Closed Request",
 			Code:   "CLIENT_CLOSED_REQUEST",
-			Detail: "Client closed the request before the server could respond.",
+			Detail: rt.translateFallback(loc, "fallback.client_closed_request", "Client closed the request before the server could respond."),
 		}
 	}
 	return Problem{
@@ -132,6 +133,20 @@ func (rt *Runtime) classifyError(err error, loc language.Tag) Problem {
 		Code:   "INTERNAL_ERROR",
 		Detail: rt.translateFallbackInternal(loc),
 	}
+}
+
+func (rt *Runtime) fillProblemDetail(p Problem, loc language.Tag) Problem {
+	if p.Detail != "" {
+		return p
+	}
+	if p.Code != "" {
+		if msg, _, ok := rt.translator.T(loc, "fallback."+strings.ToLower(p.Code), nil); ok {
+			p.Detail = msg
+			return p
+		}
+	}
+	p.Detail = httpStatusTitle(p.Status)
+	return p
 }
 
 func (rt *Runtime) classifyOops(oopsErr oops.OopsError, codeStr string, loc language.Tag) Problem {
@@ -188,11 +203,15 @@ func (rt *Runtime) classifyFieldViolations(fv *validator.FieldViolations, loc la
 	}
 }
 
-func (rt *Runtime) translateFallbackInternal(loc language.Tag) string {
-	if msg, _, ok := rt.translator.T(loc, "fallback.internal", nil); ok {
+func (rt *Runtime) translateFallback(loc language.Tag, key, defaultMsg string) string {
+	if msg, _, ok := rt.translator.T(loc, key, nil); ok {
 		return msg
 	}
-	return "An internal server error occurred."
+	return defaultMsg
+}
+
+func (rt *Runtime) translateFallbackInternal(loc language.Tag) string {
+	return rt.translateFallback(loc, "fallback.internal", "An internal server error occurred.")
 }
 
 func httpStatusTitle(status int) string {

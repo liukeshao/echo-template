@@ -7,7 +7,6 @@ const EmitterOptionsSchema = {
     "package-name": { type: "string", nullable: true },
     "runtime-import": { type: "string", nullable: true },
     "validator-import": { type: "string", nullable: true },
-    "utils-import": { type: "string", nullable: true },
   },
   required: [],
 };

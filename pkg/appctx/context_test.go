@@ -62,12 +62,12 @@ func TestRequestIDContext(t *testing.T) {
 	assert.True(t, ok, "应该能从context中获取request ID")
 	assert.Equal(t, requestID, retrievedID, "request ID应该匹配")
 
-	// 测试MustGetRequestIDFromContext
-	mustRetrievedID := MustGetRequestIDFromContext(ctx)
-	assert.Equal(t, requestID, mustRetrievedID, "MustGetRequestIDFromContext应该返回正确的ID")
+	// 测试RequestIDFromContext
+	gotID := RequestIDFromContext(ctx)
+	assert.Equal(t, requestID, gotID, "RequestIDFromContext应该返回正确的ID")
 
 	// 测试从空context获取request ID
-	emptyID := MustGetRequestIDFromContext(context.Background())
+	emptyID := RequestIDFromContext(context.Background())
 	assert.Empty(t, emptyID, "空context中的request ID应该为空字符串")
 }
 

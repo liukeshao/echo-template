@@ -1,6 +1,7 @@
 .PHONY: api ent build test cover
 
 api: ## 编译 TypeSpec 生成 OpenAPI 3.1 (static/openapi/openapi.yaml) 与 Go 协议代码 (pkg/api/*.gen.go)
+	rm -f pkg/api/*.gen.go
 	cd api && ./node_modules/.bin/tsp compile spec/main.tsp
 	gofmt -w pkg/api/
 

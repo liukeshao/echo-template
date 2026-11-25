@@ -10,6 +10,5 @@ options:
   "tsp-emitter-go-rest":
     emitter-output-dir: "{project-root}/../pkg/api"
     package-name: "api"
-    runtime-import: "github.com/liukeshao/echo-template/pkg/httpruntime"
+    runtime-import: "github.com/liukeshao/echo-template/pkg/rest"
     validator-import: "github.com/liukeshao/echo-template/pkg/validator"
-    utils-import: "github.com/liukeshao/echo-template/pkg/utils"

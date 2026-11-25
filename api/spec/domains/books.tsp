@@ -1,16 +1,18 @@
 import "@typespec/http";
+import "@typespec/openapi";
+import "tsp-emitter-go-rest";
 import "../common/scalars.tsp";
 import "../common/pagination.tsp";
 import "../common/problem.tsp";
-import "../common/patch.tsp";
 
 using TypeSpec.Http;
+using TypeSpec.OpenAPI;
 using GoRest;
 
 namespace EchoTemplate;
 
 model Book {
-  id: ULID;
+  id: UUID;
   title: string;
   author: string;
   description?: string;
@@ -23,8 +25,8 @@ model Book {
 model BookList is Page<Book>;
 
 model CreateBookRequest {
-  @doc("Optional custom ULID. Auto-generated when omitted.")
-  book_id?: ULID;
+  @doc("Optional custom UUID. Auto-generated when omitted.")
+  book_id?: UUID;
   @minLength(1) @maxLength(200) title: string;
   @minLength(1) @maxLength(100) author: string;
   @maxLength(1000) description?: string;
@@ -40,54 +42,70 @@ model ReplaceBookRequest {
   published_at?: utcDateTime;
 }
 
+@doc("RFC 7386 JSON Merge Patch for Book (omit field to keep, set null to clear optional fields).")
+model PatchBookRequest {
+  @minLength(1) @maxLength(200) title?: string;
+  @minLength(1) @maxLength(100) author?: string;
+  @maxLength(1000) description?: string | null;
+  @minValue(0) price?: float64 | null;
+  published_at?: utcDateTime | null;
+}
+
 @route("/api/v1/books")
 @tag("books")
 @useAuth(BearerAuth)
 interface Books {
   @doc("创建书籍")
+  @operationId("createBook")
   @post
-  create(@body body: CreateBookRequest):
+  createBook(@body body: CreateBookRequest):
     | { @statusCode statusCode: 201; @body body: Book }
     | BadRequestProblem
     | UnauthorizedProblem
     | ConflictProblem;
 
   @doc("获取书籍列表")
+  @operationId("listBooks")
   @get
-  list(...ListQuery):
+  listBooks(
+    ...ListQuery,
+    @doc("按书名模糊匹配") @query title?: string,
+    @doc("按作者模糊匹配") @query author?: string,
+    @doc("最低价格（含）") @query @minValue(0) min_price?: float64,
+    @doc("最高价格（含）") @query @minValue(0) max_price?: float64,
+  ):
     | BookList
     | BadRequestProblem
     | UnauthorizedProblem;
 
   @doc("获取书籍详情")
+  @operationId("getBook")
   @get
   @route("/{book}")
-  get(@path book: ULID):
+  getBook(@path book: UUID):
     | Book
     | UnauthorizedProblem
     | NotFoundProblem;
 
   @doc("全量替换书籍（幂等 PUT）")
+  @operationId("replaceBook")
   @put
   @route("/{book}")
-  replace(@path book: ULID, @body body: ReplaceBookRequest):
+  replaceBook(@path book: UUID, @body body: ReplaceBookRequest):
     | Book
     | BadRequestProblem
     | UnauthorizedProblem
     | NotFoundProblem;
 
-  @doc("局部更新书籍（支持 RFC 7386 Merge Patch / RFC 6902 JSON Patch / Shorthand）")
-  @autoPatch(Books.get, Books.replace)
+  @doc("局部更新书籍（RFC 7386 JSON Merge Patch）")
+  @operationId("patchBook")
+  @autoPatch(Books.getBook, Books.replaceBook)
   @patch
   @route("/{book}")
-  patch(
-    @path book: ULID,
-    @header contentType:
-      | "application/merge-patch+json"
-      | "application/json-patch+json"
-      | "application/merge-patch+shorthand"
-      | "application/json",
-    @body body: Record<unknown> | JsonPatchOperation[] | string,
+  patchBook(
+    @path book: UUID,
+    @header contentType: "application/merge-patch+json" | "application/json",
+    @body body: PatchBookRequest,
   ):
     | Book
     | BadRequestProblem
@@ -96,9 +114,10 @@ interface Books {
     | UnsupportedMediaTypeProblem;
 
   @doc("删除书籍")
+  @operationId("deleteBook")
   @delete
   @route("/{book}")
-  delete(@path book: ULID):
+  deleteBook(@path book: UUID):
     | { @statusCode statusCode: 204 }
     | UnauthorizedProblem
     | NotFoundProblem;

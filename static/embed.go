@@ -13,7 +13,7 @@ var AssetsFS embed.FS
 //go:embed index.html
 var IndexHTML []byte
 
-// OpenAPIYAML 为由 `make swag` 生成的 OpenAPI 规范内容。
+// OpenAPIYAML 为由 `make api` 生成的 OpenAPI 3.1 规范内容。
 //
 //go:embed openapi/openapi.yaml
 var OpenAPIYAML []byte

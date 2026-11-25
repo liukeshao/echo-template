@@ -7,12 +7,12 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
 // Client is the concrete implementation of [API].
@@ -31,6 +31,7 @@ func NewWeatherClient(i do.Injector) (*Client, error) {
 	shared := do.MustInvoke[*infra.HTTPClient](i)
 
 	apiCfg := cfg.Clients.Weather
+	apiCfg.BaseURL = strings.TrimRight(apiCfg.BaseURL, "/")
 
 	// Build a per-client http.Client that inherits the shared Transport
 	// (connection pool, TLS config) but applies the API-specific timeout.
@@ -62,7 +63,7 @@ type currentWeatherResponse struct {
 func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, error) {
 	var result *CurrentWeather
 
-	err := utils.Retry(ctx, c.cfg.Retry+1, func() error {
+	err := infra.Retry(ctx, c.cfg.Retry+1, func() error {
 		var attemptErr error
 		result, attemptErr = c.doGetCurrent(ctx, city)
 		return attemptErr
@@ -80,14 +81,19 @@ func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, utils.Permanent(weatherInternal(err, op))
+		return nil, infra.Permanent(weatherInternal(err, op))
 	}
 	req.Header.Set("X-API-Key", c.cfg.APIKey)
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		// Covers network errors, context cancellation and timeouts.
+		// If the caller's own context was cancelled or timed out, propagate it directly
+		// (as 499 / 504) without retrying or misclassifying as upstream 503.
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, infra.Permanent(ctxErr)
+		}
+		// Covers upstream network errors and per-client HTTP timeouts.
 		return nil, weatherUnavailable(err, op)
 	}
 	defer func() {
@@ -106,14 +112,14 @@ func (c *Client) doGetCurrent(ctx context.Context, city string) (*CurrentWeather
 		)
 	default:
 		// 4xx and other non-transient upstream statuses should not be retried.
-		return nil, utils.Permanent(weatherInternal(
+		return nil, infra.Permanent(weatherInternal(
 			fmt.Errorf("unexpected status %d", resp.StatusCode), op,
 		))
 	}
 
 	var raw currentWeatherResponse
 	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
-		return nil, utils.Permanent(weatherInternal(err, op))
+		return nil, infra.Permanent(weatherInternal(err, op))
 	}
 
 	return &CurrentWeather{

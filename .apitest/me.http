@@ -44,24 +44,6 @@ Authorization: Bearer {{accessToken}}
 }
 
 
-### 局部更新（RFC 6902 JSON Patch）
-PATCH {{baseUrl}}/api/v1/me
-Content-Type: application/json-patch+json
-Authorization: Bearer {{accessToken}}
-
-[
-  { "op": "replace", "path": "/email", "value": "json-patched@example.com" }
-]
-
-
-### 局部更新（Shorthand）
-PATCH {{baseUrl}}/api/v1/me
-Content-Type: application/merge-patch+shorthand
-Authorization: Bearer {{accessToken}}
-
-email: "shorthand@example.com"
-
-
 ### 修改当前用户密码
 POST {{baseUrl}}/api/v1/me/change-password
 Content-Type: application/json

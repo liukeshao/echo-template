@@ -29,8 +29,8 @@ func GetRequestIDFromContext(ctx context.Context) (string, bool) {
 	return requestID, ok
 }
 
-// MustGetRequestIDFromContext 从 context 中获取 request ID，如果不存在则返回空字符串
-func MustGetRequestIDFromContext(ctx context.Context) string {
+// RequestIDFromContext 从 context 中获取 request ID，如果不存在则返回空字符串。
+func RequestIDFromContext(ctx context.Context) string {
 	requestID, _ := GetRequestIDFromContext(ctx)
 	return requestID
 }
@@ -43,7 +43,7 @@ func WithUser(ctx context.Context, user *ent.User) context.Context {
 // GetUserFromContext 从 context 中获取当前用户
 func GetUserFromContext(ctx context.Context) (*ent.User, bool) {
 	user, ok := ctx.Value(userKey).(*ent.User)
-	return user, ok
+	return user, ok && user != nil
 }
 
 // MustGetUserFromContext 从 context 中获取用户，如果不存在则panic（用于必须有用户的地方）
@@ -56,7 +56,7 @@ func MustGetUserFromContext(ctx context.Context) *ent.User {
 }
 
 // WithLocale 在 context 中设置已协商好的 BCP-47 语言标签。
-// 由 middleware.Locale 中间件在请求入口写入，供 error_handler 等下游消费。
+// 由 rest.Runtime.Locale 中间件在请求入口写入，供 rest.Runtime.WriteProblem 等下游消费。
 func WithLocale(ctx context.Context, tag language.Tag) context.Context {
 	return context.WithValue(ctx, localeKey, tag)
 }

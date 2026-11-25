@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+	"uuid"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/samber/do/v2"
@@ -17,7 +18,6 @@ import (
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
 	"github.com/liukeshao/echo-template/pkg/infra"
-	"github.com/liukeshao/echo-template/pkg/utils"
 )
 
 // jwtClaims 是 JWT 令牌内部声明（仅含 user_id 与 token_type，不暴露给外部 DTO）。
@@ -72,6 +72,24 @@ func authInvalidCredentials() error {
 		Errorf("invalid credentials")
 }
 
+// authEmailTaken 构造 AUTH_EMAIL_TAKEN oops 错误（HTTP 409）。
+func authEmailTaken(email string) error {
+	return oops.
+		Code(codes.AuthEmailTaken.String()).
+		With(codes.CtxKeyParams, map[string]string{"email": email}).
+		Public(fmt.Sprintf("the email %q is already registered", email)).
+		Errorf("email taken")
+}
+
+// authUsernameTaken 构造 AUTH_USERNAME_TAKEN oops 错误（HTTP 409）。
+func authUsernameTaken(username string) error {
+	return oops.
+		Code(codes.AuthUsernameTaken.String()).
+		With(codes.CtxKeyParams, map[string]string{"username": username}).
+		Public(fmt.Sprintf("the username %q is already taken", username)).
+		Errorf("username taken")
+}
+
 // --- 私有方法 ---
 
 // parseJWTOfType 解析并验证 JWT 签名、算法、发行者及内置时效（exp/iat/nbf 由库负责），
@@ -121,7 +139,7 @@ func (s *AuthService) generateToken(userID string, tokenType token.Type) (string
 		UserID:    userID,
 		TokenType: string(tokenType),
 		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        utils.GenerateULID(),
+			ID:        uuid.NewV7().String(),
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(now),
 			NotBefore: jwt.NewNumericDate(now),
@@ -167,22 +185,10 @@ func (s *AuthService) findUserByEmail(ctx context.Context, email string) (*ent.U
 	}
 }
 
-// touchLastLogin 异步更新用户最后登录时间（非致命，失败时静默降级）。
-// 使用 context.WithoutCancel 配合短超时，防止请求结束后被提前取消或无限期阻塞。
-func (s *AuthService) touchLastLogin(ctx context.Context, userID string) {
-	go func() {
-		detached, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		if _, err := s.orm.User.UpdateOneID(userID).SetLastLoginAt(time.Now()).Save(detached); err != nil {
-			slog.WarnContext(detached, "failed to update last login time", "error", err, "user_id", userID)
-		}
-	}()
-}
-
 // saveTokenToDatabase 在事务中持久化 token。
 func (s *AuthService) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userID string, tokenString string, tokenType token.Type, expiresAt time.Time) error {
 	_, err := tx.Token.Create().
-		SetID(utils.GenerateULID()).
+		SetID(uuid.NewV7().String()).
 		SetToken(tokenString).
 		SetUserID(userID).
 		SetType(tokenType).
@@ -222,54 +228,21 @@ func (s *AuthService) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID s
 	}, nil
 }
 
-// generateTokenPair 在独立事务中生成 access + refresh token 对。
-// 使用 named return err 配合 defer，保证任意失败路径都触发 Rollback。
-func (s *AuthService) generateTokenPair(ctx context.Context, userID string) (_ *api.TokenPair, err error) {
-	tx, err := s.orm.Tx(ctx)
-	if err != nil {
-		return nil, authInternal(err, "beginning transaction")
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
-		}
-	}()
-
-	resp, err := s.issueTokenPairTx(ctx, tx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = tx.Commit(); err != nil {
-		return nil, authInternal(err, "committing transaction")
-	}
-
-	return resp, nil
-}
-
 // --- 公开方法 ---
 
 // checkUniqueUserConflict 在并发触发唯一约束错误时区分邮箱或用户名冲突。
 func (s *AuthService) checkUniqueUserConflict(ctx context.Context, email, username string) error {
 	if exists, err := s.orm.User.Query().Where(userEnt.Email(email)).Exist(ctx); err == nil && exists {
-		return oops.
-			Code(codes.AuthEmailTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"email": email}).
-			Public(fmt.Sprintf("the email %q is already registered", email)).
-			Errorf("email taken: %s", email)
+		return authEmailTaken(email)
 	}
 	if exists, err := s.orm.User.Query().Where(userEnt.Username(username)).Exist(ctx); err == nil && exists {
-		return oops.
-			Code(codes.AuthUsernameTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"username": username}).
-			Public(fmt.Sprintf("the username %q is already taken", username)).
-			Errorf("username taken: %s", username)
+		return authUsernameTaken(username)
 	}
 	return nil
 }
 
-// Register 用户注册。
-func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (*api.TokenPair, error) {
+// Register 用户注册（在同一事务内创建用户、设置首次登录时间并签发令牌对，避免孤儿用户或后台协程竞争）。
+func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (_ *api.TokenPair, err error) {
 	emailExists, err := s.orm.User.Query().
 		Where(userEnt.Email(req.Email)).
 		Exist(ctx)
@@ -277,11 +250,7 @@ func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (*
 		return nil, authInternal(err, "checking email existence")
 	}
 	if emailExists {
-		return nil, oops.
-			Code(codes.AuthEmailTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"email": req.Email}).
-			Public(fmt.Sprintf("the email %q is already registered", req.Email)).
-			Errorf("email taken: %s", req.Email)
+		return nil, authEmailTaken(req.Email)
 	}
 
 	usernameExists, err := s.orm.User.Query().
@@ -291,27 +260,38 @@ func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (*
 		return nil, authInternal(err, "checking username existence")
 	}
 	if usernameExists {
-		return nil, oops.
-			Code(codes.AuthUsernameTaken.String()).
-			With(codes.CtxKeyParams, map[string]string{"username": req.Username}).
-			Public(fmt.Sprintf("the username %q is already taken", req.Username)).
-			Errorf("username taken: %s", req.Username)
+		return nil, authUsernameTaken(req.Username)
 	}
 
-	hashedPassword, err := utils.HashPassword(req.Password)
+	hashedPassword, err := hashPassword(req.Password)
 	if err != nil {
 		return nil, authInternal(err, "hashing password")
 	}
 
-	userID := utils.GenerateULID()
-	user, err := s.orm.User.Create().
+	tx, err := s.orm.Tx(ctx)
+	if err != nil {
+		return nil, authInternal(err, "beginning registration transaction")
+	}
+	rolledBack := false
+	defer func() {
+		if err != nil && !rolledBack {
+			_ = tx.Rollback()
+		}
+	}()
+
+	userID := uuid.NewV7().String()
+	user, err := tx.User.Create().
 		SetID(userID).
 		SetUsername(req.Username).
 		SetEmail(req.Email).
 		SetPasswordHash(hashedPassword).
 		SetStatus(userEnt.StatusActive).
+		SetLastLoginAt(time.Now()).
 		Save(ctx)
 	if err != nil {
+		// 先回滚释放连接（SQLite MaxOpenConns=1），再查询具体冲突列。
+		_ = tx.Rollback()
+		rolledBack = true
 		if ent.IsConstraintError(err) {
 			if conflictErr := s.checkUniqueUserConflict(ctx, req.Email, req.Username); conflictErr != nil {
 				return nil, conflictErr
@@ -320,25 +300,27 @@ func (s *AuthService) Register(ctx context.Context, req *api.RegisterRequest) (*
 		return nil, authInternal(err, "creating user")
 	}
 
-	resp, err := s.generateTokenPair(ctx, user.ID)
+	resp, err := s.issueTokenPairTx(ctx, tx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	s.touchLastLogin(ctx, user.ID)
+	if err = tx.Commit(); err != nil {
+		return nil, authInternal(err, "committing registration transaction")
+	}
 
 	return resp, nil
 }
 
-// Login 用户登录。
-func (s *AuthService) Login(ctx context.Context, req *api.LoginRequest) (*api.TokenPair, error) {
+// Login 用户登录（在同一事务内签发令牌对并更新最后登录时间）。
+func (s *AuthService) Login(ctx context.Context, req *api.LoginRequest) (_ *api.TokenPair, err error) {
 	user, err := s.findUserByEmail(ctx, req.Email)
 	if err != nil {
 		return nil, err
 	}
 
 	// 先校验密码再检查账户状态，防止未认证攻击者枚举已停用账户。
-	if err := utils.VerifyPassword(user.PasswordHash, req.Password); err != nil {
+	if err := verifyPassword(user.PasswordHash, req.Password); err != nil {
 		slog.WarnContext(ctx, "invalid password attempt", "user_id", user.ID)
 		return nil, authInvalidCredentials()
 	}
@@ -347,12 +329,28 @@ func (s *AuthService) Login(ctx context.Context, req *api.LoginRequest) (*api.To
 		return nil, err
 	}
 
-	resp, err := s.generateTokenPair(ctx, user.ID)
+	tx, err := s.orm.Tx(ctx)
+	if err != nil {
+		return nil, authInternal(err, "beginning login transaction")
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		}
+	}()
+
+	resp, err := s.issueTokenPairTx(ctx, tx, user.ID)
 	if err != nil {
 		return nil, err
 	}
 
-	s.touchLastLogin(ctx, user.ID)
+	if err = tx.User.UpdateOneID(user.ID).SetLastLoginAt(time.Now()).Exec(ctx); err != nil {
+		return nil, authInternal(err, "updating last login time")
+	}
+
+	if err = tx.Commit(); err != nil {
+		return nil, authInternal(err, "committing login transaction")
+	}
 
 	return resp, nil
 }

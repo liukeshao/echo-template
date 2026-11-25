@@ -24,7 +24,7 @@ func (Token) Fields() []ent.Field {
 	return []ent.Field{
 		// 关联用户ID
 		field.String("user_id").
-			MaxLen(26).
+			MaxLen(36).
 			NotEmpty().
 			Comment("关联的用户ID"),
 

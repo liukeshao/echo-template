@@ -3,6 +3,7 @@ package services_test
 import (
 	"context"
 	"testing"
+	"uuid"
 
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/assert"
@@ -12,10 +13,8 @@ import (
 	userEnt "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/codes"
-	metav1 "github.com/liukeshao/echo-template/pkg/meta/v1"
 	"github.com/liukeshao/echo-template/pkg/services"
 	"github.com/liukeshao/echo-template/pkg/testutil"
-	"github.com/liukeshao/echo-template/pkg/utils"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -25,7 +24,7 @@ func TestAuthService_FullLifecycle(t *testing.T) {
 	env := testutil.New(t)
 	authSvc := do.MustInvoke[*services.AuthService](env.Injector)
 
-	// Register creates user and persists both tokens with ULID IDs.
+	// Register creates user and persists both tokens with UUID v7 IDs.
 	regResp, err := authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice",
 		Email:    "alice@example.com",
@@ -113,14 +112,16 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	env := testutil.New(t)
 	bookSvc := do.MustInvoke[*services.BookService](env.Injector)
 
-	// Empty list short-circuits cleanly.
-	items, total, err := bookSvc.List(ctx, metav1.ListOptions{Limit: 10})
+	// Empty list short-circuits cleanly (nil request uses defaults).
+	res, err := bookSvc.List(ctx, nil)
 	require.NoError(t, err)
-	assert.Empty(t, items)
-	assert.Equal(t, int32(0), total)
+	assert.Empty(t, res.Items)
+	assert.Equal(t, int32(0), res.TotalSize)
+	assert.Equal(t, int32(1), res.Page)
+	assert.Equal(t, int32(50), res.PageSize)
 
-	// Create with custom ULID and verify duplicate returns BOOK_ALREADY_EXISTS.
-	customID := utils.GenerateULID()
+	// Create with custom UUID and verify duplicate returns BOOK_ALREADY_EXISTS.
+	customID := uuid.NewV7().String()
 	initialPrice := 49.99
 	created, err := bookSvc.Create(ctx, &api.CreateBookRequest{
 		BookID:      customID,
@@ -153,17 +154,17 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	testutil.AssertOopsCode(t, err, codes.BookAlreadyExists)
 
 	// Invalid order_by returns *validator.FieldViolations with i18n keys.
-	_, _, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, OrderBy: "unknown_col"})
+	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "unknown_col"})
 	var fv *validator.FieldViolations
 	require.ErrorAs(t, err, &fv)
 	require.Len(t, fv.Items(), 1)
 	assert.Equal(t, validator.KeyUnknownOrderByField, fv.Items()[0].Key)
 
 	// Comma-only order_by falls back to default sort without error.
-	items, total, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, OrderBy: " , , "})
+	res, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: " , , "})
 	require.NoError(t, err)
-	assert.Equal(t, int32(2), total)
-	assert.Len(t, items, 2)
+	assert.Equal(t, int32(2), res.TotalSize)
+	assert.Len(t, res.Items, 2)
 
 	// Replace clears omitted optional fields (including nullable price → nil).
 	replaced, err := bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
@@ -198,7 +199,7 @@ func TestBookService_CRUDAndSoftDelete(t *testing.T) {
 	assert.True(t, ent.IsNotFound(err), "expected NotFoundError on soft-deleted row, got %v", err)
 }
 
-func TestBookService_ListFilterAndOrderBy(t *testing.T) {
+func TestBookService_ListQueryFieldsAndOrderBy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	env := testutil.New(t)
@@ -210,38 +211,36 @@ func TestBookService_ListFilterAndOrderBy(t *testing.T) {
 	_, err = bookSvc.Create(ctx, &api.CreateBookRequest{Title: "Beta Rust", Author: "Bob", Price: &p2})
 	require.NoError(t, err)
 
-	// Filter by title contains and price range.
-	items, total, err := bookSvc.List(ctx, metav1.ListOptions{
-		Limit:  10,
-		Filter: `title : "go" AND price <= 20`,
+	// Filter by explicit request fields: title + author + price range.
+	maxPrice := 20.0
+	minPrice := 5.0
+	res, err := bookSvc.List(ctx, &api.ListBooksRequest{
+		PageSize: 10,
+		Title:    "go",
+		Author:   "ali",
+		MinPrice: &minPrice,
+		MaxPrice: &maxPrice,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, int32(1), total)
-	require.Len(t, items, 1)
-	assert.Equal(t, "Alpha Go", items[0].Title)
+	assert.Equal(t, int32(1), res.TotalSize)
+	require.Len(t, res.Items, 1)
+	assert.Equal(t, "Alpha Go", res.Items[0].Title)
 
 	// All supported order_by fields.
 	for _, ob := range []string{"title", "author desc", "price desc, title", "created_at", "updated_at desc", "published_at"} {
-		_, _, err := bookSvc.List(ctx, metav1.ListOptions{Limit: 10, OrderBy: ob})
+		_, err := bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: ob})
 		require.NoError(t, err, "order_by=%s", ob)
 	}
 
 	// Invalid order_by clause & direction return *validator.FieldViolations.
 	var fv *validator.FieldViolations
-	_, _, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, OrderBy: "title asc extra"})
+	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc extra"})
 	require.ErrorAs(t, err, &fv)
 	assert.Equal(t, validator.KeyInvalidOrderByClause, fv.Items()[0].Key)
 
-	_, _, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, OrderBy: "title asc"})
+	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc"})
 	require.ErrorAs(t, err, &fv)
 	assert.Equal(t, validator.KeyInvalidOrderByDirection, fv.Items()[0].Key)
-
-	// Invalid filter syntax & unknown filter field return VALIDATION_INVALID.
-	_, _, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, Filter: `title =`})
-	testutil.AssertOopsCode(t, err, codes.ValidationInvalid)
-
-	_, _, err = bookSvc.List(ctx, metav1.ListOptions{Limit: 10, Filter: `bogus = "x"`})
-	testutil.AssertOopsCode(t, err, codes.ValidationInvalid)
 }
 
 func TestAuthService_TokenTypeMismatchAndErrors(t *testing.T) {

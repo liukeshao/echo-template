@@ -12,6 +12,8 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/config"
+
+	_ "modernc.org/sqlite"
 )
 
 // DB wraps *sql.DB and implements do.Shutdowner so the DI container

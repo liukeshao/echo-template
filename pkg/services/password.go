@@ -1,4 +1,4 @@
-package utils
+package services
 
 import (
 	"testing"
@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	// 默认bcrypt成本值
+	// DefaultBcryptCost 是生产环境的默认 bcrypt 成本值。
 	DefaultBcryptCost = 12
 )
 
@@ -20,8 +20,8 @@ func bcryptCost() int {
 	return DefaultBcryptCost
 }
 
-// HashPassword 对密码进行哈希加密
-func HashPassword(password string) (string, error) {
+// hashPassword 对密码进行哈希加密（集中管控 bcrypt cost 策略）。
+func hashPassword(password string) (string, error) {
 	hashedBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost())
 	if err != nil {
 		return "", err
@@ -29,7 +29,7 @@ func HashPassword(password string) (string, error) {
 	return string(hashedBytes), nil
 }
 
-// VerifyPassword 验证密码是否匹配哈希值
-func VerifyPassword(hashedPassword, password string) error {
+// verifyPassword 验证密码是否匹配哈希值。
+func verifyPassword(hashedPassword, password string) error {
 	return bcrypt.CompareHashAndPassword([]byte(hashedPassword), []byte(password))
 }
