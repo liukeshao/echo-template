@@ -40,25 +40,24 @@ make ent
 - Each third-party API lives in `internal/client/<apiname>/` with four files: `interface.go`, `client.go`, `errors.go`, `package.go`.
 - Services depend on the **interface** (`<apiname>.API`), never on `*Client` directly.
 - Config goes in `config.Clients.<ApiName>` (type `config.ExternalClient`); add a `[clients.<apiname>]` block in `config.toml`.
-- Error codes go in `internal/codes/<apiname>.go`. Typical set: `<API>_UNAVAILABLE` → `http.StatusServiceUnavailable` (503), `<API>_RATE_LIMITED` → `http.StatusTooManyRequests` (429), `<API>_INTERNAL_ERROR` → `http.StatusInternalServerError` (500).
-- Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with exponential backoff and jitter (within the total `Timeout`). Map final responses to domain errors: HTTP 429 → `<api>RateLimited`, 502/503/504 and network errors → `<api>Unavailable`, everything else → `<api>Internal`.
+- Map upstream failures to the finite canonical HTTP codes in `pkg/rest`: HTTP 429 → `rest.CodeTooManyRequests` (with `rest.RetryInfo{Service, RetryAfter}`), 502/503/504 and network errors → `rest.CodeServiceUnavailable`, everything else → `rest.CodeInternal`. Optionally add fine-grained i18n copy under `[details.TOO_MANY_REQUESTS]` in `internal/i18n/messages/*.toml`.
+- Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with exponential backoff and jitter (within the total `Timeout`).
 - Register the package in `internal/client/package.go` and wire `client.Package` in `cmd/server/main.go` between `database.Package` and `service.Package`.
 - **Forbidden**: raw `http.Get` / `http.Post` calls anywhere outside `internal/client/`.
 
 ---
 
-## Error Handling (RFC 9457 Problem Details + AIP-193 Metadata)
+## Error Handling (Finite Canonical HTTP Codes + RFC 9457 + AIP-193 Metadata)
 
-All errors are serialized by `server.NewProblemEncoder` (implementing `rest.ErrorEncoder`) as flat, strongly-typed `rest.Problem` (`Content-Type: application/problem+json`) through a three-stage pipeline (`Classify` → `Sanitize & Log` → `Unified Localize`). Classification precedence:
+All errors use the **13 finite canonical HTTP codes** defined in `pkg/rest/code.go` (`rest.Code`: `CodeBadRequest`, `CodeUnauthorized`, `CodeForbidden`, `CodeNotFound`, `CodeMethodNotAllowed`, `CodeConflict`, `CodeContentTooLarge`, `CodeUnsupportedMediaType`, `CodeTooManyRequests`, `CodeClientClosedRequest`, `CodeInternal`, `CodeServiceUnavailable`, `CodeGatewayTimeout`). Each `rest.Code` implements `error` (immutable zero-allocation sentinel for `errors.Is`) and `HTTPStatus() int` (no global code registry or `init()`).
 
-1. `rest.Problem` / `*rest.Problem` — preserves `Status`, `Code`, `Metadata`, `Errors`
-2. `oops.OopsError` (`oops.AsOops`) with `.Code()` — maps via `codes.FromAny` + `codes.HTTPStatus()`, extracts typed `rest.Metadata` strictly from `oopsErr.Context()[rest.MetaKey]` on 4xx only (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
-3. `*validator.FieldViolations` — `400 VALIDATION_INVALID` with `rest.ValidationInfo` and localized `errors: []rest.FieldError{Field, Code, Message, Metadata}`
-4. `*http.MaxBytesError` — `413 REQUEST_ENTITY_TOO_LARGE` with `rest.RequestLimitInfo{MaxBytes}`
-5. `context.DeadlineExceeded` / `context.Canceled` — `504 GATEWAY_TIMEOUT` / `499 CLIENT_CLOSED_REQUEST`
-6. Everything else — `500 INTERNAL_ERROR` (internal details and metadata strictly stripped)
+Errors are serialized by `server.NewProblemEncoder` (implementing `rest.ErrorEncoder`) as flat, strongly-typed `rest.Problem` (`Content-Type: application/problem+json`) through a three-stage pipeline (`Classify` → `Sanitize & Log` → `Unified Localize`). Classification precedence:
 
-Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json` via the configured `rest.ErrorEncoder`. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[errors]` + `[validation]`); `oops.Public(...)` is never read.
+1. Request context cancellation/timeout (`r.Context().Err() != nil && errors.Is(err, r.Context().Err())`) → `499 CLIENT_CLOSED_REQUEST` / `504 GATEWAY_TIMEOUT` (prevents mid-query client disconnects from triggering false 500 alerts)
+2. `oops.OopsError` (`oops.AsOops`) with `.Code(rest.CodeXxx)` — maps via `rest.CodeFromAny` + `code.HTTPStatus()`, extracts typed `rest.Metadata` strictly from `oopsErr.Context()[rest.MetaKey]` on 4xx only (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
+3. Everything else delegates to `rest.Classify(err)` (`rest.Problem`, `*validator.FieldViolations` → `400 BAD_REQUEST` + `rest.ValidationInfo` + `errors[]`, `*http.MaxBytesError` → `413 CONTENT_TOO_LARGE` + `rest.RequestLimitInfo`, `context.DeadlineExceeded`/`Canceled`, bare `rest.Code` sentinels, and default `500 INTERNAL_ERROR`)
+
+Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json`. `WriteProblem` automatically sets `Retry-After` from `rest.RetryInfo`, and `ProblemEncoder` sets `Content-Language` from the matched locale. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[details.<CODE>]` hierarchical subkeys → `[errors]` canonical fallback + `[validation]`); `oops.Public(...)` is never read.
 
 **Service layer error pattern:**
 
@@ -66,23 +65,25 @@ Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo
 var errDomain = oops.In("domain")
 
 // internal error — internal debug context logged via slog, never exposed in Problem.Metadata
-errDomain.Tags("database").Code(codes.DomainInternalError).With("domain_id", id).Wrapf(err, "%s", op)
+errDomain.Tags("database").Code(rest.CodeInternal).With("domain_id", id, "op", op).Join(rest.CodeInternal, err)
 
-// client error — attach AIP-193 typed rest.Metadata struct under rest.MetaKey; NEVER call .Public(...)
-errDomain.Code(codes.DomainNotFound).
+// client error — wrap rest.Code sentinel + attach AIP-193 rest.Metadata under rest.MetaKey; NEVER call .Public(...)
+errDomain.Code(rest.CodeNotFound).
 	With(rest.MetaKey, rest.ResourceInfo{
 		ResourceType: "domain",
 		ResourceName: id,
 	}).
-	New("domain not found")
+	Wrap(rest.CodeNotFound)
 ```
 
 **Rules:**
 - Never use bare `fmt.Errorf` or `errors.New` in service layer.
 - Never call `oops.Public(...)` or hardcode user-facing English/Chinese sentences in services, clients, middleware, or `pkg/rest`.
+- Never invent per-domain error code registries (use the 13 finite `rest.Code` sentinels + AIP-193 `rest.Metadata` structs).
+- Always wrap the `rest.Code` sentinel via `.Wrap(rest.CodeXxx)` or `.Join(rest.CodeXxx, cause)` so callers can use standard `errors.Is(err, rest.CodeNotFound)`.
 - Never return `*ent.NotFoundError` directly to handlers.
-- Store internal actor IDs with `oops.User(userID)` and internal diagnostic fields with arbitrary `oops.With("k", v)` keys; only values implementing `rest.Metadata` under `rest.MetaKey` are exposed to HTTP clients (and stripped on 5xx).
-- Every new error code must be registered in `internal/codes/<domain>.go` `init()` with a 4xx/5xx `net/http` status constant, and have a corresponding entry in `internal/i18n/messages/en.toml` (and `zh-CN.toml`). Startup `assertCoverage` enforces 100% coverage for both `[errors]` and `[validation]`.
+- Store internal actor IDs with `oops.User(userID)` and internal diagnostic fields with arbitrary `oops.With("k", v)` keys; only values implementing `rest.Metadata` (with a **value receiver**, as `oops.Context()` dereferences pointers) under `rest.MetaKey` are exposed to HTTP clients (and stripped on 5xx).
+- Startup `assertCoverage` enforces 100% coverage for all 13 canonical `[errors]` codes and all `[validation]` rules in `internal/i18n/messages/*.toml`; fine-grained domain messages go under `[details.<CODE>]` with cross-locale key and placeholder parity checked in tests.
 
 ---
 
@@ -133,7 +134,7 @@ errDomain.Code(codes.DomainNotFound).
   - `env := testutil.New(t, ...)` builds the full lazy DI container with an isolated in-memory SQLite DB and automatic `t.Cleanup` shutdown (safe for `t.Parallel()`).
   - Use `testutil.WithConfig(...)`, `testutil.WithOverride[T](mock)`, or `testutil.WithHTTPTransport(rt)` to customize config or inject mocks.
   - Handler tests use `env.MustAuthUser(...)`, `env.DoRequest(...)`, `testutil.DecodeJSON[T](t, rec)`, and `testutil.AssertProblem(...)`.
-  - Service/client tests use `testutil.AssertOopsCode(t, err, codes.Xxx)`.
+  - Service/client tests use `testutil.AssertOopsCode(t, err, rest.CodeNotFound)` (which asserts both `errors.Is` sentinel matching and `oops.Code`).
 
 ---
 
@@ -162,7 +163,7 @@ Supported `Content-Type` values:
 | `application/merge-patch+json` | RFC 7386 JSON Merge Patch — omit to keep, `null` to clear      |
 | `application/json` / empty     | Compatibility: treated as RFC 7386 JSON Merge Patch            |
 
-Unsupported media types return `415 Unsupported Media Type` (`PATCH_UNSUPPORTED_MEDIA_TYPE`).
+Unsupported media types return `415 Unsupported Media Type` (`UNSUPPORTED_MEDIA_TYPE`).
 
 Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domain.replaceXxx)`:
 - OpenAPI 3.1 documents `PATCH` with the typed `PatchXxxRequest` schema and `415`.
@@ -183,10 +184,10 @@ Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domai
 | Pattern | Reason |
 |---|---|
 | `fmt.Errorf` in service layer | Breaks error classification pipeline |
-| `oops.Public(...)` or hardcoded `Problem.Detail` | Bypasses unified terminal i18n; pass `codes.Code` + `rest.Metadata` instead |
+| `oops.Public(...)` or hardcoded `Problem.Detail` | Bypasses unified terminal i18n; pass `rest.Code` + `rest.Metadata` instead |
 | Returning `*ent.Xxx` from handler | Leaks internal fields |
 | `bcrypt` calls outside `internal/service/password.go` | Centralised cost policy (cost=12) |
-| Registering duplicate error codes | `init()` panics by design |
+| Per-domain custom error code registries | Use the 13 finite `rest.Code` sentinels + AIP-193 `rest.Metadata` |
 | Storing `context.Context` in struct | Violates Go context contract |
 | Adding user data to JWT claims | Over-exposure; trust DB as source of truth |
 | Manually editing `pkg/api/*.gen.go` or `static/openapi/openapi.yaml` | Generated by `make api`; manual edits are overwritten |

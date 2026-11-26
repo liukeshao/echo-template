@@ -8,7 +8,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/internal/codes"
+	"github.com/liukeshao/echo-template/pkg/rest"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -19,9 +19,7 @@ var messagesFS embed.FS
 const messagesDir = "messages"
 
 // loadMessages 从 embed.FS 读取所有已支持 locale 的翻译表。
-//
 // 文件命名约定：messages/<BCP-47>.toml。缺失文件直接返回错误（fail-fast）。
-// 文件内为两层 TOML：[section].<key> = "template"，加载后扁平化为 "section.key"。
 func loadMessages(supported []language.Tag) (map[language.Tag]map[string]string, error) {
 	out := make(map[language.Tag]map[string]string, len(supported))
 	for _, tag := range supported {
@@ -34,7 +32,7 @@ func loadMessages(supported []language.Tag) (map[language.Tag]map[string]string,
 	return out, nil
 }
 
-// loadLocale 读取单个 locale 的 TOML 文件并扁平化为 "section.key" 形式。
+// loadLocale 读取单个 locale 的 TOML 文件并递归扁平化为 "section.sub.key" 形式。
 func loadLocale(tag language.Tag) (map[string]string, error) {
 	path := fmt.Sprintf("%s/%s.toml", messagesDir, tag.String())
 	raw, err := messagesFS.ReadFile(path)
@@ -42,31 +40,47 @@ func loadLocale(tag language.Tag) (map[string]string, error) {
 		return nil, fmt.Errorf("i18n: read messages file %s: %w", path, err)
 	}
 
-	var parsed map[string]map[string]string
+	var parsed map[string]any
 	if err := toml.Unmarshal(raw, &parsed); err != nil {
 		return nil, fmt.Errorf("i18n: parse messages file %s: %w", path, err)
 	}
 
 	flat := make(map[string]string)
-	for section, entries := range parsed {
-		for k, v := range entries {
-			flat[section+"."+k] = v
-		}
+	if err := flattenTOML("", parsed, flat); err != nil {
+		return nil, fmt.Errorf("i18n: flatten messages file %s: %w", path, err)
 	}
 	return flat, nil
 }
 
+func flattenTOML(prefix string, m map[string]any, dst map[string]string) error {
+	for k, v := range m {
+		fullKey := k
+		if prefix != "" {
+			fullKey = prefix + "." + k
+		}
+		switch val := v.(type) {
+		case string:
+			dst[fullKey] = val
+		case map[string]any:
+			if err := flattenTOML(fullKey, val, dst); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("key %q has non-string value type %T", fullKey, v)
+		}
+	}
+	return nil
+}
+
 // assertCoverage 保证默认 locale 中的 [errors] 与 [validation] 100% 覆盖
-// 所有已注册错误码（internal/codes）与校验规则码（pkg/validator）。
-//
-// 缺失任一键 → 返回错误，由 NewTranslator 在启动时暴露给 DI 容器（fail-fast）。
+// 全部有限标准 HTTP 错误码（pkg/rest.AllCodes）与校验规则码（pkg/validator.RegisteredRules）。
 func assertCoverage(defaultTable map[string]string, defaultTag language.Tag) error {
 	if defaultTable == nil {
 		return fmt.Errorf("i18n: default locale %s has no messages loaded", defaultTag)
 	}
 
 	var missing []string
-	for _, code := range codes.RegisteredCodes() {
+	for _, code := range rest.AllCodes() {
 		key := "errors." + code.String()
 		if _, ok := defaultTable[key]; !ok {
 			missing = append(missing, key)

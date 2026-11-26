@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/rest"
@@ -25,22 +24,22 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createRec.Code)
 	created := testutil.DecodeJSON[api.Book](t, createRec)
 
-	// Wrong type for price -> 400 PATCH_INVALID with MediaTypeInfo (not 500).
+	// Wrong type for price -> 400 BAD_REQUEST with MediaTypeInfo (not 500).
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody(rest.ContentTypeMergePatch, `{"price":"not-a-number"}`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
-	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest, codes.PatchInvalid.String())
+	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest, rest.CodeBadRequest)
 	mt := testutil.DecodeProblemMeta[rest.MediaTypeInfo](t, p)
-	assert.Equal(t, "schema_mismatch", mt.Reason)
+	assert.Equal(t, rest.PatchReasonSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
-	// Unsupported PATCH Content-Type -> 415 PATCH_UNSUPPORTED_MEDIA_TYPE with MediaTypeInfo.
+	// Unsupported PATCH Content-Type -> 415 UNSUPPORTED_MEDIA_TYPE with MediaTypeInfo.
 	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody("text/plain", `title=foo`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
-	p = testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType, codes.PatchUnsupportedMediaType.String())
+	p = testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType, rest.CodeUnsupportedMediaType)
 	mt = testutil.DecodeProblemMeta[rest.MediaTypeInfo](t, p)
 	assert.Equal(t, "text/plain", mt.ContentType)
 	assert.Equal(t, rest.SupportedPatchMediaTypes, mt.Supported)
@@ -65,26 +64,26 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Go", testutil.DecodeJSON[api.Book](t, rec).Title)
 
-	// Get invalid UUID -> 400 VALIDATION_INVALID
+	// Get invalid UUID -> 400 BAD_REQUEST + ValidationInfo
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books/not-a-uuid", auth)
-	testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
+	testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 
-	// List invalid integer query -> 400 VALIDATION_INVALID
+	// List invalid integer query -> 400 BAD_REQUEST + FieldError
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=abc", auth)
-	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
+	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Contains(t, p.Errors[0].Message, "valid integer")
 
-	// List invalid float query -> 400 VALIDATION_INVALID
+	// List invalid float query -> 400 BAD_REQUEST + FieldError
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=not-a-number", auth)
-	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "min_price", p.Errors[0].Field)
 	assert.Contains(t, p.Errors[0].Message, "valid number")
 
-	// List negative min_price -> 400 VALIDATION_INVALID
+	// List negative min_price -> 400 BAD_REQUEST
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=-1", auth)
-	testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
+	testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 
 	// List with explicit typed query fields
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&title=go&min_price=10&max_price=30", auth)

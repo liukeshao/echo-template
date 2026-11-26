@@ -13,7 +13,6 @@ import (
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/internal/client/weather"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/rest"
 )
@@ -81,7 +80,7 @@ func TestClient_GetCurrent_RateLimited(t *testing.T) {
 	env := testutil.New(t, testutil.WithHTTPTransport(rt))
 	c := do.MustInvoke[*weather.Client](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "Tokyo")
-	oe := testutil.AssertOopsCode(t, err, codes.WeatherRateLimited)
+	oe := testutil.AssertOopsCode(t, err, rest.CodeTooManyRequests)
 	assert.Equal(t, rest.RetryInfo{Service: "weather", RetryAfter: "30"}, oe.Context()[rest.MetaKey])
 }
 
@@ -105,7 +104,7 @@ func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {
 	c := do.MustInvoke[*weather.Client](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "bad")
 	assert.Equal(t, 1, calls, "4xx permanent errors must not be retried")
-	testutil.AssertOopsCode(t, err, codes.WeatherInternalError)
+	testutil.AssertOopsCode(t, err, rest.CodeInternal)
 }
 
 func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {

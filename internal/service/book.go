@@ -12,7 +12,6 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/book"
 	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/rest"
@@ -33,42 +32,36 @@ func NewBook(i do.Injector) (*Book, error) {
 	}, nil
 }
 
-// bookAlreadyExists 构造 BOOK_ALREADY_EXISTS oops 错误（HTTP 409）。
 func bookAlreadyExists(id string) error {
 	return errBook.
-		Code(codes.BookAlreadyExists).
+		Code(rest.CodeConflict).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "book",
 			ResourceName: id,
 			Field:        "book_id",
 		}).
-		New("book already exists")
+		Wrap(rest.CodeConflict)
 }
 
-// bookNotFound 构造 BOOK_NOT_FOUND oops 错误（HTTP 404）。
 func bookNotFound(id string) error {
 	return errBook.
-		Code(codes.BookNotFound).
+		Code(rest.CodeNotFound).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "book",
 			ResourceName: id,
 		}).
-		New("book not found")
+		Wrap(rest.CodeNotFound)
 }
 
-// bookDB 构造携带 database 标签的 BOOK_INTERNAL_ERROR oops 错误（内部上下文仅进日志）。
 func bookDB(err error, op, id string) error {
 	return errBook.
 		Tags("database").
-		Code(codes.BookInternalError).
-		With("book_id", id).
-		Wrapf(err, "%s", op)
+		Code(rest.CodeInternal).
+		With("book_id", id, "op", op).
+		Join(rest.CodeInternal, err)
 }
 
 // Create 创建书籍。
-//
-// 若 req.BookID 非空则使用该值作为资源 ID；否则自动生成 UUID v7。
-// 若指定的 ID 已存在，返回 BOOK_ALREADY_EXISTS 错误。
 func (s *Book) Create(ctx context.Context, req *api.CreateBookRequest) (*ent.Book, error) {
 	id := req.BookID
 	if id == "" {
@@ -161,7 +154,6 @@ func (s *Book) List(ctx context.Context, req *api.ListBooksRequest) (*Page[*ent.
 	}, nil
 }
 
-// buildBookPredicates 根据 ListBooksRequest 的显式字段构造 ent 查询条件。
 func buildBookPredicates(req *api.ListBooksRequest) []predicate.Book {
 	if req == nil {
 		return nil
@@ -229,9 +221,6 @@ func (s *Book) Delete(ctx context.Context, id string) error {
 
 const bookAllowedOrderByFields = "title, author, price, created_at, updated_at, published_at"
 
-// parseBookOrderBy 将 order_by 字符串解析为 ent OrderOption 列表。
-// 格式：逗号分隔的 "field" 或 "field desc"；默认 created_at desc。
-// 支持字段：title, author, price, created_at, updated_at, published_at。
 func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 	if strings.TrimSpace(orderBy) == "" {
 		return []book.OrderOption{book.ByCreatedAt(sql.OrderDesc())}, nil

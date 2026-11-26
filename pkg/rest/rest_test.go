@@ -74,13 +74,13 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	rec := call(http.MethodGet, "/problem", "")
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 	p := decodeProblem(t, rec)
-	assert.Equal(t, "POLICY_DENIED", p.Code)
+	assert.Equal(t, rest.Code("POLICY_DENIED"), p.Code)
 	assert.Equal(t, "/problem", p.Instance)
 
 	rec = call(http.MethodGet, "/validation", "")
 	assert.Equal(t, http.StatusBadRequest, rec.Code)
 	p = decodeProblem(t, rec)
-	assert.Equal(t, rest.CodeValidationInvalid, p.Code)
+	assert.Equal(t, rest.CodeBadRequest, p.Code)
 	valMeta, err := rest.DecodeMetadata[rest.ValidationInfo](p)
 	require.NoError(t, err)
 	assert.Equal(t, 1, valMeta.ErrorCount)
@@ -99,12 +99,12 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	rec = call(http.MethodGet, "/unknown", "")
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
 	p = decodeProblem(t, rec)
-	assert.Equal(t, rest.CodeInternalError, p.Code)
+	assert.Equal(t, rest.CodeInternal, p.Code)
 	assert.NotContains(t, p.Detail, "secret")
 
 	rec = call(http.MethodGet, "/panic", "")
 	assert.Equal(t, http.StatusInternalServerError, rec.Code)
-	assert.Equal(t, rest.CodeInternalError, decodeProblem(t, rec).Code)
+	assert.Equal(t, rest.CodeInternal, decodeProblem(t, rec).Code)
 
 	// Trailing JSON garbage rejected as 400 BAD_REQUEST with DecodeInfo metadata.
 	rec = call(http.MethodPost, "/decode", `{"name":"a"}{"name":"b"}`)
@@ -113,7 +113,7 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	assert.Equal(t, rest.CodeBadRequest, p.Code)
 	decMeta, err := rest.DecodeMetadata[rest.DecodeInfo](p)
 	require.NoError(t, err)
-	assert.Equal(t, "trailing_data", decMeta.Reason)
+	assert.Equal(t, rest.DecodeReasonTrailingData, decMeta.Reason)
 
 	// Empty body rejected as 400 BAD_REQUEST with DecodeInfo(empty_body).
 	rec = call(http.MethodPost, "/decode", `   `)
@@ -121,13 +121,13 @@ func TestDefaultErrorEncoder_AllPaths(t *testing.T) {
 	p = decodeProblem(t, rec)
 	decMeta, err = rest.DecodeMetadata[rest.DecodeInfo](p)
 	require.NoError(t, err)
-	assert.Equal(t, "empty_body", decMeta.Reason)
+	assert.Equal(t, rest.DecodeReasonEmptyBody, decMeta.Reason)
 
-	// Oversized body rejected as 413 REQUEST_ENTITY_TOO_LARGE with RequestLimitInfo.
+	// Oversized body rejected as 413 CONTENT_TOO_LARGE with RequestLimitInfo.
 	rec = call(http.MethodPost, "/decode", `{"name":"`+strings.Repeat("x", 128)+`"}`)
 	assert.Equal(t, http.StatusRequestEntityTooLarge, rec.Code)
 	p = decodeProblem(t, rec)
-	assert.Equal(t, rest.CodeRequestEntityTooLarge, p.Code)
+	assert.Equal(t, rest.CodeContentTooLarge, p.Code)
 	limitMeta, err := rest.DecodeMetadata[rest.RequestLimitInfo](p)
 	require.NoError(t, err)
 	assert.Equal(t, int64(64), limitMeta.MaxBytes)
@@ -234,7 +234,7 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 	rec = httptest.NewRecorder()
 	andHandler.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusUnauthorized, rec.Code)
-	assert.Equal(t, "API_KEY_INVALID", decodeProblem(t, rec).Code)
+	assert.Equal(t, rest.Code("API_KEY_INVALID"), decodeProblem(t, rec).Code)
 
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer ok")
@@ -291,12 +291,17 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 	assert.Equal(t, "customProtected", rec.Header().Get("X-Custom-Auth"))
 }
 
-func TestProblem_ErrorString(t *testing.T) {
+func TestProblem_ErrorStringAndCodeSentinel(t *testing.T) {
 	t.Parallel()
 	p := rest.Problem{
 		Status: http.StatusNotFound,
-		Code:   "BOOK_NOT_FOUND",
+		Code:   rest.CodeNotFound,
 		Detail: "Book 01TEST was not found.",
 	}
-	assert.Equal(t, "http 404 BOOK_NOT_FOUND: Book 01TEST was not found.", p.Error())
+	assert.Equal(t, "http 404 NOT_FOUND: Book 01TEST was not found.", p.Error())
+	assert.Equal(t, http.StatusNotFound, rest.CodeNotFound.HTTPStatus())
+	assert.Equal(t, http.StatusConflict, rest.CodeConflict.HTTPStatus())
+	assert.Equal(t, http.StatusInternalServerError, rest.Code("UNKNOWN").HTTPStatus())
+	assert.Len(t, rest.AllCodes(), 13)
+	assert.Equal(t, "NOT_FOUND", rest.CodeNotFound.Error())
 }

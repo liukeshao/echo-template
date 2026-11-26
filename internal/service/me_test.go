@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/rest"
 )
 
 func TestMe_ReplaceAndChangePassword(t *testing.T) {
@@ -36,7 +36,8 @@ func TestMe_ReplaceAndChangePassword(t *testing.T) {
 		OldPassword: "wrongpassword1",
 		NewPassword: "newpassword123",
 	})
-	testutil.AssertOopsCode(t, err, codes.MeInvalidPassword)
+	oe := testutil.AssertOopsCode(t, err, rest.CodeBadRequest)
+	assert.Equal(t, rest.PreconditionInfo{Type: rest.PreconditionInvalidPassword, Subject: "old_password"}, oe.Context()[rest.MetaKey])
 
 	require.NoError(t, meSvc.ChangePassword(ctx, u.ID, &api.ChangePasswordRequest{
 		OldPassword: "password123",
@@ -45,9 +46,9 @@ func TestMe_ReplaceAndChangePassword(t *testing.T) {
 
 	// Changing password must revoke all active tokens.
 	_, err = authSvc.AuthenticateUser(ctx, reg.AccessToken)
-	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
+	testutil.AssertOopsCode(t, err, rest.CodeUnauthorized)
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: reg.RefreshToken,
 	})
-	testutil.AssertOopsCode(t, err, codes.AuthTokenInvalid)
+	testutil.AssertOopsCode(t, err, rest.CodeUnauthorized)
 }

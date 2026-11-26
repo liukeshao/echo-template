@@ -11,7 +11,6 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/rest"
@@ -36,33 +35,33 @@ func NewMe(i do.Injector) (*Me, error) {
 
 func meInternal(err error, op string) error {
 	return errMe.
-		Tags("me").
-		Code(codes.MeInternalError).
-		Wrapf(err, "%s", op)
+		Code(rest.CodeInternal).
+		With("op", op).
+		Join(rest.CodeInternal, err)
 }
 
 func meUsernameTaken(userID, username string) error {
 	return errMe.
-		Code(codes.MeUsernameTaken).
+		Code(rest.CodeConflict).
 		User(userID).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "user",
 			ResourceName: username,
 			Field:        "username",
 		}).
-		New("username taken")
+		Wrap(rest.CodeConflict)
 }
 
 func meEmailTaken(userID, email string) error {
 	return errMe.
-		Code(codes.MeEmailTaken).
+		Code(rest.CodeConflict).
 		User(userID).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "user",
 			ResourceName: email,
 			Field:        "email",
 		}).
-		New("email taken")
+		Wrap(rest.CodeConflict)
 }
 
 // Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
@@ -117,13 +116,13 @@ func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangeP
 	if err := verifyPassword(u.PasswordHash, req.OldPassword); err != nil {
 		slog.WarnContext(ctx, "invalid old password", "user_id", userID)
 		return errMe.
-			Code(codes.MeInvalidPassword).
+			Code(rest.CodeBadRequest).
 			User(userID).
 			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    "INVALID_PASSWORD",
+				Type:    rest.PreconditionInvalidPassword,
 				Subject: "old_password",
 			}).
-			New("invalid old password")
+			Wrap(rest.CodeBadRequest)
 	}
 
 	newHash, err := hashPassword(req.NewPassword, s.bcryptCost)

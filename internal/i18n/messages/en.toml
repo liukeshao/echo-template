@@ -1,47 +1,59 @@
 # English translations.
 # Structure:
-#   [errors]     key must equal a Code string registered in internal/codes (domain + transport).
-#   [validation] key must equal a validation rule code registered in pkg/validator.
+#   [errors]          1:1 with the 13 finite canonical HTTP codes in pkg/rest (100% required).
+#   [details.<CODE>]  optional fine-grained overrides indexed by rest.Metadata.I18nSubkeys().
+#   [validation]      1:1 with validation rule codes registered in pkg/validator (100% required).
 #
 # Placeholders use the {name} form and are populated by rest.Metadata.I18nVars()
 # or validator.Violation metadata (with {field} auto-injected). Missing vars are kept verbatim.
 
 [errors]
-# Generic HTTP / transport codes
-BAD_REQUEST                  = "Invalid JSON request body."
-NOT_FOUND                    = "The requested resource was not found."
-METHOD_NOT_ALLOWED           = "HTTP method not allowed for this resource."
-REQUEST_ENTITY_TOO_LARGE     = "Request body exceeds the maximum allowed size ({max_bytes} bytes)."
-GATEWAY_TIMEOUT              = "The request timed out."
-CLIENT_CLOSED_REQUEST        = "Client closed the request before the server could respond."
-INTERNAL_ERROR               = "An internal server error occurred."
-VALIDATION_INVALID           = "Request validation failed."
-PATCH_INVALID                = "Invalid patch document for content type {content_type}."
-PATCH_UNSUPPORTED_MEDIA_TYPE = "Unsupported PATCH content type {content_type}; supported: {supported}."
+BAD_REQUEST            = "Invalid request."
+UNAUTHORIZED           = "Authentication required or invalid credentials."
+FORBIDDEN              = "Access to this resource is forbidden."
+NOT_FOUND              = "The requested resource was not found."
+METHOD_NOT_ALLOWED     = "HTTP method not allowed for this resource."
+CONFLICT               = "The request conflicts with the current state of the resource."
+CONTENT_TOO_LARGE      = "Request body exceeds the maximum allowed size ({max_bytes} bytes)."
+UNSUPPORTED_MEDIA_TYPE = "Unsupported PATCH content type {content_type}; supported: {supported}."
+TOO_MANY_REQUESTS      = "Rate limit exceeded. Please retry later."
+CLIENT_CLOSED_REQUEST  = "Client closed the request before the server could respond."
+INTERNAL_ERROR         = "An internal server error occurred."
+SERVICE_UNAVAILABLE    = "Service is temporarily unavailable."
+GATEWAY_TIMEOUT        = "The request timed out."
 
-# Auth domain
-AUTH_INVALID_CREDENTIALS     = "Invalid email or password."
-AUTH_TOKEN_INVALID           = "Invalid or expired token."
-AUTH_ACCOUNT_DISABLED        = "This account has been disabled."
-AUTH_EMAIL_TAKEN             = "The email {resource_name} is already registered."
-AUTH_USERNAME_TAKEN          = "The username {resource_name} is already taken."
-AUTH_INTERNAL_ERROR          = "An internal error occurred during authentication."
+[details.BAD_REQUEST]
+validation       = "Request validation failed."
+decode           = "Invalid JSON request body."
+patch            = "Invalid patch document for content type {content_type}."
+INVALID_PASSWORD = "Current password is incorrect."
 
-# Book domain
-BOOK_NOT_FOUND               = "Book {resource_name} was not found."
-BOOK_ALREADY_EXISTS          = "Book {resource_name} already exists. Please use a different book_id."
-BOOK_INTERNAL_ERROR          = "An internal error occurred while processing the book request."
+[details.UNAUTHORIZED]
+INVALID_CREDENTIALS = "Invalid email or password."
+TOKEN_EXPIRED       = "Token has expired."
+TOKEN_INVALID       = "Invalid or expired token."
+TOKEN_REVOKED       = "Token has been revoked."
+MISSING_HEADER      = "Missing Authorization header."
+MALFORMED_HEADER    = "Invalid Authorization header format."
+EMPTY_TOKEN         = "Bearer token is empty."
 
-# Me domain
-ME_USERNAME_TAKEN            = "The username {resource_name} is already taken."
-ME_EMAIL_TAKEN               = "The email {resource_name} is already in use."
-ME_INVALID_PASSWORD          = "Current password is incorrect."
-ME_INTERNAL_ERROR            = "An internal error occurred while updating your profile."
+[details.FORBIDDEN]
+ACCOUNT_DISABLED = "This account has been disabled."
 
-# Weather external API client
-WEATHER_UNAVAILABLE          = "Weather service is temporarily unavailable."
-WEATHER_RATE_LIMITED         = "Weather service rate limit exceeded. Please retry later."
-WEATHER_INTERNAL_ERROR       = "An internal error occurred while contacting the weather service."
+[details.NOT_FOUND]
+book         = "Book {resource_name} was not found."
+route        = "The requested resource was not found."
+static_asset = "The requested resource was not found."
+resource     = "{resource_type} {resource_name} was not found."
+
+[details.CONFLICT]
+user.email    = "The email {resource_name} is already in use."
+user.username = "The username {resource_name} is already taken."
+book.book_id  = "Book {resource_name} already exists. Please use a different book_id."
+resource      = "{resource_type} {resource_name} already exists."
+
+[details.TOO_MANY_REQUESTS]
+weather = "Weather service rate limit exceeded. Please retry later."
 
 [validation]
 required                   = "{field} is required."

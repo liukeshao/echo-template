@@ -10,7 +10,6 @@ import (
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/handler"
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/service"
@@ -76,45 +75,45 @@ func BearerAuth(authService *service.Auth) rest.Authenticator {
 }
 
 // extractTokenFromHeader 从 Authorization header 提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
-// header 缺失或格式非法时返回 AUTH_TOKEN_INVALID oops 错误（→ HTTP 401 + PreconditionInfo）。
+// header 缺失或格式非法时返回 UNAUTHORIZED oops 错误（→ HTTP 401 + PreconditionInfo）。
 func extractTokenFromHeader(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if strings.TrimSpace(authHeader) == "" {
 		return "", oops.
 			In("auth").
-			Code(codes.AuthTokenInvalid).
+			Code(rest.CodeUnauthorized).
 			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    "MISSING_HEADER",
+				Type:    rest.PreconditionMissingHeader,
 				Subject: "authorization",
 				Detail:  "Bearer",
 			}).
-			New("missing Authorization header")
+			Wrap(rest.CodeUnauthorized)
 	}
 
 	scheme, rawToken, ok := strings.Cut(authHeader, " ")
 	if !ok || !strings.EqualFold(scheme, "Bearer") {
 		return "", oops.
 			In("auth").
-			Code(codes.AuthTokenInvalid).
+			Code(rest.CodeUnauthorized).
 			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    "MALFORMED_HEADER",
+				Type:    rest.PreconditionMalformedHeader,
 				Subject: "authorization",
 				Detail:  "Bearer",
 			}).
-			New("invalid Authorization header scheme")
+			Wrap(rest.CodeUnauthorized)
 	}
 
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
 		return "", oops.
 			In("auth").
-			Code(codes.AuthTokenInvalid).
+			Code(rest.CodeUnauthorized).
 			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    "EMPTY_TOKEN",
+				Type:    rest.PreconditionEmptyToken,
 				Subject: "authorization",
 				Detail:  "Bearer",
 			}).
-			New("empty bearer token")
+			Wrap(rest.CodeUnauthorized)
 	}
 
 	return token, nil

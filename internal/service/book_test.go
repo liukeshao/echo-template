@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/rest"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -62,7 +62,7 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 		Title:  "Duplicate",
 		Author: "Someone",
 	})
-	testutil.AssertOopsCode(t, err, codes.BookAlreadyExists)
+	testutil.AssertOopsCode(t, err, rest.CodeConflict)
 
 	// Invalid order_by returns *validator.FieldViolations with rule codes & metadata.
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "unknown_col"})
@@ -94,17 +94,17 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 
 	// Soft-deleted book is hidden from Get, Replace, and Delete.
 	_, err = bookSvc.Get(ctx, customID)
-	testutil.AssertOopsCode(t, err, codes.BookNotFound)
+	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
 
 	_, err = bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
 		Book:   customID,
 		Title:  "Ghost",
 		Author: "Ghost",
 	})
-	testutil.AssertOopsCode(t, err, codes.BookNotFound)
+	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
 
 	err = bookSvc.Delete(ctx, customID)
-	testutil.AssertOopsCode(t, err, codes.BookNotFound)
+	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
 
 	// Even a direct Ent UpdateOneID must refuse to modify a soft-deleted row.
 	err = env.ORM().Book.UpdateOneID(customID).SetTitle("Mutated").Exec(ctx)

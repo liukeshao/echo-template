@@ -12,9 +12,42 @@ import (
 // 其他 oops.With(...) 键仅用于服务端 slog 结构化日志，天然物理隔离。
 const MetaKey = "metadata"
 
-// Metadata 定义所有强类型错误元数据结构体实现的契约，零反射向 i18n 模板提供 {var} 插值变量。
+// DecodeInfo.Reason 常量。
+const (
+	DecodeReasonEmptyBody    = "empty_body"
+	DecodeReasonInvalidJSON  = "invalid_json"
+	DecodeReasonTrailingData = "trailing_data"
+)
+
+// MediaTypeInfo.Reason 常量。
+const (
+	PatchReasonInvalidOriginal = "invalid_original"
+	PatchReasonInvalidJSON     = "invalid_json"
+	PatchReasonMarshalFailed   = "marshal_failed"
+	PatchReasonSchemaMismatch  = "schema_mismatch"
+)
+
+// PreconditionInfo.Type 通用常量（各业务领域可按 UPPER_SNAKE_CASE 自行扩展）。
+const (
+	PreconditionInvalidCredentials = "INVALID_CREDENTIALS"
+	PreconditionMissingHeader      = "MISSING_HEADER"
+	PreconditionMalformedHeader    = "MALFORMED_HEADER"
+	PreconditionEmptyToken         = "EMPTY_TOKEN"
+	PreconditionTokenExpired       = "TOKEN_EXPIRED"
+	PreconditionTokenInvalid       = "TOKEN_INVALID"
+	PreconditionTokenRevoked       = "TOKEN_REVOKED"
+	PreconditionAccountDisabled    = "ACCOUNT_DISABLED"
+	PreconditionInvalidPassword    = "INVALID_PASSWORD"
+)
+
+// Metadata 定义所有强类型错误元数据结构体实现的契约：
+//   - I18nVars 提供零反射的 {var} 模板插值变量；
+//   - I18nSubkeys 提供按优先级排列的细化翻译子键（用于 details.<CODE>.<subkey> 分层回落查表）。
+//
+// 实现方必须使用值接收者（因 oops.Context() 会自动解引用指针）。
 type Metadata interface {
 	I18nVars() map[string]string
+	I18nSubkeys() []string
 }
 
 // ResourceInfo（对标 Google AIP-193 ResourceInfo）：描述不存在、冲突或受限的资源（404 / 409）。
@@ -33,6 +66,16 @@ func (m ResourceInfo) I18nVars() map[string]string {
 		vars["field"] = m.Field
 	}
 	return vars
+}
+
+func (m ResourceInfo) I18nSubkeys() []string {
+	if m.ResourceType != "" && m.Field != "" {
+		return []string{m.ResourceType + "." + m.Field, m.ResourceType, "resource"}
+	}
+	if m.ResourceType != "" {
+		return []string{m.ResourceType, "resource"}
+	}
+	return []string{"resource"}
 }
 
 // PreconditionInfo（对标 Google AIP-193 PreconditionFailure）：描述前置状态、凭证或策略不满足（400 / 401 / 403）。
@@ -55,6 +98,13 @@ func (m PreconditionInfo) I18nVars() map[string]string {
 	return vars
 }
 
+func (m PreconditionInfo) I18nSubkeys() []string {
+	if m.Type == "" {
+		return nil
+	}
+	return []string{m.Type}
+}
+
 // RetryInfo（对标 Google AIP-193 RetryInfo）：描述上游限流与建议退避重试信息（429）。
 type RetryInfo struct {
 	Service    string `json:"service"`
@@ -71,7 +121,14 @@ func (m RetryInfo) I18nVars() map[string]string {
 	return vars
 }
 
-// ValidationInfo 描述字段级校验失败汇总（400 VALIDATION_INVALID），具体字段错误位于 Problem.Errors。
+func (m RetryInfo) I18nSubkeys() []string {
+	if m.Service == "" {
+		return nil
+	}
+	return []string{m.Service}
+}
+
+// ValidationInfo 描述字段级校验失败汇总（400 BAD_REQUEST），具体字段错误位于 Problem.Errors。
 type ValidationInfo struct {
 	ErrorCount int `json:"error_count"`
 }
@@ -80,6 +137,10 @@ func (m ValidationInfo) I18nVars() map[string]string {
 	return map[string]string{
 		"error_count": strconv.Itoa(m.ErrorCount),
 	}
+}
+
+func (ValidationInfo) I18nSubkeys() []string {
+	return []string{"validation"}
 }
 
 // DecodeInfo 描述请求体 JSON 解码失败元信息（400 BAD_REQUEST）。
@@ -98,7 +159,11 @@ func (m DecodeInfo) I18nVars() map[string]string {
 	return vars
 }
 
-// MediaTypeInfo 描述 PATCH 文档非法或媒体类型不支持（400 PATCH_INVALID / 415 PATCH_UNSUPPORTED_MEDIA_TYPE）。
+func (DecodeInfo) I18nSubkeys() []string {
+	return []string{"decode"}
+}
+
+// MediaTypeInfo 描述 PATCH 文档非法或媒体类型不支持（400 BAD_REQUEST / 415 UNSUPPORTED_MEDIA_TYPE）。
 type MediaTypeInfo struct {
 	ContentType string   `json:"content_type"`
 	Supported   []string `json:"supported,omitempty"`
@@ -122,6 +187,10 @@ func (m MediaTypeInfo) I18nVars() map[string]string {
 	return vars
 }
 
+func (MediaTypeInfo) I18nSubkeys() []string {
+	return []string{"patch"}
+}
+
 // MethodInfo 描述路由不支持当前 HTTP 方法（405 METHOD_NOT_ALLOWED）。
 type MethodInfo struct {
 	Method  string   `json:"method"`
@@ -140,7 +209,9 @@ func (m MethodInfo) I18nVars() map[string]string {
 	return vars
 }
 
-// RequestLimitInfo 描述请求体超过最大字节数上限（413 REQUEST_ENTITY_TOO_LARGE）。
+func (MethodInfo) I18nSubkeys() []string { return nil }
+
+// RequestLimitInfo 描述请求体超过最大字节数上限（413 CONTENT_TOO_LARGE）。
 type RequestLimitInfo struct {
 	MaxBytes int64 `json:"max_bytes"`
 }
@@ -150,6 +221,8 @@ func (m RequestLimitInfo) I18nVars() map[string]string {
 		"max_bytes": strconv.FormatInt(m.MaxBytes, 10),
 	}
 }
+
+func (RequestLimitInfo) I18nSubkeys() []string { return nil }
 
 // DecodeMetadata 将 Problem.Metadata 解码为强类型结构体 T（同时兼容进程内直接赋值与 JSON 反序列化后的 map[string]any）。
 func DecodeMetadata[T any](p Problem) (T, error) {

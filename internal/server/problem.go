@@ -10,17 +10,15 @@ import (
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/pkg/logging"
 	"github.com/liukeshao/echo-template/pkg/rest"
-	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
 // NewProblemEncoder 返回应用级 RFC 9457 ErrorEncoder，按三段式流水线处理所有错误：
-//  1. Classify：纯提取 Status + Code + 强类型 Metadata + FieldErrors（不生成自然语言文案，不读取 oops.Public）
-//  2. Sanitize & Log：注入 RequestID；5xx 记录完整结构化错误链（含 oops stack/context/user）并清空对外 Metadata
-//  3. Unified Localize：唯一国际化出口，按请求 Locale 统一渲染 errors.<CODE> 与 validation.<CODE>
+//  1. Classify：优先识别请求上下文取消/超时，再提取 oops 的有限 rest.Code + 强类型 Metadata，其余委托 rest.Classify
+//  2. Sanitize & Log：注入 RequestID；5xx 记录 Error 日志并清空对外 Metadata/Errors，4xx 记录 Debug 日志
+//  3. Unified Localize：唯一国际化出口，按 details.<CODE>.<subkey> → errors.<CODE> 分层回落渲染并写入 Content-Language
 func NewProblemEncoder(tr i18n.Translator) rest.ErrorEncoder {
 	if tr == nil {
 		tr = noopTranslator{}
@@ -40,8 +38,8 @@ func (e *problemEncoder) Encode(w http.ResponseWriter, r *http.Request, err erro
 	ctx := r.Context()
 	loc := i18n.Locale(ctx, e.translator.Default())
 
-	// Stage 1: 纯分类与强类型 Metadata 提取
-	p := classifyError(err)
+	// Stage 1: 纯分类与强类型 Metadata 提取（零自然语言文案，不读取 oops.Public）
+	p := classifyError(ctx, err)
 
 	// Stage 2: 安全隔离与结构化日志
 	if p.RequestID == "" {
@@ -49,25 +47,28 @@ func (e *problemEncoder) Encode(w http.ResponseWriter, r *http.Request, err erro
 	}
 	if p.Status >= http.StatusInternalServerError {
 		p.Metadata = nil
+		p.Errors = nil
 		slog.ErrorContext(ctx, "unhandled error", "status", p.Status, "code", p.Code, "error", err)
+	} else {
+		slog.DebugContext(ctx, "client error", "status", p.Status, "code", p.Code, "error", err)
 	}
 
-	// Stage 3: 终端统一国际化
-	e.localizeProblem(&p, loc)
+	// Stage 3: 终端统一分层国际化，并同步 Content-Language 响应头
+	if used := e.localizeProblem(&p, loc); used != language.Und {
+		w.Header().Set("Content-Language", used.String())
+	}
 
 	rest.WriteProblem(w, r, p)
 }
 
-func classifyError(err error) rest.Problem {
-	if p, ok := errors.AsType[rest.Problem](err); ok {
-		return p
-	}
-	if p, ok := errors.AsType[*rest.Problem](err); ok && p != nil {
-		return *p
+func classifyError(ctx context.Context, err error) rest.Problem {
+	// 请求自身的取消/超时优先归类为 499/504，防止 DB/下游操作中途因客户端断开被误报 500 告警。
+	if ctxErr := ctx.Err(); ctxErr != nil && errors.Is(err, ctxErr) {
+		return rest.Classify(ctxErr)
 	}
 	if oopsErr, ok := oops.AsOops(err); ok {
-		if code, ok := codes.FromAny(oopsErr.Code()); ok {
-			status := codes.HTTPStatus(code)
+		if code, ok := rest.CodeFromAny(oopsErr.Code()); ok {
+			status := code.HTTPStatus()
 			var meta rest.Metadata
 			if status < http.StatusInternalServerError {
 				if m, ok := oopsErr.Context()[rest.MetaKey].(rest.Metadata); ok {
@@ -76,59 +77,36 @@ func classifyError(err error) rest.Problem {
 			}
 			return rest.Problem{
 				Status:   status,
-				Code:     code.String(),
+				Code:     code,
 				Metadata: meta,
 			}
 		}
 	}
-	if fv, ok := errors.AsType[*validator.FieldViolations](err); ok && fv != nil {
-		viols := fv.Items()
-		fieldErrs := make([]rest.FieldError, 0, len(viols))
-		for _, it := range viols {
-			fieldErrs = append(fieldErrs, rest.FieldError{
-				Field:    it.Field,
-				Code:     it.Code,
-				Metadata: it.Metadata,
-			})
-		}
-		return rest.Problem{
-			Status:   codes.HTTPStatus(codes.ValidationInvalid),
-			Code:     codes.ValidationInvalid.String(),
-			Metadata: rest.ValidationInfo{ErrorCount: len(viols)},
-			Errors:   fieldErrs,
-		}
-	}
-	if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxErr != nil {
-		return rest.Problem{
-			Status:   http.StatusRequestEntityTooLarge,
-			Code:     rest.CodeRequestEntityTooLarge,
-			Metadata: rest.RequestLimitInfo{MaxBytes: maxErr.Limit},
-		}
-	}
-	if errors.Is(err, context.DeadlineExceeded) {
-		return rest.Problem{
-			Status: http.StatusGatewayTimeout,
-			Code:   rest.CodeGatewayTimeout,
-		}
-	}
-	if errors.Is(err, context.Canceled) {
-		return rest.Problem{
-			Status: rest.StatusClientClosedRequest,
-			Title:  "Client Closed Request",
-			Code:   rest.CodeClientClosedRequest,
-		}
-	}
-	return rest.Problem{
-		Status: http.StatusInternalServerError,
-		Code:   rest.CodeInternalError,
-	}
+	return rest.Classify(err)
 }
 
-func (e *problemEncoder) localizeProblem(p *rest.Problem, loc language.Tag) {
+func (e *problemEncoder) localizeProblem(p *rest.Problem, loc language.Tag) language.Tag {
+	used := language.Und
 	if p.Code != "" {
-		vars := metadataI18nVars(p.Metadata)
-		if msg, _, ok := e.translator.T(loc, "errors."+p.Code, vars); ok {
+		vars, subkeys := metadataI18n(p.Metadata)
+		for _, sub := range subkeys {
+			if msg, lang, ok := e.translator.T(loc, "details."+p.Code.String()+"."+sub, vars); ok {
+				p.Detail = msg
+				used = lang
+				break
+			}
+		}
+		if p.Detail == "" {
+			if msg, lang, ok := e.translator.T(loc, "errors."+p.Code.String(), vars); ok {
+				p.Detail = msg
+				used = lang
+			}
+		}
+	}
+	if p.Detail == "" && p.Status >= http.StatusInternalServerError {
+		if msg, lang, ok := e.translator.T(loc, "errors."+rest.CodeInternal.String(), nil); ok {
 			p.Detail = msg
+			used = lang
 		}
 	}
 	if p.Detail == "" {
@@ -141,22 +119,26 @@ func (e *problemEncoder) localizeProblem(p *rest.Problem, loc language.Tag) {
 			continue
 		}
 		vars := withFieldVar(fe.Field, fe.Metadata)
-		if msg, _, ok := e.translator.T(loc, "validation."+fe.Code, vars); ok {
+		if msg, lang, ok := e.translator.T(loc, "validation."+fe.Code, vars); ok {
 			fe.Message = msg
+			if used == language.Und {
+				used = lang
+			}
 		} else if fe.Message == "" {
 			fe.Message = fe.Code
 		}
 	}
+	return used
 }
 
-func metadataI18nVars(meta any) map[string]string {
+func metadataI18n(meta any) (map[string]string, []string) {
 	switch m := meta.(type) {
 	case rest.Metadata:
-		return m.I18nVars()
+		return m.I18nVars(), m.I18nSubkeys()
 	case map[string]string:
-		return m
+		return m, nil
 	default:
-		return nil
+		return nil, nil
 	}
 }
 

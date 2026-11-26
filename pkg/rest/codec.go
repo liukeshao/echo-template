@@ -12,6 +12,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
@@ -33,7 +34,7 @@ func DecodeJSON(r *http.Request, dst any) error {
 		return Problem{
 			Status:   http.StatusBadRequest,
 			Code:     CodeBadRequest,
-			Metadata: DecodeInfo{Reason: "empty_body"},
+			Metadata: DecodeInfo{Reason: DecodeReasonEmptyBody},
 		}
 	}
 
@@ -55,7 +56,7 @@ func DecodeJSON(r *http.Request, dst any) error {
 				Status: http.StatusBadRequest,
 				Code:   CodeBadRequest,
 				Metadata: DecodeInfo{
-					Reason: "invalid_json",
+					Reason: DecodeReasonInvalidJSON,
 					Offset: synErr.Offset,
 				},
 			}
@@ -63,14 +64,14 @@ func DecodeJSON(r *http.Request, dst any) error {
 		return Problem{
 			Status:   http.StatusBadRequest,
 			Code:     CodeBadRequest,
-			Metadata: DecodeInfo{Reason: "invalid_json"},
+			Metadata: DecodeInfo{Reason: DecodeReasonInvalidJSON},
 		}
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
 		return Problem{
 			Status:   http.StatusBadRequest,
 			Code:     CodeBadRequest,
-			Metadata: DecodeInfo{Reason: "trailing_data"},
+			Metadata: DecodeInfo{Reason: DecodeReasonTrailingData},
 		}
 	}
 	return nil
@@ -83,6 +84,9 @@ func jsonValueKind(t reflect.Type) string {
 	}
 	if t == nil {
 		return "value"
+	}
+	if t == reflect.TypeFor[time.Time]() {
+		return "string"
 	}
 	switch t.Kind() {
 	case reflect.Bool:

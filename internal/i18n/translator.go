@@ -41,7 +41,7 @@ type translator struct {
 // NewTranslator 从 DI 容器构造 Translator：
 //   - 读取 I18n 配置确定默认 locale 与已支持 locale 列表。
 //   - 从 embed.FS 加载 messages/*.toml 到内存。
-//   - 校验所有 internal/codes 中注册的 Code 在默认 locale 都有对应翻译（fail-fast）。
+//   - 校验所有 pkg/rest.AllCodes() 与 pkg/validator.RegisteredRules() 在默认 locale 都有对应翻译（fail-fast）。
 func NewTranslator(i do.Injector) (Translator, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	return newTranslator(cfg.I18n)

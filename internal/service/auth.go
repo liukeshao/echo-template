@@ -15,7 +15,6 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
 	userEnt "github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/rest"
@@ -55,62 +54,67 @@ func NewAuth(i do.Injector) (*Auth, error) {
 	}, nil
 }
 
-// --- 错误构造辅助函数（零 Public，全部使用原生 oops + AIP-193 Metadata） ---
+// --- 错误构造辅助函数（有限 rest.Code 哨兵 + 原生 oops + AIP-193 Metadata） ---
 
 func authInternal(err error, op string) error {
 	return errAuth.
-		Tags("auth").
-		Code(codes.AuthInternalError).
-		Wrapf(err, "%s", op)
+		Code(rest.CodeInternal).
+		With("op", op).
+		Join(rest.CodeInternal, err)
 }
 
-func authTokenInvalid(reason string, cause error) error {
-	b := errAuth.
-		Code(codes.AuthTokenInvalid).
-		With(rest.MetaKey, rest.PreconditionInfo{
-			Type:    reason,
-			Subject: "authorization",
-			Detail:  "Bearer",
-		})
-	if cause != nil {
-		return b.Wrapf(cause, "invalid token: %s", reason)
+func authTokenInvalid(tokenType token.Type, reason string, cause error) error {
+	info := rest.PreconditionInfo{
+		Type:    reason,
+		Subject: "refresh_token",
 	}
-	return b.Errorf("invalid token: %s", reason)
+	if tokenType == token.TypeAccess {
+		info.Subject = "authorization"
+		info.Detail = "Bearer"
+	}
+	b := errAuth.
+		Code(rest.CodeUnauthorized).
+		With(rest.MetaKey, info)
+	if cause != nil {
+		return b.Join(rest.CodeUnauthorized, cause)
+	}
+	return b.Wrap(rest.CodeUnauthorized)
 }
 
-// authInvalidCredentials 故意不携带任何 Metadata，防止邮箱/账户枚举攻击。
+// authInvalidCredentials 故意不区分"邮箱不存在"与"密码错误"，防止账户枚举攻击。
 func authInvalidCredentials() error {
 	return errAuth.
-		Code(codes.AuthInvalidCredentials).
-		New("invalid credentials")
+		Code(rest.CodeUnauthorized).
+		With(rest.MetaKey, rest.PreconditionInfo{
+			Type: rest.PreconditionInvalidCredentials,
+		}).
+		Wrap(rest.CodeUnauthorized)
 }
 
 func authEmailTaken(email string) error {
 	return errAuth.
-		Code(codes.AuthEmailTaken).
+		Code(rest.CodeConflict).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "user",
 			ResourceName: email,
 			Field:        "email",
 		}).
-		New("email taken")
+		Wrap(rest.CodeConflict)
 }
 
 func authUsernameTaken(username string) error {
 	return errAuth.
-		Code(codes.AuthUsernameTaken).
+		Code(rest.CodeConflict).
 		With(rest.MetaKey, rest.ResourceInfo{
 			ResourceType: "user",
 			ResourceName: username,
 			Field:        "username",
 		}).
-		New("username taken")
+		Wrap(rest.CodeConflict)
 }
 
 // --- 私有方法 ---
 
-// parseJWTOfType 解析并验证 JWT 签名、算法、发行者及内置时效（exp/iat/nbf 由库负责），
-// 并确认自定义 TokenType claim 与 expectedType 一致。
 func (s *Auth) parseJWTOfType(ctx context.Context, tokenString string, expectedType token.Type) (*jwtClaims, error) {
 	opts := []jwt.ParserOption{
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
@@ -124,22 +128,21 @@ func (s *Auth) parseJWTOfType(ctx context.Context, tokenString string, expectedT
 	}, opts...)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, authTokenInvalid("TOKEN_EXPIRED", err)
+			return nil, authTokenInvalid(expectedType, rest.PreconditionTokenExpired, err)
 		}
-		return nil, authTokenInvalid("TOKEN_INVALID", err)
+		return nil, authTokenInvalid(expectedType, rest.PreconditionTokenInvalid, err)
 	}
 	claims, ok := t.Claims.(*jwtClaims)
 	if !ok || !t.Valid {
-		return nil, authTokenInvalid("TOKEN_INVALID", nil)
+		return nil, authTokenInvalid(expectedType, rest.PreconditionTokenInvalid, nil)
 	}
 	if token.Type(claims.TokenType) != expectedType {
 		slog.WarnContext(ctx, "token type mismatch", "expected", expectedType, "actual", claims.TokenType)
-		return nil, authTokenInvalid("TOKEN_INVALID", nil)
+		return nil, authTokenInvalid(expectedType, rest.PreconditionTokenInvalid, nil)
 	}
 	return claims, nil
 }
 
-// generateToken 生成 JWT token（携带唯一 jti，避免同一秒内重复签发触发数据库唯一约束冲突）。
 func (s *Auth) generateToken(userID string, tokenType token.Type) (string, time.Time, error) {
 	var expiry time.Duration
 	switch tokenType {
@@ -157,14 +160,12 @@ func (s *Auth) generateToken(userID string, tokenType token.Type) (string, time.
 	claims := &jwtClaims{
 		UserID:    userID,
 		TokenType: string(tokenType),
-		RegisteredClaims: jwt.RegisteredClaims{
-			ID:        uuid.NewV7().String(),
-			ExpiresAt: jwt.NewNumericDate(expirationTime),
-			IssuedAt:  jwt.NewNumericDate(now),
-			NotBefore: jwt.NewNumericDate(now),
-			Issuer:    s.jwtConfig.Issuer,
-			Subject:   userID,
-		},
+		ID:        uuid.NewV7().String(),
+		ExpiresAt: jwt.NewNumericDate(expirationTime),
+		IssuedAt:  jwt.NewNumericDate(now),
+		NotBefore: jwt.NewNumericDate(now),
+		Issuer:    s.jwtConfig.Issuer,
+		Subject:   userID,
 	}
 
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -176,24 +177,21 @@ func (s *Auth) generateToken(userID string, tokenType token.Type) (string, time.
 	return tokenString, expirationTime, nil
 }
 
-// validateUser 验证用户是否处于活跃状态。
 func (s *Auth) validateUser(user *ent.User) error {
 	if user.Status != userEnt.StatusActive {
 		return errAuth.
-			Code(codes.AuthAccountDisabled).
+			Code(rest.CodeForbidden).
 			User(user.ID).
 			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    "ACCOUNT_STATUS",
+				Type:    rest.PreconditionAccountDisabled,
 				Subject: "account",
 				Detail:  string(user.Status),
 			}).
-			New("account disabled")
+			Wrap(rest.CodeForbidden)
 	}
 	return nil
 }
 
-// findUserByEmail 根据邮箱查找用户。
-// 邮箱不存在时与密码错误返回相同错误，防止用户枚举攻击。
 func (s *Auth) findUserByEmail(ctx context.Context, email string) (*ent.User, error) {
 	user, err := s.orm.User.Query().
 		Where(userEnt.Email(email)).
@@ -209,7 +207,6 @@ func (s *Auth) findUserByEmail(ctx context.Context, email string) (*ent.User, er
 	}
 }
 
-// saveTokenToDatabase 在事务中持久化 token。
 func (s *Auth) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userID string, tokenString string, tokenType token.Type, expiresAt time.Time) error {
 	_, err := tx.Token.Create().
 		SetID(uuid.NewV7().String()).
@@ -225,7 +222,6 @@ func (s *Auth) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userID strin
 	return nil
 }
 
-// issueTokenPairTx 在已有事务中签发并持久化 access + refresh token 对。
 func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*TokenPair, error) {
 	accessToken, accessExpiry, err := s.generateToken(userID, token.TypeAccess)
 	if err != nil {
@@ -407,7 +403,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 		return nil, authInternal(err, "revoking old refresh token")
 	}
 	if revoked == 0 {
-		return nil, authTokenInvalid("TOKEN_REVOKED", nil)
+		return nil, authTokenInvalid(token.TypeRefresh, rest.PreconditionTokenRevoked, nil)
 	}
 
 	user, err := tx.User.Query().
@@ -415,7 +411,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 		Only(ctx)
 	if err != nil {
 		if ent.IsNotFound(err) {
-			return nil, authTokenInvalid("TOKEN_INVALID", err)
+			return nil, authTokenInvalid(token.TypeRefresh, rest.PreconditionTokenInvalid, err)
 		}
 		return nil, authInternal(err, "querying user for refresh")
 	}
@@ -470,7 +466,7 @@ func (s *Auth) AuthenticateUser(ctx context.Context, tokenString string) (*ent.U
 	switch {
 	case err == nil:
 	case ent.IsNotFound(err):
-		return nil, authTokenInvalid("TOKEN_REVOKED", err)
+		return nil, authTokenInvalid(token.TypeAccess, rest.PreconditionTokenRevoked, err)
 	default:
 		return nil, authInternal(err, "authenticating user")
 	}

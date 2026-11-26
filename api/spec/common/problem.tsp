@@ -3,6 +3,23 @@ using TypeSpec.Http;
 
 namespace EchoTemplate;
 
+@doc("Finite canonical HTTP error codes (analogous to gRPC status codes).")
+enum ErrorCode {
+  BAD_REQUEST,
+  UNAUTHORIZED,
+  FORBIDDEN,
+  NOT_FOUND,
+  METHOD_NOT_ALLOWED,
+  CONFLICT,
+  CONTENT_TOO_LARGE,
+  UNSUPPORTED_MEDIA_TYPE,
+  TOO_MANY_REQUESTS,
+  CLIENT_CLOSED_REQUEST,
+  INTERNAL_ERROR,
+  SERVICE_UNAVAILABLE,
+  GATEWAY_TIMEOUT,
+}
+
 model FieldError {
   field: string;
   code: string;
@@ -56,7 +73,7 @@ model MethodInfo {
   allowed?: string[];
 }
 
-@doc("Metadata for HTTP 413 Request Entity Too Large responses.")
+@doc("Metadata for HTTP 413 Content Too Large responses.")
 model RequestLimitInfo {
   max_bytes: int64;
 }
@@ -81,7 +98,7 @@ model Problem {
   status: int32;
   detail: string;
   instance?: string;
-  code: string;
+  code: ErrorCode;
   request_id?: string;
   metadata?: ErrorMetadata;
   errors?: FieldError[];

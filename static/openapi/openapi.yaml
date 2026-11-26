@@ -668,6 +668,23 @@ components:
       type: string
       format: email
       description: RFC 5322 email address
+    ErrorCode:
+      type: string
+      enum:
+        - BAD_REQUEST
+        - UNAUTHORIZED
+        - FORBIDDEN
+        - NOT_FOUND
+        - METHOD_NOT_ALLOWED
+        - CONFLICT
+        - CONTENT_TOO_LARGE
+        - UNSUPPORTED_MEDIA_TYPE
+        - TOO_MANY_REQUESTS
+        - CLIENT_CLOSED_REQUEST
+        - INTERNAL_ERROR
+        - SERVICE_UNAVAILABLE
+        - GATEWAY_TIMEOUT
+      description: Finite canonical HTTP error codes (analogous to gRPC status codes).
     FieldError:
       type: object
       required:
@@ -802,7 +819,7 @@ components:
         instance:
           type: string
         code:
-          type: string
+          $ref: '#/components/schemas/ErrorCode'
         request_id:
           type: string
         metadata:
@@ -885,7 +902,7 @@ components:
         max_bytes:
           type: integer
           format: int64
-      description: Metadata for HTTP 413 Request Entity Too Large responses.
+      description: Metadata for HTTP 413 Content Too Large responses.
     ResourceInfo:
       type: object
       required:

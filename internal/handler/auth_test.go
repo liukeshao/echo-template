@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/rest"
@@ -39,7 +38,7 @@ func TestAuthHandler_HTTPMethods(t *testing.T) {
 	rec = env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testutil.WithBody("application/json", `{"email":123,"password":"x"}`),
 	)
-	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, codes.ValidationInvalid.String())
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "email", p.Errors[0].Field)
 	assert.Equal(t, "invalid_type", p.Errors[0].Code)

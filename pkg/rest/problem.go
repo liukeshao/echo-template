@@ -16,32 +16,15 @@ import (
 // ContentTypeProblemJSON 是 RFC 9457 Problem Details 的标准媒体类型。
 const ContentTypeProblemJSON = "application/problem+json"
 
-// HTTP 传输层与协议通用错误码常量。
-const (
-	CodeBadRequest                = "BAD_REQUEST"
-	CodeNotFound                  = "NOT_FOUND"
-	CodeMethodNotAllowed          = "METHOD_NOT_ALLOWED"
-	CodeRequestEntityTooLarge     = "REQUEST_ENTITY_TOO_LARGE"
-	CodeGatewayTimeout            = "GATEWAY_TIMEOUT"
-	CodeClientClosedRequest       = "CLIENT_CLOSED_REQUEST"
-	CodeInternalError             = "INTERNAL_ERROR"
-	CodeValidationInvalid         = "VALIDATION_INVALID"
-	CodePatchInvalid              = "PATCH_INVALID"
-	CodePatchUnsupportedMediaType = "PATCH_UNSUPPORTED_MEDIA_TYPE"
-)
-
-// StatusClientClosedRequest 是客户端提前断开连接时使用的非标准 HTTP 状态码（499）。
-const StatusClientClosedRequest = 499
-
 // Problem 遵循 RFC 9457 (Problem Details for HTTP APIs) 的扁平、强类型 HTTP 错误响应，
-// 结合 AIP-193 风格结构化 Metadata 与字段级 FieldError。
+// 结合有限标准 HTTP 错误码（Code）、AIP-193 风格结构化 Metadata 与字段级 FieldError。
 type Problem struct {
 	Type      string       `json:"type"`
 	Title     string       `json:"title"`
 	Status    int          `json:"status"`
 	Detail    string       `json:"detail"`
 	Instance  string       `json:"instance,omitempty"`
-	Code      string       `json:"code"`
+	Code      Code         `json:"code"`
 	RequestID string       `json:"request_id,omitempty"`
 	Metadata  any          `json:"metadata,omitempty"`
 	Errors    []FieldError `json:"errors,omitempty"`
@@ -64,17 +47,25 @@ type FieldError struct {
 }
 
 // ErrorEncoder 将任意 error 渲染为 HTTP 错误响应（通常为 RFC 9457 application/problem+json）。
-// 应用层可注入自定义 ErrorEncoder 以接入业务错误码注册表、统一 i18n 与链路追踪 ID。
+// 应用层可注入自定义 ErrorEncoder 以接入 oops 诊断链、统一 i18n 与链路追踪 ID。
 type ErrorEncoder func(w http.ResponseWriter, r *http.Request, err error)
 
-// WriteProblem 补全 Problem 缺省字段并写出 RFC 9457 (application/problem+json) 响应。
+// WriteProblem 补全 Problem 缺省字段、同步标准协议响应头（如 Retry-After）并写出 RFC 9457 响应。
 func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 	if p.Status == 0 {
-		p.Status = http.StatusInternalServerError
+		if p.Code != "" {
+			p.Status = p.Code.HTTPStatus()
+		} else {
+			p.Status = http.StatusInternalServerError
+		}
 	}
 	if p.Status >= http.StatusInternalServerError {
-		// 纵深防御：5xx 错误绝不对外输出任何元数据。
+		// 纵深防御：5xx 错误绝不对外输出任何元数据或字段明细。
 		p.Metadata = nil
+		p.Errors = nil
+	}
+	if ri, ok := p.Metadata.(RetryInfo); ok && ri.RetryAfter != "" && w.Header().Get("Retry-After") == "" {
+		w.Header().Set("Retry-After", ri.RetryAfter)
 	}
 	if p.Type == "" {
 		p.Type = "about:blank"
@@ -91,7 +82,11 @@ func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 
 	body, err := json.Marshal(p)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "failed to marshal problem", "error", err)
+		ctx := context.Background()
+		if r != nil {
+			ctx = r.Context()
+		}
+		slog.ErrorContext(ctx, "failed to marshal problem", "error", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -100,21 +95,9 @@ func WriteProblem(w http.ResponseWriter, r *http.Request, p Problem) {
 	_, _ = w.Write(body)
 }
 
-// DefaultErrorEncoder 是不依赖外部业务错误库或 i18n 的默认 RFC 9457 编码器，
-// 仅输出标准 HTTP 短标题与结构化 Metadata，适合独立单测或轻量服务零配置运行。
-func DefaultErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
-	if err == nil {
-		return
-	}
-
-	p := classifyDefaultError(err)
-	if p.Status >= http.StatusInternalServerError {
-		slog.ErrorContext(r.Context(), "unhandled error", "status", p.Status, "code", p.Code, "error", err)
-	}
-	WriteProblem(w, r, p)
-}
-
-func classifyDefaultError(err error) Problem {
+// Classify 将标准库与传输协议层错误归一为原始 Problem（仅含 Status、Code、Metadata、Errors，不含自然语言文案）。
+// 供 DefaultErrorEncoder 与应用层自定义 ErrorEncoder（如 server.NewProblemEncoder）共同复用，消除重复分类逻辑。
+func Classify(err error) Problem {
 	if p, ok := errors.AsType[Problem](err); ok {
 		return p
 	}
@@ -128,41 +111,65 @@ func classifyDefaultError(err error) Problem {
 			fieldErrs = append(fieldErrs, FieldError{
 				Field:    it.Field,
 				Code:     it.Code,
-				Message:  it.Code,
 				Metadata: it.Metadata,
 			})
 		}
 		return Problem{
-			Status:   http.StatusBadRequest,
-			Code:     CodeValidationInvalid,
+			Status:   CodeBadRequest.HTTPStatus(),
+			Code:     CodeBadRequest,
 			Metadata: ValidationInfo{ErrorCount: len(viols)},
 			Errors:   fieldErrs,
 		}
 	}
 	if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok && maxErr != nil {
 		return Problem{
-			Status:   http.StatusRequestEntityTooLarge,
-			Code:     CodeRequestEntityTooLarge,
+			Status:   CodeContentTooLarge.HTTPStatus(),
+			Code:     CodeContentTooLarge,
 			Metadata: RequestLimitInfo{MaxBytes: maxErr.Limit},
 		}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
 		return Problem{
-			Status: http.StatusGatewayTimeout,
+			Status: CodeGatewayTimeout.HTTPStatus(),
 			Code:   CodeGatewayTimeout,
 		}
 	}
 	if errors.Is(err, context.Canceled) {
 		return Problem{
-			Status: StatusClientClosedRequest,
+			Status: CodeClientClosedRequest.HTTPStatus(),
 			Title:  "Client Closed Request",
 			Code:   CodeClientClosedRequest,
 		}
 	}
-	return Problem{
-		Status: http.StatusInternalServerError,
-		Code:   CodeInternalError,
+	if c, ok := errors.AsType[Code](err); ok && c != "" {
+		return Problem{
+			Status: c.HTTPStatus(),
+			Code:   c,
+		}
 	}
+	return Problem{
+		Status: CodeInternal.HTTPStatus(),
+		Code:   CodeInternal,
+	}
+}
+
+// DefaultErrorEncoder 是不依赖外部业务错误库或 i18n 的默认 RFC 9457 编码器，
+// 适合独立单测或轻量服务零配置运行。
+func DefaultErrorEncoder(w http.ResponseWriter, r *http.Request, err error) {
+	if err == nil {
+		return
+	}
+
+	p := Classify(err)
+	for i := range p.Errors {
+		if p.Errors[i].Message == "" {
+			p.Errors[i].Message = p.Errors[i].Code
+		}
+	}
+	if p.Status >= http.StatusInternalServerError {
+		slog.ErrorContext(r.Context(), "unhandled error", "status", p.Status, "code", p.Code, "error", err)
+	}
+	WriteProblem(w, r, p)
 }
 
 // StatusTitle 返回 HTTP 状态码对应的标准短标题（兼容 499 Client Closed Request）。

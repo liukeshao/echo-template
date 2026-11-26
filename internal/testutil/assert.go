@@ -9,17 +9,21 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/codes"
 	"github.com/liukeshao/echo-template/pkg/rest"
 )
 
-// AssertOopsCode 断言 err 包含指定的业务错误码（oops.OopsError），并返回提取出的 OopsError 供进一步校验。
-func AssertOopsCode(t testing.TB, err error, want codes.Code) oops.OopsError {
+// AssertOopsCode 断言 err 同时满足：
+//   - errors.Is(err, want) 哨兵匹配；
+//   - 为 oops.OopsError 且 Code() 等于 want；
+//
+// 并返回提取出的 OopsError 供调用方进一步校验 Metadata / Context。
+func AssertOopsCode(t testing.TB, err error, want rest.Code) oops.OopsError {
 	t.Helper()
 	require.Error(t, err)
+	assert.ErrorIs(t, err, want, "expected error chain to match sentinel %s", want)
 	oe, ok := oops.AsOops(err)
 	require.True(t, ok, "expected oops error, got %T: %v", err, err)
-	got, ok := codes.FromAny(oe.Code())
+	got, ok := rest.CodeFromAny(oe.Code())
 	require.True(t, ok, "expected oops error code, got %v", oe.Code())
 	assert.Equal(t, want, got)
 	return oe
@@ -35,7 +39,7 @@ func DecodeJSON[T any](t testing.TB, rec *httptest.ResponseRecorder) T {
 
 // AssertProblem 断言响应符合 RFC 9457 Problem Details 格式（application/problem+json），
 // 并返回解析后的 rest.Problem 供调用方进一步断言。
-func AssertProblem(t testing.TB, rec *httptest.ResponseRecorder, wantStatus int, wantCode string) rest.Problem {
+func AssertProblem(t testing.TB, rec *httptest.ResponseRecorder, wantStatus int, wantCode rest.Code) rest.Problem {
 	t.Helper()
 	assert.Equal(t, wantStatus, rec.Code, "body: %s", rec.Body.String())
 	assert.Contains(t, rec.Header().Get("Content-Type"), rest.ContentTypeProblemJSON)
