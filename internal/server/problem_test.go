@@ -27,7 +27,8 @@ func TestProblemEncoder_AllClassificationPaths(t *testing.T) {
 	tr := do.MustInvoke[i18n.Translator](env.Injector)
 	encodeErr := server.NewProblemEncoder(tr)
 
-	router := httpkit.NewRouter(httpkit.WithRouterErrorEncoder(encodeErr))
+	router := httpkit.NewRouter()
+	router.SetErrorEncoder(encodeErr)
 	router.Use(
 		httpkit.RequestID(),
 		server.Locale(tr),
@@ -50,7 +51,7 @@ func TestProblemEncoder_AllClassificationPaths(t *testing.T) {
 			Status: http.StatusBadRequest,
 			Metadata: httperr.PatchInfo{
 				ContentType: httpkit.ContentTypeMergePatch,
-				Reason:      httperr.PatchReasonInvalidJSON,
+				Reason:      httperr.PatchInvalidJSON,
 			},
 		})
 	})
@@ -168,7 +169,7 @@ func TestProblemEncoder_AllClassificationPaths(t *testing.T) {
 	assert.Contains(t, p.Detail, "PATCH 主体")
 	assert.Contains(t, p.Detail, httpkit.ContentTypeMergePatch)
 	mt := testutil.DecodeProblemMeta[httperr.PatchInfo](t, p)
-	assert.Equal(t, httperr.PatchReasonInvalidJSON, mt.Reason)
+	assert.Equal(t, httperr.PatchInvalidJSON, mt.Reason)
 
 	// 1c. Pre-filled Problem.Detail does not bypass terminal i18n
 	rec = call(http.MethodGet, "/test/problem-prefilled", "zh-CN")

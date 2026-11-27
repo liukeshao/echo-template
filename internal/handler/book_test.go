@@ -32,7 +32,7 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	)
 	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest)
 	mt := testutil.DecodeProblemMeta[httperr.PatchInfo](t, p)
-	assert.Equal(t, httperr.PatchReasonSchemaMismatch, mt.Reason)
+	assert.Equal(t, httperr.PatchSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
 	// Unsupported PATCH Content-Type -> 415 with PatchInfo.

@@ -14,17 +14,13 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
 
-// Client is the concrete implementation of [API].
-// Obtain it via the DI container; do not construct it manually.
+// Client 是 API 接口的具体实现，由 DI 容器构造并注入共享连接池与独立超时/重试配置。
 type Client struct {
 	cfg  config.ExternalClient
 	http *httpclient.Client
 }
 
-// NewClient constructs Client from the DI container.
-// It wires:
-//   - config.Config.Clients.Weather for baseURL / apiKey / timeout / retry
-//   - *httpclient.Client via WithOptions (shared connection pool + per-API timeout & retry)
+// NewClient 从 DI 容器装配天气 API 客户端。
 func NewClient(i do.Injector) (*Client, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	shared := do.MustInvoke[*httpclient.Client](i)
@@ -41,8 +37,6 @@ func NewClient(i do.Injector) (*Client, error) {
 	}, nil
 }
 
-// currentWeatherResponse is the raw JSON shape returned by the external API.
-// Adjust field names to match the real API contract.
 type currentWeatherResponse struct {
 	City        string  `json:"city"`
 	Description string  `json:"description"`
@@ -50,9 +44,7 @@ type currentWeatherResponse struct {
 	Humidity    int     `json:"humidity"`
 }
 
-// GetCurrent implements [API].
-// Transient failures (network errors, 429, 502/503/504) are retried automatically
-// by the underlying httpclient transport up to cfg.Retry additional times.
+// GetCurrent 实现 API；瞬态网络错误与 HTTP 429/502/503/504 由底层 httpclient 自动按配置重试。
 func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, error) {
 	const op = "GetCurrent"
 
@@ -67,19 +59,16 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		// If the caller's own context was cancelled or timed out, propagate it directly
-		// (as 499 / 504) without misclassifying as upstream 503.
+		// 调用方自身 context 已取消/超时时直接透传（出口归类为 499/504），不误判为上游 503。
 		if ctxErr := ctx.Err(); ctxErr != nil {
 			return nil, ctxErr
 		}
-		// Covers upstream network errors and per-client HTTP timeouts.
 		return nil, weatherUnavailable(err, op)
 	}
 	defer httpclient.DrainAndClose(resp.Body)
 
 	switch resp.StatusCode {
 	case http.StatusOK:
-		// happy path — decode below
 	case http.StatusTooManyRequests:
 		return nil, weatherRateLimited(op, strings.TrimSpace(resp.Header.Get("Retry-After")))
 	case http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout:
@@ -105,5 +94,4 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 	}, nil
 }
 
-// compile-time check that *Client implements API.
 var _ API = (*Client)(nil)

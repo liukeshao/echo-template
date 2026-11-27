@@ -16,14 +16,13 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// DB wraps *sql.DB and implements do.Shutdowner so the DI container
-// can close the connection during graceful shutdown.
+// DB 封装 *sql.DB 并实现 do.Shutdowner，由 DI 容器在优雅停机阶段关闭连接池。
 type DB struct{ *sql.DB }
 
-// Shutdown closes the underlying database connection pool.
+// Shutdown 关闭底层数据库连接池。
 func (d *DB) Shutdown() error { return d.DB.Close() }
 
-// NewDB opens and verifies the SQL connection pool using config from the injector.
+// NewDB 从 DI 容器读取数据库配置，打开并探活 SQL 连接池。
 func NewDB(i do.Injector) (*DB, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	raw, err := openDB(cfg.Database.Driver, cfg.Database.Connection)
@@ -31,8 +30,7 @@ func NewDB(i do.Injector) (*DB, error) {
 		return nil, err
 	}
 
-	// SQLite only supports a single concurrent writer; limiting the pool avoids
-	// SQLITE_BUSY contention under concurrent requests.
+	// SQLite 仅支持单写并发，限制最大打开连接数为 1 以避免高并发下的 SQLITE_BUSY 锁冲突。
 	if isSQLiteDriver(cfg.Database.Driver) {
 		raw.SetMaxOpenConns(1)
 	}

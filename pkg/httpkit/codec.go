@@ -34,7 +34,7 @@ func DecodeJSON(r *http.Request, dst any) error {
 	if len(bytes.TrimSpace(body)) == 0 {
 		return httperr.Problem{
 			Status:   http.StatusBadRequest,
-			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeReasonEmptyBody},
+			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeEmptyBody},
 		}
 	}
 
@@ -53,20 +53,20 @@ func DecodeJSON(r *http.Request, dst any) error {
 			return httperr.Problem{
 				Status: http.StatusBadRequest,
 				Metadata: httperr.DecodeInfo{
-					Reason: httperr.DecodeReasonInvalidJSON,
+					Reason: httperr.DecodeInvalidJSON,
 					Offset: synErr.Offset,
 				},
 			}
 		}
 		return httperr.Problem{
 			Status:   http.StatusBadRequest,
-			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeReasonInvalidJSON},
+			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeInvalidJSON},
 		}
 	}
 	if err := dec.Decode(&struct{}{}); err != io.EOF {
 		return httperr.Problem{
 			Status:   http.StatusBadRequest,
-			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeReasonTrailingData},
+			Metadata: httperr.DecodeInfo{Reason: httperr.DecodeTrailingData},
 		}
 	}
 	return nil

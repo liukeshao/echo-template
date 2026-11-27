@@ -14,22 +14,17 @@ import (
 	_ "github.com/liukeshao/echo-template/ent/runtime"
 )
 
-// schemaCreateMu serializes Ent's Schema.Create calls because Ent's generated
-// ent/migrate.Tables slice is package-global and mutated in place during schema
-// setup. Serializing it has no runtime impact in production (runs once at
-// startup) and keeps parallel tests with isolated in-memory databases race-free.
+// schemaCreateMu 串行化 Ent Schema.Create：Ent 生成的 ent/migrate.Tables 是包级全局变量，
+// 建表期间会原地修改，串行化可确保并发测试（独立内存库）下零数据竞态。
 var schemaCreateMu sync.Mutex
 
-// ORM wraps *ent.Client and implements do.Shutdowner so the DI
-// container closes the client and its underlying connection during
-// graceful shutdown.
+// ORM 封装 *ent.Client 并实现 do.Shutdowner，由 DI 容器管理优雅关闭。
 type ORM struct{ *ent.Client }
 
-// Shutdown closes the ent client (and its underlying *sql.DB driver).
+// Shutdown 关闭 ent 客户端及其底层连接驱动。
 func (o *ORM) Shutdown() error { return o.Client.Close() }
 
-// NewORM builds an ent client from the *DB in the injector and runs
-// automatic schema migration.
+// NewORM 基于 DI 中的 *DB 构造 ent 客户端，并按配置决定是否执行自动建表迁移。
 func NewORM(i do.Injector) (*ORM, error) {
 	db := do.MustInvoke[*DB](i)
 	cfg := do.MustInvoke[*config.Config](i)

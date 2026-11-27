@@ -53,10 +53,11 @@ func (Book) Edges() []ent.Edge {
 	return nil
 }
 
-// Indexes of the Book.
+// Indexes 定义书籍常用查询与默认排序索引。
 func (Book) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("title"),
 		index.Fields("author"),
+		index.Fields("created_at"),
 	}
 }

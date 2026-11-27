@@ -32,16 +32,6 @@ var (
 				Columns: []*schema.Column{BooksColumns[3]},
 			},
 			{
-				Name:    "book_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{BooksColumns[1]},
-			},
-			{
-				Name:    "book_updated_at",
-				Unique:  false,
-				Columns: []*schema.Column{BooksColumns[2]},
-			},
-			{
 				Name:    "book_title",
 				Unique:  false,
 				Columns: []*schema.Column{BooksColumns[4]},
@@ -50,6 +40,11 @@ var (
 				Name:    "book_author",
 				Unique:  false,
 				Columns: []*schema.Column{BooksColumns[5]},
+			},
+			{
+				Name:    "book_created_at",
+				Unique:  false,
+				Columns: []*schema.Column{BooksColumns[1]},
 			},
 		},
 	}
@@ -83,16 +78,6 @@ var (
 				Name:    "token_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{TokensColumns[3]},
-			},
-			{
-				Name:    "token_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[1]},
-			},
-			{
-				Name:    "token_updated_at",
-				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[2]},
 			},
 			{
 				Name:    "token_token_deleted_at",
@@ -133,16 +118,6 @@ var (
 				Name:    "user_deleted_at",
 				Unique:  false,
 				Columns: []*schema.Column{UsersColumns[3]},
-			},
-			{
-				Name:    "user_created_at",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[1]},
-			},
-			{
-				Name:    "user_updated_at",
-				Unique:  false,
-				Columns: []*schema.Column{UsersColumns[2]},
 			},
 			{
 				Name:    "user_email_deleted_at",

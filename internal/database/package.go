@@ -2,10 +2,7 @@ package database
 
 import "github.com/samber/do/v2"
 
-// Package registers database and ORM providers into the DI container.
-//
-// *DB  — raw SQL connection pool (Shutdowner)
-// *ORM — ent client wrapping *DB (Shutdowner); services invoke this directly
+// Package 将数据库连接池（*DB）与 Ent 客户端（*ORM）注册到 DI 容器。
 var Package = do.Package(
 	do.Lazy(NewDB),
 	do.Lazy(NewORM),

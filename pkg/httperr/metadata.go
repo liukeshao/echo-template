@@ -14,17 +14,17 @@ const MetaKey = "metadata"
 
 // DecodeInfo.Reason 常量。
 const (
-	DecodeReasonEmptyBody    = "empty_body"
-	DecodeReasonInvalidJSON  = "invalid_json"
-	DecodeReasonTrailingData = "trailing_data"
+	DecodeEmptyBody    = "empty_body"
+	DecodeInvalidJSON  = "invalid_json"
+	DecodeTrailingData = "trailing_data"
 )
 
 // PatchInfo.Reason 常量。
 const (
-	PatchReasonInvalidOriginal = "invalid_original"
-	PatchReasonInvalidJSON     = "invalid_json"
-	PatchReasonMarshalFailed   = "marshal_failed"
-	PatchReasonSchemaMismatch  = "schema_mismatch"
+	PatchInvalidOriginal = "invalid_original"
+	PatchInvalidJSON     = "invalid_json"
+	PatchMarshalFailed   = "marshal_failed"
+	PatchSchemaMismatch  = "schema_mismatch"
 )
 
 // PreconditionInfo.Type 通用常量（各业务领域可按 UPPER_SNAKE_CASE 自行扩展）。

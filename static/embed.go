@@ -8,12 +8,7 @@ import "embed"
 //go:embed js css
 var AssetsFS embed.FS
 
-// IndexHTML 为 Stoplight Elements 文档入口页面内容。
+// DocsFS 包含 API 文档入口页与由 `make api` 生成的 OpenAPI 3.1 规范文件。
 //
-//go:embed index.html
-var IndexHTML []byte
-
-// OpenAPIYAML 为由 `make api` 生成的 OpenAPI 3.1 规范内容。
-//
-//go:embed openapi/openapi.yaml
-var OpenAPIYAML []byte
+//go:embed index.html openapi/openapi.yaml
+var DocsFS embed.FS

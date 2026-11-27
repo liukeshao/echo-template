@@ -16,6 +16,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/echo-template/static"
 )
 
 const defaultMaxBodyBytes = 2 << 20 // 2 MiB
@@ -33,7 +34,8 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 		httpkit.WithAuthScheme("BearerAuth", BearerAuth(authSvc)),
 	}
 
-	router := httpkit.NewRouter(httpkit.WithRouterErrorEncoder(encodeErr))
+	router := httpkit.NewRouter()
+	router.SetErrorEncoder(encodeErr)
 	router.Use(
 		httpkit.RequestID(),
 		Locale(tr),
@@ -49,7 +51,9 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 
 	// 生产环境不暴露 API 文档与静态资源。
 	if cfg.App.Environment != config.EnvProduction {
-		router.Mount(DocsHandler(encodeErr))
+		router.FileFS("/docs", "index.html", static.DocsFS)
+		router.FileFS("/openapi.yaml", "openapi/openapi.yaml", static.DocsFS)
+		router.StaticFS("/static", static.AssetsFS)
 	}
 
 	return router, nil

@@ -1,6 +1,5 @@
-// Package httpclient provides a reusable, zero-dependency *http.Client wrapper
-// with a tuned connection pool, per-client timeout, and exponential-backoff retry
-// transport for safe/idempotent outbound HTTP requests.
+// Package httpclient 提供零外部依赖的可复用出站 HTTP 客户端封装，
+// 内置连接池调优、单客户端超时控制以及面向幂等请求的指数退避带抖动重试。
 package httpclient
 
 import (
@@ -16,47 +15,32 @@ const (
 	defaultIdleConnTimeout     = 90 * time.Second
 )
 
-// Config configures a [Client] created by [New].
-// Zero-valued fields fall back to sensible production defaults.
+// Config 配置由 New 构造的 Client；零值字段自动回落到生产默认值。
 type Config struct {
-	// Timeout is the total request timeout, including all retry attempts.
-	// Values <= 0 default to 10s.
+	// Timeout 为单次请求总超时（含所有重试）；<= 0 默认 10s。
 	Timeout time.Duration
-
-	// Retry is the maximum number of additional attempts on transient errors
-	// (network errors, HTTP 429/502/503/504) for safe/idempotent requests.
-	// Values <= 0 disable retries.
+	// Retry 为幂等请求遇到瞬态错误（网络错误、429/502/503/504）的最大额外重试次数；<= 0 关闭重试。
 	Retry int
-
-	// Connection pool settings used when Transport is nil.
-	MaxIdleConns        int           // default: 100
-	MaxIdleConnsPerHost int           // default: 20
-	IdleConnTimeout     time.Duration // default: 90s
-
-	// Transport optionally supplies a custom base http.RoundTripper
-	// (e.g. for custom TLS settings or unit test stubs).
-	// When nil, New clones http.DefaultTransport with the pool settings above.
+	// 以下连接池参数在 Transport 为 nil 时生效。
+	MaxIdleConns        int           // 默认 100
+	MaxIdleConnsPerHost int           // 默认 20
+	IdleConnTimeout     time.Duration // 默认 90s
+	// Transport 可选注入自定义底层 RoundTripper（如 TLS 定制或单测 stub）。
 	Transport http.RoundTripper
 }
 
-// Options configures a derived [Client] created by [Client.WithOptions] on top
-// of an existing client's shared Transport.
+// Options 配置通过 Client.WithOptions 派生的子客户端（共享底层连接池）。
 type Options struct {
-	// Timeout is the total request timeout, including all retry attempts.
-	// Values <= 0 inherit the parent client's timeout.
+	// Timeout 为单次请求总超时（含重试）；<= 0 继承父客户端超时。
 	Timeout time.Duration
-
-	// Retry is the maximum number of additional attempts on transient errors
-	// (network errors, HTTP 429/502/503/504) for safe/idempotent requests.
-	// Values <= 0 disable retries on the derived client.
+	// Retry 为最大额外重试次数；<= 0 关闭重试。
 	Retry int
 }
 
-// Client wraps *http.Client and supports deriving per-API clients that share
-// the underlying connection pool via [Client.WithOptions].
+// Client 封装标准库 *http.Client，支持按第三方 API 派生独立超时与重试策略并复用连接池。
 type Client struct{ *http.Client }
 
-// New constructs a *Client using cfg. Zero-valued fields use production defaults.
+// New 根据 cfg 构造 *Client，零值字段自动应用生产默认值。
 func New(cfg Config) *Client {
 	timeout := cfg.Timeout
 	if timeout <= 0 {
@@ -87,8 +71,7 @@ func New(cfg Config) *Client {
 	}
 }
 
-// WithOptions derives a per-API *Client that reuses the underlying base Transport
-// (connection pool, TLS config) while applying per-API Timeout and Retry policy.
+// WithOptions 复用底层连接池与 TLS 配置，派生具备独立 Timeout 与 Retry 策略的 *Client。
 func (c *Client) WithOptions(opts Options) *Client {
 	timeout := opts.Timeout
 	if timeout <= 0 {
@@ -122,8 +105,7 @@ func baseTransport(rt http.RoundTripper) http.RoundTripper {
 	return rt
 }
 
-// DrainAndClose drains up to 4 KiB from an HTTP response body before closing it
-// so the underlying TCP connection can be returned to the keep-alive pool.
+// DrainAndClose 排空响应体最多 4 KiB 后关闭，确保底层 TCP 连接可安全归还 keep-alive 连接池。
 func DrainAndClose(body io.ReadCloser) {
 	if body == nil {
 		return

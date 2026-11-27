@@ -79,7 +79,7 @@ func TestRouter_MiddlewareDecodeAndFallbacks(t *testing.T) {
 	p := decodeProblem(t, rec)
 	decMeta, err := httperr.DecodeMetadata[httperr.DecodeInfo](p)
 	require.NoError(t, err)
-	assert.Equal(t, httperr.DecodeReasonTrailingData, decMeta.Reason)
+	assert.Equal(t, httperr.DecodeTrailingData, decMeta.Reason)
 
 	// Empty body rejected as 400 with DecodeInfo(empty_body).
 	rec = call(http.MethodPost, "/decode", `   `)
@@ -87,7 +87,7 @@ func TestRouter_MiddlewareDecodeAndFallbacks(t *testing.T) {
 	p = decodeProblem(t, rec)
 	decMeta, err = httperr.DecodeMetadata[httperr.DecodeInfo](p)
 	require.NoError(t, err)
-	assert.Equal(t, httperr.DecodeReasonEmptyBody, decMeta.Reason)
+	assert.Equal(t, httperr.DecodeEmptyBody, decMeta.Reason)
 
 	// Oversized body rejected as 413 with RequestLimitInfo.
 	rec = call(http.MethodPost, "/decode", `{"name":"`+strings.Repeat("x", 128)+`"}`)

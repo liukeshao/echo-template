@@ -11,9 +11,7 @@ const (
 	retryMaxDelay  = 5 * time.Second
 )
 
-// retryTransport is an http.RoundTripper that retries idempotent requests on
-// transient transport failures and HTTP 429/502/503/504 responses using
-// exponential backoff with jitter.
+// retryTransport 为幂等请求在瞬态网络故障或 HTTP 429/502/503/504 时提供指数退避带抖动重试。
 type retryTransport struct {
 	base       http.RoundTripper
 	maxRetries int
@@ -48,7 +46,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err = t.base.RoundTrip(attemptReq)
 		if err != nil {
-			// Stop immediately if the caller's context was cancelled or timed out.
+			// 调用方自身 context 已取消或超时时立即停止重试。
 			if req.Context().Err() != nil {
 				return nil, err
 			}
@@ -59,16 +57,14 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
-		// Drain and close intermediate error response bodies so the underlying
-		// TCP connection can be reused on the next attempt.
+		// 排空并关闭中间错误响应体，使底层连接可供下次重试复用。
 		DrainAndClose(resp.Body)
 	}
 
 	return resp, err
 }
 
-// canRetryRequest reports whether req can be safely retried without risking
-// duplicate side effects or consuming an unreplayable body.
+// canRetryRequest 判断请求是否可安全重试（方法幂等，且存在 Body 时必须可重放）。
 func canRetryRequest(req *http.Request) bool {
 	if !isIdempotentMethod(req.Method) {
 		return false
@@ -129,12 +125,10 @@ func sleepContext(req *http.Request, d time.Duration) error {
 	}
 }
 
-// backoffWithJitter computes exponential backoff (200ms * 2^(attempt-1)) capped
-// at retryMaxDelay, multiplied by uniform jitter in [0.5, 1.0].
+// backoffWithJitter 计算指数退避（200ms * 2^(attempt-1)，上限 5s）并叠加 [0.5, 1.0] 均匀抖动。
 func backoffWithJitter(attempt int) time.Duration {
 	shift := min(attempt-1, 6)
 	base := min(retryBaseDelay<<shift, retryMaxDelay)
-	// Jitter in [base/2, base] to spread out concurrent retries.
 	half := base / 2
 	return half + time.Duration(rand.Int64N(int64(half)+1))
 }

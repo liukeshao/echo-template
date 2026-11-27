@@ -1,5 +1,6 @@
 // Package httpkit 提供基于 Go 1.22+ 标准库 net/http 的轻量、零外部依赖入站 HTTP 服务端原语套件，
-// 涵盖 Router、Connect-Go 风格 Handler、@useAuth 鉴权编排、基础中间件、JSON/Query 编解码与 RFC 7386 Merge Patch。
+// 涵盖 Router（含 Static/File 静态资源挂载）、Connect-Go 风格 Handler、@useAuth 鉴权编排、
+// 基础中间件、JSON/Query 编解码与 RFC 7386 Merge Patch。
 package httpkit
 
 import (
@@ -10,18 +11,6 @@ import (
 
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
-
-// RouterOption 配置 httpkit.Router。
-type RouterOption func(*Router)
-
-// WithRouterErrorEncoder 设置 Router 用于 404/405 兜底响应的 httperr.Encoder。
-func WithRouterErrorEncoder(enc httperr.Encoder) RouterOption {
-	return func(r *Router) {
-		if enc != nil {
-			r.errorEncoder = enc
-		}
-	}
-}
 
 // Router 封装标准库 *http.ServeMux、可组合的全局中间件链以及 404/405 RFC 9457 兜底
 // （同时保留 Go ServeMux 原生的 301/307/308 路径规范化重定向）。
@@ -35,17 +24,18 @@ type Router struct {
 }
 
 // NewRouter 创建 Router 实例（零配置默认使用 httperr.DefaultEncoder）。
-func NewRouter(opts ...RouterOption) *Router {
-	r := &Router{
+func NewRouter() *Router {
+	return &Router{
 		mux:          http.NewServeMux(),
 		errorEncoder: httperr.DefaultEncoder,
 	}
-	for _, opt := range opts {
-		if opt != nil {
-			opt(r)
-		}
+}
+
+// SetErrorEncoder 设置 Router 用于 404/405 兜底响应的 httperr.Encoder（应在首次 ServeHTTP 前调用）。
+func (r *Router) SetErrorEncoder(enc httperr.Encoder) {
+	if enc != nil {
+		r.errorEncoder = enc
 	}
-	return r
 }
 
 // Use 追加全局中间件（按注册顺序由外到内执行，覆盖所有已注册路由及 404/405 兜底）。

@@ -3,6 +3,7 @@ package schema
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	"entgo.io/ent"
@@ -15,15 +16,14 @@ import (
 	"github.com/liukeshao/echo-template/ent/intercept"
 )
 
-// BaseMixin 基础字段混合器，包含所有实体的公共字段
+// BaseMixin 基础字段混合器，定义所有实体通用的 UUID v7 主键。
 type BaseMixin struct {
 	mixin.Schema
 }
 
-// Fields 返回基础字段
+// Fields 返回基础主键字段。
 func (BaseMixin) Fields() []ent.Field {
 	return []ent.Field{
-		// 主键：使用 UUID v7
 		field.String("id").
 			MaxLen(36).
 			MinLen(36).
@@ -34,21 +34,19 @@ func (BaseMixin) Fields() []ent.Field {
 	}
 }
 
-// TimeMixin 时间字段混合器，包含创建时间和更新时间
+// TimeMixin 时间字段混合器，包含创建时间与更新时间。
 type TimeMixin struct {
 	mixin.Schema
 }
 
-// Fields 返回时间相关字段
+// Fields 返回时间字段。
 func (TimeMixin) Fields() []ent.Field {
 	return []ent.Field{
-		// 创建时间
 		field.Time("created_at").
 			Default(time.Now).
 			Immutable().
 			Comment("创建时间"),
 
-		// 更新时间
 		field.Time("updated_at").
 			Default(time.Now).
 			UpdateDefault(time.Now).
@@ -58,41 +56,38 @@ func (TimeMixin) Fields() []ent.Field {
 
 const softDeleteField = "deleted_at"
 
-// SoftDeleteMixin 逻辑删除混合器 - 实现高级逻辑删除模式
+// SoftDeleteMixin 逻辑删除混合器，自动拦截查询、更新与删除操作。
 type SoftDeleteMixin struct {
 	mixin.Schema
 }
 
-// Fields 返回逻辑删除字段
+// Fields 返回逻辑删除时间戳字段（毫秒，0 表示未删除）。
 func (SoftDeleteMixin) Fields() []ent.Field {
 	return []ent.Field{
-		// 逻辑删除时间戳（毫秒）
 		field.Int64(softDeleteField).
 			Default(0).
 			Comment("逻辑删除时间戳（毫秒），0表示未删除"),
 	}
 }
 
-// Indexes 返回逻辑删除相关的索引
+// Indexes 返回逻辑删除状态索引。
 func (SoftDeleteMixin) Indexes() []ent.Index {
 	return []ent.Index{
-		// 逻辑删除状态索引，用于快速过滤已删除记录
 		index.Fields(softDeleteField),
 	}
 }
 
 type softDeleteKey struct{}
 
-// SkipSoftDelete returns a new context that skips the soft-delete interceptor/mutators.
+// SkipSoftDelete 返回跳过逻辑删除拦截器与钩子的 context（用于查询或物理删除已软删记录）。
 func SkipSoftDelete(parent context.Context) context.Context {
 	return context.WithValue(parent, softDeleteKey{}, true)
 }
 
-// Interceptors of the SoftDeleteMixin.
+// Interceptors 为所有查询自动附加 deleted_at = 0 过滤条件。
 func (d SoftDeleteMixin) Interceptors() []ent.Interceptor {
 	return []ent.Interceptor{
 		intercept.TraverseFunc(func(ctx context.Context, q intercept.Query) error {
-			// Skip soft-delete, means include soft-deleted entities.
 			if skip, _ := ctx.Value(softDeleteKey{}).(bool); skip {
 				return nil
 			}
@@ -109,7 +104,6 @@ func (d SoftDeleteMixin) Hooks() []ent.Hook {
 	return []ent.Hook{
 		func(next ent.Mutator) ent.Mutator {
 			return ent.MutateFunc(func(ctx context.Context, m ent.Mutation) (ent.Value, error) {
-				// Skip soft-delete: allow permanent deletion or updating soft-deleted rows.
 				if skip, _ := ctx.Value(softDeleteKey{}).(bool); skip {
 					return next.Mutate(ctx, m)
 				}
@@ -139,43 +133,37 @@ func (d SoftDeleteMixin) Hooks() []ent.Hook {
 	}
 }
 
-// P 添加存储级别的谓词到查询和变更中
+// P 向查询或变更追加 deleted_at = 0 存储级谓词。
 func (SoftDeleteMixin) P(w interface{ WhereP(...func(*sql.Selector)) }) {
-	w.WhereP(
-		sql.FieldEQ(softDeleteField, 0),
-	)
+	w.WhereP(sql.FieldEQ(softDeleteField, 0))
 }
 
-// DefaultMixin 默认混合器，组合了所有常用的mixin
+// DefaultMixin 默认混合器，组合 BaseMixin、TimeMixin 与 SoftDeleteMixin。
+// 各表如需按 created_at / updated_at 排序或过滤，请在具体实体 Schema 中按需建立索引。
 type DefaultMixin struct {
 	mixin.Schema
 }
 
-// Fields 组合所有默认字段
+// Fields 组合全部默认字段。
 func (DefaultMixin) Fields() []ent.Field {
-	fields := make([]ent.Field, 0)
-	fields = append(fields, BaseMixin{}.Fields()...)
-	fields = append(fields, TimeMixin{}.Fields()...)
-	fields = append(fields, SoftDeleteMixin{}.Fields()...)
-	return fields
+	return slices.Concat(
+		BaseMixin{}.Fields(),
+		TimeMixin{}.Fields(),
+		SoftDeleteMixin{}.Fields(),
+	)
 }
 
-// Indexes 组合所有默认索引
+// Indexes 组合默认逻辑删除索引。
 func (DefaultMixin) Indexes() []ent.Index {
-	indexes := make([]ent.Index, 0)
-	indexes = append(indexes, SoftDeleteMixin{}.Indexes()...)
-	// 添加时间相关的索引
-	indexes = append(indexes, index.Fields("created_at"))
-	indexes = append(indexes, index.Fields("updated_at"))
-	return indexes
+	return SoftDeleteMixin{}.Indexes()
 }
 
-// Interceptors 组合所有默认拦截器
+// Interceptors 组合默认拦截器。
 func (DefaultMixin) Interceptors() []ent.Interceptor {
 	return SoftDeleteMixin{}.Interceptors()
 }
 
-// Hooks 组合所有默认钩子
+// Hooks 组合默认钩子。
 func (DefaultMixin) Hooks() []ent.Hook {
 	return SoftDeleteMixin{}.Hooks()
 }

@@ -57,7 +57,7 @@ func ApplyMergePatchInto(original, body []byte, contentType string, dst any) err
 		}
 		info := httperr.PatchInfo{
 			ContentType: effectiveType,
-			Reason:      httperr.PatchReasonSchemaMismatch,
+			Reason:      httperr.PatchSchemaMismatch,
 		}
 		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
 			info.Field = typeErr.Field
@@ -85,17 +85,17 @@ func parseMediaType(ct string) string {
 func applyMergePatch(original, body []byte, effectiveMediaType string) ([]byte, error) {
 	target, err := decodeJSONValue(original)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonInvalidOriginal)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchInvalidOriginal)
 	}
 	patchVal, err := decodeJSONValue(body)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonInvalidJSON)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchInvalidJSON)
 	}
 
 	merged := mergeValue(target, patchVal)
 	out, err := json.Marshal(merged)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonMarshalFailed)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchMarshalFailed)
 	}
 	return out, nil
 }

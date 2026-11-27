@@ -1,26 +1,17 @@
-// Package weather provides a client for the external Weather API.
+// Package weather 提供外部天气 API 客户端示例。
 //
-// Service-layer code must depend only on the [API] interface defined here,
-// never on [Client] directly. This allows easy mocking in unit tests:
-//
-//	type mockWeather struct{}
-//	func (m *mockWeather) GetCurrent(ctx context.Context, city string) (*CurrentWeather, error) { … }
-//
-// Template note: when adding a new third-party API, copy this package,
-// rename it, and replace the method signatures with those of your target API.
+// 领域服务仅依赖此处定义的 API 接口，不得直接依赖 *Client，便于在单元测试中替换 mock。
 package weather
 
 import "context"
 
-// API is the interface that service-layer code depends on.
-// Keep it as narrow as possible — only the methods actually used.
+// API 是领域服务依赖的外部天气接口（保持最小接口原则）。
 type API interface {
-	// GetCurrent returns the current weather conditions for city.
+	// GetCurrent 查询指定城市的实时天气。
 	GetCurrent(ctx context.Context, city string) (*CurrentWeather, error)
 }
 
-// CurrentWeather holds the response data returned by the external API.
-// Extend with additional fields as the real API requires.
+// CurrentWeather 表示外部天气 API 返回的领域数据结构。
 type CurrentWeather struct {
 	City        string  `json:"city"`
 	Description string  `json:"description"`

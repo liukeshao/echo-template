@@ -108,7 +108,7 @@ func TestApplyMergePatchInto_SuccessAndTypeMismatch(t *testing.T) {
 	assert.Empty(t, p.Detail)
 	mt, decErr := httperr.DecodeMetadata[httperr.PatchInfo](p)
 	require.NoError(t, decErr)
-	assert.Equal(t, httperr.PatchReasonSchemaMismatch, mt.Reason)
+	assert.Equal(t, httperr.PatchSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
 	err = httpkit.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`[{"op":"replace","path":"/title","value":"x"}]`), httpkit.ContentTypeMergePatch, &bad)
