@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-// ServerConfig 配置 httpkit.Server 的底层 *http.Server 参数与优雅停机超时。
 type ServerConfig struct {
 	Addr            string
 	ReadTimeout     time.Duration
@@ -17,8 +16,7 @@ type ServerConfig struct {
 	GracefulTimeout time.Duration
 }
 
-// Server 封装标准库 *http.Server 并实现竞态安全的优雅停机（含启动前 Shutdown 不死锁），
-// 隐式满足 samber/do 的 Shutdown(context.Context) error 契约，零三方依赖。
+// Server 封装 *http.Server 并提供竞态安全的优雅停机。
 type Server struct {
 	srv             *http.Server
 	gracefulTimeout time.Duration
@@ -29,7 +27,6 @@ type Server struct {
 	stopped chan struct{}
 }
 
-// NewServer 使用给定配置与根 http.Handler 构造 Server。
 func NewServer(cfg ServerConfig, handler http.Handler) *Server {
 	return &Server{
 		gracefulTimeout: cfg.GracefulTimeout,
@@ -44,7 +41,6 @@ func NewServer(cfg ServerConfig, handler http.Handler) *Server {
 	}
 }
 
-// Start 阻塞式启动 HTTP 服务，直到 Shutdown 触发优雅停机或监听出错。
 func (s *Server) Start() error {
 	s.mu.Lock()
 	if s.closed {
@@ -63,7 +59,6 @@ func (s *Server) Start() error {
 	return err
 }
 
-// Shutdown 优雅排空在途 HTTP 请求并等待 Start 返回。
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	s.closed = true

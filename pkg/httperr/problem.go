@@ -1,5 +1,4 @@
-// Package httperr 提供零外部依赖的纯 RFC 9457 Problem Details 错误模型、
-// 13 个有限标准 HTTP 错误状态码哨兵与 AIP-193 强类型错误元数据。
+// Package httperr 提供零外部依赖的 RFC 9457 错误模型、有限 HTTP 状态码哨兵与可插拔错误编码器。
 package httperr
 
 import (
@@ -13,11 +12,8 @@ import (
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// ContentTypeProblemJSON 是 RFC 9457 Problem Details 的标准媒体类型。
 const ContentTypeProblemJSON = "application/problem+json"
 
-// Problem 遵循纯粹的 RFC 9457 (Problem Details for HTTP APIs) 错误响应：
-// 使用标准 HTTP status + title + detail，并扩展 request_id、AIP-193 强类型 Metadata 与字段级 FieldError。
 type Problem struct {
 	Type      string       `json:"type"`
 	Title     string       `json:"title"`
@@ -29,7 +25,6 @@ type Problem struct {
 	Errors    []FieldError `json:"errors,omitempty"`
 }
 
-// Error 实现 error 接口，便于作为协议错误传递或供 HTTP 客户端消费。
 func (p Problem) Error() string {
 	if p.Detail != "" {
 		return fmt.Sprintf("http %d %s: %s", p.Status, StatusTitle(p.Status), p.Detail)
@@ -37,7 +32,6 @@ func (p Problem) Error() string {
 	return fmt.Sprintf("http %d %s", p.Status, StatusTitle(p.Status))
 }
 
-// FieldError 描述单个请求字段的校验失败原因、规则码及约束元数据。
 type FieldError struct {
 	Field    string            `json:"field"`
 	Code     string            `json:"code"`
@@ -45,17 +39,14 @@ type FieldError struct {
 	Metadata map[string]string `json:"metadata,omitempty"`
 }
 
-// Encoder 将任意 error 渲染为 HTTP 错误响应（通常为 RFC 9457 application/problem+json）。
-// 应用层可注入自定义 Encoder 以接入 oops 诊断链、统一 i18n 与链路追踪 ID。
 type Encoder func(w http.ResponseWriter, r *http.Request, err error)
 
-// Write 补全 Problem 缺省字段、同步标准协议响应头（如 Retry-After）并写出 RFC 9457 响应。
+// Write 补全缺省字段、同步标准响应头（Retry-After / WWW-Authenticate）并写出 RFC 9457 响应。
 func Write(w http.ResponseWriter, r *http.Request, p Problem) {
 	if p.Status == 0 {
 		p.Status = http.StatusInternalServerError
 	}
 	if p.Status >= http.StatusInternalServerError {
-		// 纵深防御：5xx 错误绝不对外输出任何元数据或字段明细。
 		p.Metadata = nil
 		p.Errors = nil
 	}

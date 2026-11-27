@@ -1,6 +1,4 @@
-// Package httpkit 提供基于 Go 1.22+ 标准库 net/http 的轻量、零外部依赖入站 HTTP 服务端原语套件，
-// 涵盖 Router（含 Static/File 静态资源挂载）、Connect-Go 风格 Handler、@useAuth 鉴权编排、
-// 基础中间件、JSON/Query 编解码与 RFC 7386 Merge Patch。
+// Package httpkit 提供基于标准库 net/http 的零依赖入站服务端原语套件。
 package httpkit
 
 import (
@@ -12,8 +10,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// Router 封装标准库 *http.ServeMux、可组合的全局中间件链以及 404/405 RFC 9457 兜底
-// （同时保留 Go ServeMux 原生的 301/307/308 路径规范化重定向）。
+// Router 封装 *http.ServeMux、全局中间件链及 404/405 RFC 9457 兜底。
 type Router struct {
 	mux          *http.ServeMux
 	errorEncoder httperr.Encoder
@@ -23,7 +20,6 @@ type Router struct {
 	wrapped http.Handler
 }
 
-// NewRouter 创建 Router 实例（零配置默认使用 httperr.DefaultEncoder）。
 func NewRouter() *Router {
 	return &Router{
 		mux:          http.NewServeMux(),
@@ -31,14 +27,12 @@ func NewRouter() *Router {
 	}
 }
 
-// SetErrorEncoder 设置 Router 用于 404/405 兜底响应的 httperr.Encoder（应在首次 ServeHTTP 前调用）。
 func (r *Router) SetErrorEncoder(enc httperr.Encoder) {
 	if enc != nil {
 		r.errorEncoder = enc
 	}
 }
 
-// Use 追加全局中间件（按注册顺序由外到内执行，覆盖所有已注册路由及 404/405 兜底）。
 func (r *Router) Use(mws ...Middleware) {
 	for _, mw := range mws {
 		if mw != nil {
@@ -47,7 +41,6 @@ func (r *Router) Use(mws ...Middleware) {
 	}
 }
 
-// Mount 将一个或多个 httpkit.Handler（如 api.NewBooksHandler(...)）挂载到 Router。
 func (r *Router) Mount(handlers ...Handler) {
 	for _, h := range handlers {
 		if h != nil {
@@ -56,17 +49,14 @@ func (r *Router) Mount(handlers ...Handler) {
 	}
 }
 
-// Handle 直接向底层 *http.ServeMux 注册原生 http.Handler。
 func (r *Router) Handle(pattern string, h http.Handler) {
 	r.mux.Handle(pattern, h)
 }
 
-// HandleFunc 直接向底层 *http.ServeMux 注册原生 http.HandlerFunc。
 func (r *Router) HandleFunc(pattern string, fn http.HandlerFunc) {
 	r.mux.HandleFunc(pattern, fn)
 }
 
-// ServeHTTP 执行已注册的全局中间件链，并将请求分发至底层 *http.ServeMux。
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	r.once.Do(func() {
 		r.wrapped = r.buildHandler()

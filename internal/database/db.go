@@ -16,13 +16,10 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-// DB 封装 *sql.DB 并实现 do.Shutdowner，由 DI 容器在优雅停机阶段关闭连接池。
 type DB struct{ *sql.DB }
 
-// Shutdown 关闭底层数据库连接池。
 func (d *DB) Shutdown() error { return d.DB.Close() }
 
-// NewDB 从 DI 容器读取数据库配置，打开并探活 SQL 连接池。
 func NewDB(i do.Injector) (*DB, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	raw, err := openDB(cfg.Database.Driver, cfg.Database.Connection)

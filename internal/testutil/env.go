@@ -1,20 +1,4 @@
-// Package testutil 提供基于 samber/do 的统一测试环境初始化工具，
-// 供各业务模块的外部测试包（package xxx_test）直接复用。
-//
-// 典型用法：
-//
-//	// 1. Service 层测试（自动按需初始化独立内存 SQLite + Ent 建表）
-//	env := testutil.New(t)
-//	bookSvc := do.MustInvoke[*service.Book](env.Injector)
-//
-//	// 2. Handler 层测试（完整 httpkit.Router 路由 + 中间件 + RFC 9457 错误处理）
-//	env := testutil.New(t)
-//	tok := env.MustAuthUser("alice", "alice@example.com", "password123")
-//	rec := env.DoRequest(http.MethodGet, "/api/v1/books", testutil.WithBearer(tok.AccessToken))
-//
-//	// 3. 外部 API 客户端 / Mock 注入测试（零数据库初始化开销）
-//	env := testutil.New(t, testutil.WithHTTPTransport(mockRT))
-//	client := do.MustInvoke[*weather.Client](env.Injector)
+// Package testutil 提供带独立内存 SQLite 与自动清理的测试 DI 环境，安全支持 t.Parallel()。
 package testutil
 
 import (

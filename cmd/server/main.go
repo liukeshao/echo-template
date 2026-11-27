@@ -1,5 +1,3 @@
-// Package main is the entry point of the application.
-//
 //go:generate make -C ../.. api
 package main
 
@@ -27,22 +25,18 @@ import (
 )
 
 func main() {
-	// 1. Config (bootstrap — needed before DI starts)
 	cfg, err := config.Load()
 	fatal("load config", err)
 
-	// 2. Log
 	logLevel := slog.LevelDebug
 	if cfg.App.Environment == config.EnvProduction {
 		logLevel = slog.LevelInfo
 	}
 	logging.Setup(logLevel)
 
-	// 3. DI container
 	i := do.New(database.Package, i18n.Package, auth.Package, client.Package, service.Package, handler.Package, server.Package)
 	do.ProvideValue(i, &cfg)
 
-	// 4. Start HTTP server
 	srv := do.MustInvoke[*httpkit.Server](i)
 	if cfg.App.Environment != config.EnvProduction {
 		slog.Info("API docs", "url", fmt.Sprintf("%s/docs", strings.TrimRight(cfg.App.Host, "/")))
@@ -56,8 +50,6 @@ func main() {
 		errCh <- srv.Start()
 	}()
 
-	// 5. Block until SIGINT/SIGTERM or unexpected server startup/listen failure,
-	//    then shut down all DI services in order: Server (drain HTTP) → ORM → DB.
 	var startErr error
 	select {
 	case <-sigCtx.Done():

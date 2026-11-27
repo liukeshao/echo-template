@@ -7,19 +7,15 @@ import (
 	"strings"
 )
 
-// MetaKey 是结构化错误上下文中存放对外公开 AIP-193 Metadata 的标准键名（例如供 oops.With 挂载）。
-// 仅该键下实现 Metadata 接口的值会被提取到 Problem.Metadata 并供给终端 i18n 插值；
-// 其他上下文键仅用于服务端 slog 结构化日志，天然物理隔离。
+// MetaKey 是结构化错误上下文中存放对外公开 Metadata 的键名；其他键仅写入服务端日志。
 const MetaKey = "metadata"
 
-// DecodeInfo.Reason 常量。
 const (
 	DecodeEmptyBody    = "empty_body"
 	DecodeInvalidJSON  = "invalid_json"
 	DecodeTrailingData = "trailing_data"
 )
 
-// PatchInfo.Reason 常量。
 const (
 	PatchInvalidOriginal = "invalid_original"
 	PatchInvalidJSON     = "invalid_json"
@@ -27,7 +23,6 @@ const (
 	PatchSchemaMismatch  = "schema_mismatch"
 )
 
-// PreconditionInfo.Type 通用常量（各业务领域可按 UPPER_SNAKE_CASE 自行扩展）。
 const (
 	PreconditionInvalidCredentials = "INVALID_CREDENTIALS"
 	PreconditionMissingHeader      = "MISSING_HEADER"
@@ -40,17 +35,12 @@ const (
 	PreconditionInvalidPassword    = "INVALID_PASSWORD"
 )
 
-// Metadata 定义所有强类型错误元数据结构体实现的契约：
-//   - I18nVars 提供零反射的 {var} 模板插值变量；
-//   - I18nSubkeys 提供按优先级排列的细化翻译子键（用于 details.<STATUS>.<subkey> 分层回落查表）。
-//
-// 实现方必须使用值接收者（因 oops.Context() 会自动解引用指针）。
+// Metadata 定义强类型错误元数据契约；实现方须使用值接收者（oops.Context() 会解引用指针）。
 type Metadata interface {
 	I18nVars() map[string]string
 	I18nSubkeys() []string
 }
 
-// ResourceInfo（对标 Google AIP-193 ResourceInfo）：描述不存在、冲突或受限的资源（404 / 409）。
 type ResourceInfo struct {
 	ResourceType string `json:"resource_type"`
 	ResourceName string `json:"resource_name"`

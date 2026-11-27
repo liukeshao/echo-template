@@ -22,7 +22,6 @@ export async function $onEmit(context) {
   const [services] = getAllHttpServices(program);
   if (!services || services.length === 0) return;
 
-  // Group HTTP operations by TypeSpec interface name (e.g. Auth -> auth.gen.go, Me -> me.gen.go, Books -> books.gen.go).
   const byInterface = new Map();
   for (const svc of services) {
     for (const httpOp of svc.operations) {

@@ -11,8 +11,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/logging"
 )
 
-// NewProblemEncoder 将 pkg/logging、samber/oops 与 internal/i18n 装配到 pkg/httperr.NewEncoder，
-// 构造应用级 RFC 9457 错误编码器。
+// NewProblemEncoder 装配应用级 RFC 9457 错误编码器（RequestID + oops Metadata + i18n）。
 func NewProblemEncoder(tr i18n.Translator) httperr.Encoder {
 	opts := []httperr.EncoderOption{
 		httperr.WithRequestID(logging.RequestID),

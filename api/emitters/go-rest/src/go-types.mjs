@@ -284,8 +284,6 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
 
   imports.add("validator");
   return [
-    `// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。`,
-    `// 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。`,
     `func (r *${structName}) Validate() error {`,
     `\tvar v validator.FieldViolations`,
     ...checks,

@@ -24,8 +24,6 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
-// 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *RegisterRequest) Validate() error {
 	var v validator.FieldViolations
 	if v.Required("username", r.Username) && v.MinLength("username", r.Username, 3) && v.MaxLength("username", r.Username, 50) {
@@ -50,8 +48,6 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
-// 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *LoginRequest) Validate() error {
 	var v validator.FieldViolations
 	if v.Email("email", r.Email) {
@@ -70,8 +66,6 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
-// 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *RefreshTokenRequest) Validate() error {
 	var v validator.FieldViolations
 	v.Required("refresh_token", r.RefreshToken)
@@ -83,8 +77,6 @@ func (r *RefreshTokenRequest) Validate() error {
 	return v.Err()
 }
 
-// AuthHandler 由 TypeSpec 自动生成（Connect-Go v2 风格纯业务接口）。
-// Handler 层只需实现此接口，负责编排 Service 与 DTO 投影，无需接触 HTTP 协议细节。
 type AuthHandler interface {
 	// Register 用户注册
 	Register(ctx context.Context, req *RegisterRequest) (*TokenPair, error)
@@ -96,8 +88,6 @@ type AuthHandler interface {
 	Logout(ctx context.Context) error
 }
 
-// NewAuthHandler 构造符合 Connect-Go 风格的 httpkit.Handler（同时实现标准 http.Handler）。
-// 可直接挂载到 httpkit.Router（router.Mount(api.NewAuthHandler(impl, ...))），也可独立用于 httptest。
 func NewAuthHandler(impl AuthHandler, opts ...httpkit.HandlerOption) httpkit.Handler {
 	cfg := httpkit.ApplyHandlerOptions(opts...)
 	return httpkit.NewHandler(func(mux *http.ServeMux) {

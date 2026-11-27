@@ -18,10 +18,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
-// DecodeJSON 从请求体解码单个 JSON 值；
-//   - 请求体超限时原样返回 *http.MaxBytesError（→ 413 + RequestLimitInfo）
-//   - 字段类型不匹配时返回 *validator.FieldViolations（附带 expected/actual JSON 类型，不泄漏 Go 类型名）
-//   - 空主体、语法错误或尾随多余 JSON 时返回 400 Problem（附带 DecodeInfo）
+// DecodeJSON 从请求体解码单个 JSON 值，区分 MaxBytesError、字段类型不匹配与 JSON 语法错误。
 func DecodeJSON(r *http.Request, dst any) error {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -102,7 +99,6 @@ func jsonValueKind(t reflect.Type) string {
 	}
 }
 
-// ParseInt32Query 零反射解析 int32 query 参数；非法数字直接记录为字段校验错误。
 func ParseInt32Query(q url.Values, name string, v *validator.FieldViolations) int32 {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
@@ -116,7 +112,6 @@ func ParseInt32Query(q url.Values, name string, v *validator.FieldViolations) in
 	return int32(n)
 }
 
-// ParseInt64Query 零反射解析 int64 query 参数；非法数字直接记录为字段校验错误。
 func ParseInt64Query(q url.Values, name string, v *validator.FieldViolations) int64 {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
@@ -130,7 +125,6 @@ func ParseInt64Query(q url.Values, name string, v *validator.FieldViolations) in
 	return n
 }
 
-// ParseFloat64Query 零反射解析 float64 query 参数；非法数字（含 NaN/Inf）直接记录为字段校验错误。
 func ParseFloat64Query(q url.Values, name string, v *validator.FieldViolations) float64 {
 	if n := ParseOptionalFloat64Query(q, name, v); n != nil {
 		return *n
@@ -138,7 +132,6 @@ func ParseFloat64Query(q url.Values, name string, v *validator.FieldViolations) 
 	return 0
 }
 
-// ParseOptionalFloat64Query 零反射解析可选 *float64 query 参数；未传返回 nil，以区分 0 与未提供。
 func ParseOptionalFloat64Query(q url.Values, name string, v *validator.FieldViolations) *float64 {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
@@ -152,7 +145,6 @@ func ParseOptionalFloat64Query(q url.Values, name string, v *validator.FieldViol
 	return &n
 }
 
-// ParseBoolQuery 零反射解析 bool query 参数；非法布尔值直接记录为字段校验错误。
 func ParseBoolQuery(q url.Values, name string, v *validator.FieldViolations) bool {
 	if b := ParseOptionalBoolQuery(q, name, v); b != nil {
 		return *b
@@ -160,7 +152,6 @@ func ParseBoolQuery(q url.Values, name string, v *validator.FieldViolations) boo
 	return false
 }
 
-// ParseOptionalBoolQuery 零反射解析可选 *bool query 参数；未传返回 nil，以区分 false 与未提供。
 func ParseOptionalBoolQuery(q url.Values, name string, v *validator.FieldViolations) *bool {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
@@ -174,7 +165,7 @@ func ParseOptionalBoolQuery(q url.Values, name string, v *validator.FieldViolati
 	return &b
 }
 
-// ApplyPatch 将 current 序列化后按 RFC 7386 JSON Merge Patch 合并请求体，并反序列化到 dst。
+// ApplyPatch 将 current 序列化后按 RFC 7386 Merge Patch 合并请求体并反序列化到 dst。
 func ApplyPatch(r *http.Request, current any, dst any) error {
 	currentJSON, err := json.Marshal(current)
 	if err != nil {
@@ -190,7 +181,6 @@ func ApplyPatch(r *http.Request, current any, dst any) error {
 	return ApplyMergePatchInto(currentJSON, body, r.Header.Get("Content-Type"), dst)
 }
 
-// WriteJSON 写出 JSON 成功响应；序列化失败时记录带上下文的错误日志并返回 500。
 func WriteJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
 	body, err := json.Marshal(v)
 	if err != nil {
@@ -203,7 +193,6 @@ func WriteJSON(w http.ResponseWriter, r *http.Request, status int, v any) {
 	_, _ = w.Write(body)
 }
 
-// WriteNoContent 写出 204 No Content。
 func WriteNoContent(w http.ResponseWriter) {
 	w.WriteHeader(http.StatusNoContent)
 }

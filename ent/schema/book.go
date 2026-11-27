@@ -6,19 +6,16 @@ import (
 	"entgo.io/ent/schema/index"
 )
 
-// Book holds the schema definition for the Book entity.
 type Book struct {
 	ent.Schema
 }
 
-// Mixin 返回Book实体使用的mixin
 func (Book) Mixin() []ent.Mixin {
 	return []ent.Mixin{
 		DefaultMixin{},
 	}
 }
 
-// Fields of the Book.
 func (Book) Fields() []ent.Field {
 	return []ent.Field{
 		field.String("title").
@@ -48,12 +45,10 @@ func (Book) Fields() []ent.Field {
 	}
 }
 
-// Edges of the Book.
 func (Book) Edges() []ent.Edge {
 	return nil
 }
 
-// Indexes 定义书籍常用查询与默认排序索引。
 func (Book) Indexes() []ent.Index {
 	return []ent.Index{
 		index.Fields("title"),

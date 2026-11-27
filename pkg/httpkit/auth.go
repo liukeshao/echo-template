@@ -10,12 +10,10 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// Authenticator 实现单个命名认证方案（与 TypeSpec @useAuth 名称对应，如 "BearerAuth"、"ApiKeyAuth"）。
-// 认证成功时返回附加了身份信息的 context；失败时返回 error，由 httperr.Encoder 统一渲染。
+// Authenticator 实现单个命名认证方案，认证成功时返回附加身份信息的 context。
 type Authenticator func(ctx context.Context, r *http.Request) (context.Context, error)
 
-// ExtractBearerToken 从 Authorization 请求头提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
-// header 缺失、scheme 非法或 token 为空时返回携带 PreconditionInfo 的 401 httperr.Problem。
+// ExtractBearerToken 从 Authorization 请求头提取 Bearer token（scheme 大小写不敏感，RFC 9110）。
 func ExtractBearerToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if strings.TrimSpace(authHeader) == "" {
@@ -46,7 +44,7 @@ func bearerHeaderProblem(reason string) error {
 	}
 }
 
-// BearerAuth 将纯 token 验证函数包装为 Authenticator：先按 RFC 9110/6750 提取 Bearer token，再交由 verify 校验并丰富 context。
+// BearerAuth 将纯 token 校验函数包装为 Authenticator。
 func BearerAuth(verify func(ctx context.Context, token string) (context.Context, error)) Authenticator {
 	return func(ctx context.Context, r *http.Request) (context.Context, error) {
 		token, err := ExtractBearerToken(r)
@@ -57,9 +55,7 @@ func BearerAuth(verify func(ctx context.Context, token string) (context.Context,
 	}
 }
 
-// AuthMiddleware 返回基于命名方案映射的 RouteMiddleware，原生支持 TypeSpec @useAuth 的
-// 单方案、AND 组合、OR 备选以及 NoAuth 可选认证。
-// 若路由声明了未在 schemes 中注册的方案名，会在挂载阶段直接 panic（fail-fast）。
+// AuthMiddleware 按 TypeSpec @useAuth 声明编排命名认证方案（支持 AND/OR/NoAuth，未注册方案挂载时 panic）。
 func AuthMiddleware(enc httperr.Encoder, schemes map[string]Authenticator) RouteMiddleware {
 	if enc == nil {
 		enc = httperr.DefaultEncoder
@@ -71,7 +67,6 @@ func AuthMiddleware(enc httperr.Encoder, schemes map[string]Authenticator) Route
 			return nil
 		}
 
-		// 挂载阶段校验所有声明的 scheme 均已注册，避免配置拼写错误或漏注册导致运行期静默放行。
 		for _, alt := range op.Auth {
 			for _, name := range alt {
 				if cloned[name] == nil {
@@ -85,7 +80,7 @@ func AuthMiddleware(enc httperr.Encoder, schemes map[string]Authenticator) Route
 				var lastErr error
 				for _, alt := range op.Auth {
 					if len(alt) == 0 {
-						// 空选项对应 TypeSpec NoAuth（如 @useAuth(BearerAuth | NoAuth)），允许匿名继续。
+						// 空选项对应 TypeSpec NoAuth，允许匿名放行。
 						next.ServeHTTP(w, r)
 						return
 					}

@@ -14,13 +14,12 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// Static 将本地目录 root 挂载到指定 URL 前缀（等价于 StaticFS(prefix, os.DirFS(root))）。
+// Static 将本地目录 root 挂载到指定 URL 前缀。
 func (r *Router) Static(prefix, root string) {
 	r.StaticFS(prefix, os.DirFS(root))
 }
 
-// StaticFS 将 fs.FS 挂载到指定 URL 前缀（类似 Echo 的 StaticFS），自动去前缀并禁用目录浏览；
-// 文件不存在或命中目录时通过 Router 的 ErrorEncoder 返回 RFC 9457 404（仅响应 GET / HEAD）。
+// StaticFS 将 fs.FS 挂载到指定 URL 前缀，禁用目录浏览并将缺失/目录访问转为 RFC 9457 404。
 func (r *Router) StaticFS(prefix string, fsys fs.FS) {
 	cleanPrefix := "/" + strings.Trim(path.Clean("/"+prefix), "/")
 	muxPattern := "GET /"
@@ -40,14 +39,13 @@ func (r *Router) StaticFS(prefix string, fsys fs.FS) {
 	})
 }
 
-// File 将单个本地文件挂载到指定路径（类似 Echo 的 File，仅响应 GET / HEAD）。
+// File 将单个本地文件挂载到指定路径。
 func (r *Router) File(urlPath, filePath string) {
 	clean := filepath.Clean(filePath)
 	r.FileFS(urlPath, filepath.Base(clean), os.DirFS(filepath.Dir(clean)))
 }
 
-// FileFS 将 fs.FS 中的单个文件挂载到指定路径（类似 Echo 的 FileFS，仅响应 GET / HEAD）；
-// 文件不存在或为目录时通过 Router 的 ErrorEncoder 返回 RFC 9457 404。
+// FileFS 将 fs.FS 中的单个文件挂载到指定路径。
 func (r *Router) FileFS(urlPath, file string, fsys fs.FS) {
 	cleanPath := "/" + strings.TrimLeft(urlPath, "/")
 	muxPattern := "GET " + cleanPath

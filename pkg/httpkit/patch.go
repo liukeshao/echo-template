@@ -14,20 +14,17 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// RFC 7386 JSON Merge Patch 支持的 Content-Type 常量。
 const (
-	ContentTypeMergePatch = "application/merge-patch+json" // RFC 7386
-	ContentTypeJSON       = "application/json"             // 兼容写法，按 Merge Patch 处理
+	ContentTypeMergePatch = "application/merge-patch+json"
+	ContentTypeJSON       = "application/json"
 )
 
-// SupportedPatchMediaTypes 列出 ApplyMergePatch 支持的 Content-Type，用于 415 PatchInfo 与 Accept-Patch 回显。
 var SupportedPatchMediaTypes = []string{
 	ContentTypeMergePatch,
 	ContentTypeJSON,
 }
 
-// ApplyMergePatch 按 RFC 7386 JSON Merge Patch 将 body 合并到 original 上。
-// 返回错误为 400 或 415 Problem（无硬编码 Detail，附带 PatchInfo）。
+// ApplyMergePatch 按 RFC 7386 JSON Merge Patch 将 body 合并到 original。
 func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) {
 	mediaType := parseMediaType(contentType)
 

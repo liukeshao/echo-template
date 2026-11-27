@@ -14,9 +14,8 @@ import (
 	"github.com/liukeshao/echo-template/static"
 )
 
-const defaultMaxBodyBytes = 2 << 20 // 2 MiB
+const defaultMaxBodyBytes = 2 << 20
 
-// BuildRouter 构建 httpkit.Router，显式编排全局中间件链并挂载全部业务端点与文档路由。
 func BuildRouter(i do.Injector) (http.Handler, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	tr := do.MustInvoke[i18n.Translator](i)
@@ -44,7 +43,6 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 		api.NewMeHandler(do.MustInvoke[*handler.Me](i), opts...),
 	)
 
-	// 生产环境不暴露 API 文档与静态资源。
 	if cfg.App.Environment != config.EnvProduction {
 		router.FileFS("/docs", "index.html", static.DocsFS)
 		router.FileFS("/openapi.yaml", "openapi/openapi.yaml", static.DocsFS)
@@ -54,7 +52,7 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 	return router, nil
 }
 
-// Locale 协商请求语言（?lang= > Accept-Language > Default）并写入 context。
+// Locale 按 ?lang= > Accept-Language > Default 协商语言并写入 context。
 func Locale(tr i18n.Translator) httpkit.Middleware {
 	if tr == nil {
 		return func(next http.Handler) http.Handler { return next }

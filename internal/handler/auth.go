@@ -12,12 +12,10 @@ import (
 
 var _ api.AuthHandler = (*Auth)(nil)
 
-// Auth 认证处理器（纯 Go 业务编排层，实现 api.AuthHandler，零 net/http 依赖）。
 type Auth struct {
 	auth *service.Auth
 }
 
-// NewAuth 构造 Auth 并注入依赖。
 func NewAuth(i do.Injector) (*Auth, error) {
 	return &Auth{
 		auth: do.MustInvoke[*service.Auth](i),

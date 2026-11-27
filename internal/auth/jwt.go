@@ -14,15 +14,13 @@ import (
 
 var errAuth = oops.In("auth")
 
-// JWT 负责无状态 Access Token（HS256 JWT）的签发与解析验证。
-// 仅在标准 RegisteredClaims 中携带 sub（用户 ID）与 jti（令牌 ID），不混入业务资料字段。
+// JWT 负责无状态 HS256 Access Token 的签发与验签，仅携带标准 RegisteredClaims（sub / jti）。
 type JWT struct {
 	secret       []byte
 	issuer       string
 	accessExpiry time.Duration
 }
 
-// NewJWT 根据配置构造无状态 Access JWT 管理器。
 func NewJWT(cfg config.JWT) *JWT {
 	return &JWT{
 		secret:       []byte(cfg.Secret),
@@ -31,7 +29,6 @@ func NewJWT(cfg config.JWT) *JWT {
 	}
 }
 
-// SignAccessToken 为指定 userID 签发短生命周期的无状态 Access JWT。
 func (j *JWT) SignAccessToken(userID string) (string, time.Time, error) {
 	now := time.Now()
 	expiresAt := now.Add(j.accessExpiry)
@@ -53,7 +50,6 @@ func (j *JWT) SignAccessToken(userID string) (string, time.Time, error) {
 	return signed, expiresAt, nil
 }
 
-// ParseAccessToken 验证 Access JWT 的签名、算法、签发者与有效期，并返回不可变 Principal。
 func (j *JWT) ParseAccessToken(tokenString string) (Principal, error) {
 	opts := []jwt.ParserOption{
 		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),

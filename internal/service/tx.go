@@ -11,8 +11,7 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// withTx 在单个数据库事务中执行 fn，并保证任何错误或 panic 都会回滚事务（避免 SQLite 单连接写锁泄漏）。
-// wrapErr 用于将开启或提交事务失败的底层错误包装为对应领域的 5xx oops 错误。
+// withTx 在单事务内执行 fn，确保任何错误或 panic 都会回滚（避免 SQLite 单连接写锁泄漏）。
 func withTx(
 	ctx context.Context,
 	orm *ent.Client,
@@ -40,7 +39,6 @@ func withTx(
 	return nil
 }
 
-// userFieldTaken 构造用户唯一性字段（email / username）冲突的 409 Conflict oops 错误。
 func userFieldTaken(domain oops.OopsErrorBuilder, actorID, field, value string) error {
 	b := domain
 	if actorID != "" {
@@ -55,8 +53,7 @@ func userFieldTaken(domain oops.OopsErrorBuilder, actorID, field, value string) 
 		Wrap(httperr.Conflict)
 }
 
-// checkUserUnique 检查 email 与 username 是否被（除 excludeUserID 外的）其他用户占用。
-// 若数据库查询失败：当 wrapErr 非空时立即包装为 5xx 返回；当 wrapErr 为 nil（用于约束冲突后回查）时忽略查询失败。
+// checkUserUnique 检查 email 与 username 是否被其他用户占用；wrapErr 为 nil 时忽略查询错误（用于约束冲突回查）。
 func checkUserUnique(
 	ctx context.Context,
 	orm *ent.Client,

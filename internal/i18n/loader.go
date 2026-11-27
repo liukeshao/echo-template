@@ -15,11 +15,8 @@ import (
 //go:embed messages/*.toml
 var messagesFS embed.FS
 
-// messagesDir 是嵌入文件的根目录前缀。
 const messagesDir = "messages"
 
-// loadMessages 从 embed.FS 读取所有已支持 locale 的翻译表。
-// 文件命名约定：messages/<BCP-47>.toml。缺失文件直接返回错误（fail-fast）。
 func loadMessages(supported []language.Tag) (map[language.Tag]map[string]string, error) {
 	out := make(map[language.Tag]map[string]string, len(supported))
 	for _, tag := range supported {
@@ -32,7 +29,6 @@ func loadMessages(supported []language.Tag) (map[language.Tag]map[string]string,
 	return out, nil
 }
 
-// loadLocale 读取单个 locale 的 TOML 文件并递归扁平化为 "section.sub.key" 形式。
 func loadLocale(tag language.Tag) (map[string]string, error) {
 	path := fmt.Sprintf("%s/%s.toml", messagesDir, tag.String())
 	raw, err := messagesFS.ReadFile(path)
@@ -72,8 +68,7 @@ func flattenTOML(prefix string, m map[string]any, dst map[string]string) error {
 	return nil
 }
 
-// assertCoverage 保证默认 locale 中的 [errors] 与 [validation] 100% 覆盖
-// 全部有限标准 HTTP 错误状态码（pkg/httperr.AllStatuses）与校验规则码（pkg/validator.RegisteredRules）。
+// assertCoverage 校验默认 locale 完整覆盖全部 httperr 状态码与 validator 规则码。
 func assertCoverage(defaultTable map[string]string, defaultTag language.Tag) error {
 	if defaultTable == nil {
 		return fmt.Errorf("i18n: default locale %s has no messages loaded", defaultTag)

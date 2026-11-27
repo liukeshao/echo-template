@@ -15,12 +15,10 @@ import (
 
 var errUser = oops.In("user")
 
-// User 用户领域服务（纯用户资料查询与更新，不耦合密码策略或令牌表）。
 type User struct {
 	orm *ent.Client
 }
 
-// NewUser 构造 User 并从 DI 容器注入依赖。
 func NewUser(i do.Injector) (*User, error) {
 	return &User{
 		orm: do.MustInvoke[*database.ORM](i).Client,
@@ -42,7 +40,6 @@ func userNotFound(domain oops.OopsErrorBuilder, userID string) error {
 		Wrap(httperr.NotFound)
 }
 
-// Get 按 ID 查询用户资料；不存在时返回 404 Not Found。
 func (s *User) Get(ctx context.Context, userID string) (*ent.User, error) {
 	u, err := s.orm.User.Query().
 		Where(entuser.IDEQ(userID)).
@@ -57,7 +54,6 @@ func (s *User) Get(ctx context.Context, userID string) (*ent.User, error) {
 	}
 }
 
-// Replace 全量替换指定用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
 func (s *User) Replace(ctx context.Context, userID string, req *api.ReplaceMeRequest) (*ent.User, error) {
 	if err := checkUserUnique(ctx, s.orm, errUser, userID, req.Email, req.Username, userInternal); err != nil {
 		return nil, err

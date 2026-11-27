@@ -14,13 +14,11 @@ import (
 	"github.com/liukeshao/echo-template/pkg/httpclient"
 )
 
-// Client 是 API 接口的具体实现，由 DI 容器构造并注入共享连接池与独立超时/重试配置。
 type Client struct {
 	cfg  config.ExternalClient
 	http *httpclient.Client
 }
 
-// NewClient 从 DI 容器装配天气 API 客户端。
 func NewClient(i do.Injector) (*Client, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	shared := do.MustInvoke[*httpclient.Client](i)
@@ -44,7 +42,6 @@ type currentWeatherResponse struct {
 	Humidity    int     `json:"humidity"`
 }
 
-// GetCurrent 实现 API；瞬态网络错误与 HTTP 429/502/503/504 由底层 httpclient 自动按配置重试。
 func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, error) {
 	const op = "GetCurrent"
 

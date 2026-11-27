@@ -25,14 +25,12 @@ import (
 
 var errAuth = oops.In("auth")
 
-// TokenPair 是认证服务签发的领域令牌对，由 handler 层投影为对外 DTO api.TokenPair。
 type TokenPair struct {
 	AccessToken  string
 	RefreshToken string
 	ExpiresAt    int64
 }
 
-// Auth 认证与凭证领域服务（负责注册、登录、令牌轮换、登出与改密，唯一持有 bcrypt 与 refresh_tokens 表操作）。
 type Auth struct {
 	orm                *ent.Client
 	jwt                *auth.JWT
@@ -41,7 +39,6 @@ type Auth struct {
 	dummyPasswordHash  string
 }
 
-// NewAuth 构造 Auth 并从 DI 容器注入依赖。
 func NewAuth(i do.Injector) (*Auth, error) {
 	orm := do.MustInvoke[*database.ORM](i)
 	cfg := do.MustInvoke[*config.Config](i)
@@ -62,8 +59,6 @@ func NewAuth(i do.Injector) (*Auth, error) {
 	}, nil
 }
 
-// --- 错误构造辅助函数（有限 httperr.Status 哨兵 + 原生 oops + AIP-193 Metadata） ---
-
 func authInternal(err error, op string) error {
 	return errAuth.
 		With("op", op).
@@ -81,7 +76,7 @@ func refreshTokenError(reason string, cause error) error {
 	return b.Wrap(httperr.Unauthorized)
 }
 
-// authInvalidCredentials 故意不区分"邮箱不存在"与"密码错误"，防止账户枚举攻击。
+// authInvalidCredentials 不区分邮箱不存在与密码错误，防止账户枚举。
 func authInvalidCredentials() error {
 	return errAuth.
 		With(httperr.MetaKey, httperr.PreconditionInfo{
@@ -89,8 +84,6 @@ func authInvalidCredentials() error {
 		}).
 		Wrap(httperr.Unauthorized)
 }
-
-// --- 私有方法 ---
 
 func generateOpaqueRefreshToken() (raw, hash string, err error) {
 	var buf [32]byte
@@ -125,13 +118,11 @@ func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID, familyI
 		familyID = uuid.NewV7().String()
 	}
 
-	// Access Token 为短生命周期无状态 JWT，不落库。
 	accessToken, accessExpiry, err := s.jwt.SignAccessToken(userID)
 	if err != nil {
 		return nil, err
 	}
 
-	// Refresh Token 为高熵随机不透明令牌，库中仅存 SHA-256 哈希。
 	rawRefresh, refreshHash, err := generateOpaqueRefreshToken()
 	if err != nil {
 		return nil, authInternal(err, "generating refresh token")
@@ -156,9 +147,6 @@ func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID, familyI
 	}, nil
 }
 
-// --- 公开方法 ---
-
-// Register 用户注册（在同一事务内创建用户、设置首次登录时间并签发令牌对）。
 func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPair, error) {
 	if err := checkUserUnique(ctx, s.orm, errAuth, "", req.Email, req.Username, authInternal); err != nil {
 		return nil, err
@@ -203,7 +191,6 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 	return resp, nil
 }
 
-// Login 用户登录（在同一事务内签发令牌对并更新最后登录时间）。
 func (s *Auth) Login(ctx context.Context, req *api.LoginRequest) (*TokenPair, error) {
 	user, err := s.orm.User.Query().
 		Where(entuser.Email(req.Email)).
@@ -336,7 +323,6 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 	return resp, nil
 }
 
-// Logout 撤销该用户全部未撤销的刷新令牌（已签发的短周期无状态 Access JWT 将自然过期）。
 func (s *Auth) Logout(ctx context.Context, userID string) error {
 	_, err := s.orm.RefreshToken.Update().
 		Where(
@@ -351,7 +337,6 @@ func (s *Auth) Logout(ctx context.Context, userID string) error {
 	return nil
 }
 
-// ChangePassword 修改用户密码并在同一事务内撤销该用户全部活跃刷新令牌。
 func (s *Auth) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) error {
 	u, err := s.orm.User.Query().
 		Where(entuser.IDEQ(userID)).

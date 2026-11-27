@@ -20,12 +20,10 @@ import (
 
 var errBook = oops.In("book")
 
-// Book 书籍服务
 type Book struct {
 	orm *ent.Client
 }
 
-// NewBook 构造 Book 并从 DI 容器注入依赖。
 func NewBook(i do.Injector) (*Book, error) {
 	return &Book{
 		orm: do.MustInvoke[*database.ORM](i).Client,
@@ -58,7 +56,6 @@ func bookDB(err error, op, id string) error {
 		Join(httperr.Internal, err)
 }
 
-// Create 创建书籍。
 func (s *Book) Create(ctx context.Context, req *api.CreateBookRequest) (*ent.Book, error) {
 	id := req.BookID
 	if id == "" {
@@ -90,7 +87,6 @@ func (s *Book) Create(ctx context.Context, req *api.CreateBookRequest) (*ent.Boo
 	return b, nil
 }
 
-// Get 获取书籍
 func (s *Book) Get(ctx context.Context, id string) (*ent.Book, error) {
 	b, err := s.orm.Book.Query().
 		Where(book.IDEQ(id)).
@@ -105,7 +101,6 @@ func (s *Book) Get(ctx context.Context, id string) (*ent.Book, error) {
 	return b, nil
 }
 
-// List 获取书籍列表，支持分页、排序和按请求字段独立过滤。
 func (s *Book) List(ctx context.Context, req *api.ListBooksRequest) (*Page[*ent.Book], error) {
 	if req == nil {
 		req = &api.ListBooksRequest{}
@@ -171,7 +166,6 @@ func buildBookPredicates(req *api.ListBooksRequest) []predicate.Book {
 	return preds
 }
 
-// Replace 全量替换书籍 —— Kubernetes 风格的幂等 PUT 语义。
 func (s *Book) Replace(ctx context.Context, id string, req *api.ReplaceBookRequest) (*ent.Book, error) {
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).
@@ -203,7 +197,6 @@ func (s *Book) Replace(ctx context.Context, id string, req *api.ReplaceBookReque
 	return b, nil
 }
 
-// Delete 删除书籍（逻辑删除）。
 func (s *Book) Delete(ctx context.Context, id string) error {
 	if err := s.orm.Book.DeleteOneID(id).Exec(ctx); err != nil {
 		if ent.IsNotFound(err) {
@@ -213,8 +206,6 @@ func (s *Book) Delete(ctx context.Context, id string) error {
 	}
 	return nil
 }
-
-// --- 排序辅助 ---
 
 func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 	terms, err := validator.ParseOrderBy("order_by", orderBy,

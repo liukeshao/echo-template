@@ -12,10 +12,9 @@ import (
 	"github.com/liukeshao/echo-template/pkg/logging"
 )
 
-// HeaderRequestID 是请求追踪 ID 使用的标准 HTTP 头。
 const HeaderRequestID = "X-Request-ID"
 
-// RequestID 读取或生成 UUID v7 格式的 X-Request-ID，写入响应头与 context（供 slog 和 Problem.RequestID 复用）。
+// RequestID 读取或生成 UUID v7 格式的 X-Request-ID，写入响应头与 context。
 func RequestID() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +28,6 @@ func RequestID() Middleware {
 	}
 }
 
-// BodyLimit 使用标准库 http.MaxBytesReader 限制单次请求体最大字节数。
 func BodyLimit(maxBytes int64) Middleware {
 	if maxBytes <= 0 {
 		return func(next http.Handler) http.Handler { return next }
@@ -42,7 +40,6 @@ func BodyLimit(maxBytes int64) Middleware {
 	}
 }
 
-// Recover 捕获下游 panic，记录堆栈日志并通过 enc 返回标准 500 错误响应。
 func Recover(enc httperr.Encoder) Middleware {
 	if enc == nil {
 		enc = httperr.DefaultEncoder
@@ -63,7 +60,6 @@ func Recover(enc httperr.Encoder) Middleware {
 	}
 }
 
-// AccessLog 使用 slog 记录每个 HTTP 请求的方法、路径、状态码与耗时。
 func AccessLog() Middleware {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

@@ -11,7 +11,6 @@ const (
 	retryMaxDelay  = 5 * time.Second
 )
 
-// retryTransport 为幂等请求在瞬态网络故障或 HTTP 429/502/503/504 时提供指数退避带抖动重试。
 type retryTransport struct {
 	base       http.RoundTripper
 	maxRetries int
@@ -46,7 +45,6 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		resp, err = t.base.RoundTrip(attemptReq)
 		if err != nil {
-			// 调用方自身 context 已取消或超时时立即停止重试。
 			if req.Context().Err() != nil {
 				return nil, err
 			}
@@ -57,14 +55,12 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 			return resp, nil
 		}
 
-		// 排空并关闭中间错误响应体，使底层连接可供下次重试复用。
 		DrainAndClose(resp.Body)
 	}
 
 	return resp, err
 }
 
-// canRetryRequest 判断请求是否可安全重试（方法幂等，且存在 Body 时必须可重放）。
 func canRetryRequest(req *http.Request) bool {
 	if !isIdempotentMethod(req.Method) {
 		return false
