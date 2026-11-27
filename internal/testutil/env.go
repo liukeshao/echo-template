@@ -30,6 +30,7 @@ import (
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/client"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/internal/handler"
@@ -153,6 +154,7 @@ func New(t testing.TB, opts ...Option) *Env {
 	inj := do.New(
 		database.Package,
 		i18n.Package,
+		auth.Package,
 		client.Package,
 		service.Package,
 		handler.Package,

@@ -5,6 +5,7 @@ import (
 
 	"github.com/samber/do/v2"
 
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/pkg/api"
 )
@@ -51,8 +52,8 @@ func (h *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 }
 
 func (h *Auth) Logout(ctx context.Context) error {
-	user := MustUser(ctx)
-	return h.auth.Logout(ctx, user.ID)
+	principal := auth.MustPrincipal(ctx)
+	return h.auth.Logout(ctx, principal.UserID)
 }
 
 func toTokenPair(tp *service.TokenPair) api.TokenPair {

@@ -485,21 +485,21 @@ func LastLoginAtNotNil() predicate.User {
 	return predicate.User(sql.FieldNotNull(FieldLastLoginAt))
 }
 
-// HasTokens applies the HasEdge predicate on the "tokens" edge.
-func HasTokens() predicate.User {
+// HasRefreshTokens applies the HasEdge predicate on the "refresh_tokens" edge.
+func HasRefreshTokens() predicate.User {
 	return predicate.User(func(s *sql.Selector) {
 		step := sqlgraph.NewStep(
 			sqlgraph.From(Table, FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, TokensTable, TokensColumn),
+			sqlgraph.Edge(sqlgraph.O2M, false, RefreshTokensTable, RefreshTokensColumn),
 		)
 		sqlgraph.HasNeighbors(s, step)
 	})
 }
 
-// HasTokensWith applies the HasEdge predicate on the "tokens" edge with a given conditions (other predicates).
-func HasTokensWith(preds ...predicate.Token) predicate.User {
+// HasRefreshTokensWith applies the HasEdge predicate on the "refresh_tokens" edge with a given conditions (other predicates).
+func HasRefreshTokensWith(preds ...predicate.RefreshToken) predicate.User {
 	return predicate.User(func(s *sql.Selector) {
-		step := newTokensStep()
+		step := newRefreshTokensStep()
 		sqlgraph.HasNeighborsWith(s, step, func(s *sql.Selector) {
 			for _, p := range preds {
 				p(s)

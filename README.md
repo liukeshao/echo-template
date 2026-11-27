@@ -36,10 +36,11 @@ pkg/                    纯公共、零 internal/ 与零三方依赖的可复用
   api/                  TypeSpec 生成的平铺 DTO、Validate()、Handler 接口与 api.NewXxxHandler 适配器
   httpclient/           共享出站 HTTP 客户端连接池与内置超时/重试 RoundTripper（通过 Config/WithOptions 参数注入，零外部依赖）
   httperr/              13 个有限 HTTP 错误状态码哨兵（httperr.NotFound 等）、AIP-193 Metadata、纯 RFC 9457 Problem 与可插拔三段式 NewEncoder
-  httpkit/              纯标准库 net/http 入站服务端原语套件（Server 优雅停机、Router 与 Static/File 静态资源挂载、Handler、@useAuth 鉴权、RequestID/AccessLog/Recover/BodyLimit 中间件、编解码、RFC 7386 Merge Patch）
+  httpkit/              纯标准库 net/http 入站服务端原语套件（Server 优雅停机、Router 与 Static/File 静态资源挂载、Handler、@useAuth 与 BearerAuth 鉴权、RequestID/AccessLog/Recover/BodyLimit 中间件、编解码、RFC 7386 Merge Patch）
   logging/              slog ContextHandler（日志自动带 request_id + request_id context，零外部依赖）
   validator/            强类型 Rule / Param、FieldViolations、声明式校验原语、泛型边界校验与通用 ParseOrderBy
 internal/               应用私有实现
+  auth/                 认证基础设施（不可变 Principal 上下文、无状态 Access JWT 签发/验签与 BearerAuthenticator）
   client/               第三方 API 客户端（每个 API 一个子包）
     <apiname>/
       interface.go      API interface + 响应 DTO（service 层唯一依赖）
@@ -50,7 +51,7 @@ internal/               应用私有实现
   handler/              纯 Go 业务编排与 DTO 投影 Handler（Auth / Me / Book，彻底零 net/http 依赖）
   i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商 + locale context）
   server/               极薄的 3 文件 HTTP 装配层（package.go 装配 httpkit.Server、router.go 路由与文档装配、problem.go 胶水）
-  service/              领域服务（业务逻辑、分页规范化、bcrypt 密码策略与各自资源的 ent 查询条件）
+  service/              领域服务（Auth 凭证与哈希刷新令牌轮换、User 资料、Book 业务、分页规范化与 bcrypt 密码策略）
   testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
 static/                 Stoplight Elements + OpenAPI 3.1 YAML（embed.FS）
 .apitest/               IDE HTTP Client 测试文件

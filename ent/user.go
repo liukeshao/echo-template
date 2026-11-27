@@ -42,20 +42,20 @@ type User struct {
 
 // UserEdges holds the relations/edges for other nodes in the graph.
 type UserEdges struct {
-	// Tokens holds the value of the tokens edge.
-	Tokens []*Token `json:"tokens,omitempty"`
+	// RefreshTokens holds the value of the refresh_tokens edge.
+	RefreshTokens []*RefreshToken `json:"refresh_tokens,omitempty"`
 	// loadedTypes holds the information for reporting if a
 	// type was loaded (or requested) in eager-loading or not.
 	loadedTypes [1]bool
 }
 
-// TokensOrErr returns the Tokens value or an error if the edge
+// RefreshTokensOrErr returns the RefreshTokens value or an error if the edge
 // was not loaded in eager-loading.
-func (e UserEdges) TokensOrErr() ([]*Token, error) {
+func (e UserEdges) RefreshTokensOrErr() ([]*RefreshToken, error) {
 	if e.loadedTypes[0] {
-		return e.Tokens, nil
+		return e.RefreshTokens, nil
 	}
-	return nil, &NotLoadedError{edge: "tokens"}
+	return nil, &NotLoadedError{edge: "refresh_tokens"}
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
@@ -152,9 +152,9 @@ func (_m *User) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// QueryTokens queries the "tokens" edge of the User entity.
-func (_m *User) QueryTokens() *TokenQuery {
-	return NewUserClient(_m.config).QueryTokens(_m)
+// QueryRefreshTokens queries the "refresh_tokens" edge of the User entity.
+func (_m *User) QueryRefreshTokens() *RefreshTokenQuery {
+	return NewUserClient(_m.config).QueryRefreshTokens(_m)
 }
 
 // Update returns a builder for updating this User.

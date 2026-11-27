@@ -48,51 +48,56 @@ var (
 			},
 		},
 	}
-	// TokensColumns holds the columns for the "tokens" table.
-	TokensColumns = []*schema.Column{
+	// RefreshTokensColumns holds the columns for the "refresh_tokens" table.
+	RefreshTokensColumns = []*schema.Column{
 		{Name: "id", Type: field.TypeString, Unique: true, Size: 36},
 		{Name: "created_at", Type: field.TypeTime},
 		{Name: "updated_at", Type: field.TypeTime},
 		{Name: "deleted_at", Type: field.TypeInt64, Default: 0},
-		{Name: "token", Type: field.TypeString, Size: 1000},
-		{Name: "type", Type: field.TypeEnum, Enums: []string{"access", "refresh"}},
+		{Name: "family_id", Type: field.TypeString, Size: 36},
+		{Name: "token_hash", Type: field.TypeString, Size: 64},
 		{Name: "expires_at", Type: field.TypeTime},
 		{Name: "is_revoked", Type: field.TypeBool, Default: false},
 		{Name: "user_id", Type: field.TypeString, Size: 36},
 	}
-	// TokensTable holds the schema information for the "tokens" table.
-	TokensTable = &schema.Table{
-		Name:       "tokens",
-		Columns:    TokensColumns,
-		PrimaryKey: []*schema.Column{TokensColumns[0]},
+	// RefreshTokensTable holds the schema information for the "refresh_tokens" table.
+	RefreshTokensTable = &schema.Table{
+		Name:       "refresh_tokens",
+		Columns:    RefreshTokensColumns,
+		PrimaryKey: []*schema.Column{RefreshTokensColumns[0]},
 		ForeignKeys: []*schema.ForeignKey{
 			{
-				Symbol:     "tokens_users_tokens",
-				Columns:    []*schema.Column{TokensColumns[8]},
+				Symbol:     "refresh_tokens_users_refresh_tokens",
+				Columns:    []*schema.Column{RefreshTokensColumns[8]},
 				RefColumns: []*schema.Column{UsersColumns[0]},
 				OnDelete:   schema.NoAction,
 			},
 		},
 		Indexes: []*schema.Index{
 			{
-				Name:    "token_deleted_at",
+				Name:    "refreshtoken_deleted_at",
 				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[3]},
+				Columns: []*schema.Column{RefreshTokensColumns[3]},
 			},
 			{
-				Name:    "token_token_deleted_at",
+				Name:    "refreshtoken_token_hash_deleted_at",
 				Unique:  true,
-				Columns: []*schema.Column{TokensColumns[4], TokensColumns[3]},
+				Columns: []*schema.Column{RefreshTokensColumns[5], RefreshTokensColumns[3]},
 			},
 			{
-				Name:    "token_user_id_is_revoked_deleted_at",
+				Name:    "refreshtoken_user_id_is_revoked_deleted_at",
 				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[8], TokensColumns[7], TokensColumns[3]},
+				Columns: []*schema.Column{RefreshTokensColumns[8], RefreshTokensColumns[7], RefreshTokensColumns[3]},
 			},
 			{
-				Name:    "token_expires_at",
+				Name:    "refreshtoken_family_id_is_revoked_deleted_at",
 				Unique:  false,
-				Columns: []*schema.Column{TokensColumns[6]},
+				Columns: []*schema.Column{RefreshTokensColumns[4], RefreshTokensColumns[7], RefreshTokensColumns[3]},
+			},
+			{
+				Name:    "refreshtoken_expires_at",
+				Unique:  false,
+				Columns: []*schema.Column{RefreshTokensColumns[6]},
 			},
 		},
 	}
@@ -139,11 +144,11 @@ var (
 	// Tables holds all the tables in the schema.
 	Tables = []*schema.Table{
 		BooksTable,
-		TokensTable,
+		RefreshTokensTable,
 		UsersTable,
 	}
 )
 
 func init() {
-	TokensTable.ForeignKeys[0].RefTable = UsersTable
+	RefreshTokensTable.ForeignKeys[0].RefTable = UsersTable
 }

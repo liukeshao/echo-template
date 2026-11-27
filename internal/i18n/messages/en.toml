@@ -42,6 +42,7 @@ ACCOUNT_DISABLED = "This account has been disabled."
 
 [details.404]
 book = "Book {resource_name} was not found."
+user = "User {resource_name} was not found."
 
 [details.409]
 user.email    = "The email {resource_name} is already in use."

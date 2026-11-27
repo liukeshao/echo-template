@@ -9,12 +9,12 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
-// Token is the model entity for the Token schema.
-type Token struct {
+// RefreshToken is the model entity for the RefreshToken schema.
+type RefreshToken struct {
 	config `json:"-"`
 	// ID of the ent.
 	// 唯一标识符，UUID v7 格式
@@ -25,24 +25,24 @@ type Token struct {
 	UpdatedAt time.Time `json:"updated_at,omitempty"`
 	// 逻辑删除时间戳（毫秒），0表示未删除
 	DeletedAt int64 `json:"deleted_at,omitempty"`
-	// 关联的用户ID
+	// 关联的用户 ID
 	UserID string `json:"user_id,omitempty"`
-	// JWT token值
-	Token string `json:"-"`
-	// Token类型：access-访问令牌，refresh-刷新令牌
-	Type token.Type `json:"type,omitempty"`
-	// Token过期时间
+	// 刷新令牌族 ID
+	FamilyID string `json:"family_id,omitempty"`
+	// 刷新令牌的 SHA-256 哈希值
+	TokenHash string `json:"-"`
+	// 刷新令牌过期时间
 	ExpiresAt time.Time `json:"expires_at,omitempty"`
 	// 是否已撤销
 	IsRevoked bool `json:"is_revoked,omitempty"`
 	// Edges holds the relations/edges for other nodes in the graph.
-	// The values are being populated by the TokenQuery when eager-loading is set.
-	Edges        TokenEdges `json:"edges"`
+	// The values are being populated by the RefreshTokenQuery when eager-loading is set.
+	Edges        RefreshTokenEdges `json:"edges"`
 	selectValues sql.SelectValues
 }
 
-// TokenEdges holds the relations/edges for other nodes in the graph.
-type TokenEdges struct {
+// RefreshTokenEdges holds the relations/edges for other nodes in the graph.
+type RefreshTokenEdges struct {
 	// User holds the value of the user edge.
 	User *User `json:"user,omitempty"`
 	// loadedTypes holds the information for reporting if a
@@ -52,7 +52,7 @@ type TokenEdges struct {
 
 // UserOrErr returns the User value or an error if the edge
 // was not loaded in eager-loading, or loaded but was not found.
-func (e TokenEdges) UserOrErr() (*User, error) {
+func (e RefreshTokenEdges) UserOrErr() (*User, error) {
 	if e.User != nil {
 		return e.User, nil
 	} else if e.loadedTypes[0] {
@@ -62,17 +62,17 @@ func (e TokenEdges) UserOrErr() (*User, error) {
 }
 
 // scanValues returns the types for scanning values from sql.Rows.
-func (*Token) scanValues(columns []string) ([]any, error) {
+func (*RefreshToken) scanValues(columns []string) ([]any, error) {
 	values := make([]any, len(columns))
 	for i := range columns {
 		switch columns[i] {
-		case token.FieldIsRevoked:
+		case refreshtoken.FieldIsRevoked:
 			values[i] = new(sql.NullBool)
-		case token.FieldDeletedAt:
+		case refreshtoken.FieldDeletedAt:
 			values[i] = new(sql.NullInt64)
-		case token.FieldID, token.FieldUserID, token.FieldToken, token.FieldType:
+		case refreshtoken.FieldID, refreshtoken.FieldUserID, refreshtoken.FieldFamilyID, refreshtoken.FieldTokenHash:
 			values[i] = new(sql.NullString)
-		case token.FieldCreatedAt, token.FieldUpdatedAt, token.FieldExpiresAt:
+		case refreshtoken.FieldCreatedAt, refreshtoken.FieldUpdatedAt, refreshtoken.FieldExpiresAt:
 			values[i] = new(sql.NullTime)
 		default:
 			values[i] = new(sql.UnknownType)
@@ -82,62 +82,62 @@ func (*Token) scanValues(columns []string) ([]any, error) {
 }
 
 // assignValues assigns the values that were returned from sql.Rows (after scanning)
-// to the Token fields.
-func (_m *Token) assignValues(columns []string, values []any) error {
+// to the RefreshToken fields.
+func (_m *RefreshToken) assignValues(columns []string, values []any) error {
 	if m, n := len(values), len(columns); m < n {
 		return fmt.Errorf("mismatch number of scan values: %d != %d", m, n)
 	}
 	for i := range columns {
 		switch columns[i] {
-		case token.FieldID:
+		case refreshtoken.FieldID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field id", values[i])
 			} else if value.Valid {
 				_m.ID = value.String
 			}
-		case token.FieldCreatedAt:
+		case refreshtoken.FieldCreatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field created_at", values[i])
 			} else if value.Valid {
 				_m.CreatedAt = value.Time
 			}
-		case token.FieldUpdatedAt:
+		case refreshtoken.FieldUpdatedAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field updated_at", values[i])
 			} else if value.Valid {
 				_m.UpdatedAt = value.Time
 			}
-		case token.FieldDeletedAt:
+		case refreshtoken.FieldDeletedAt:
 			if value, ok := values[i].(*sql.NullInt64); !ok {
 				return fmt.Errorf("unexpected type %T for field deleted_at", values[i])
 			} else if value.Valid {
 				_m.DeletedAt = value.Int64
 			}
-		case token.FieldUserID:
+		case refreshtoken.FieldUserID:
 			if value, ok := values[i].(*sql.NullString); !ok {
 				return fmt.Errorf("unexpected type %T for field user_id", values[i])
 			} else if value.Valid {
 				_m.UserID = value.String
 			}
-		case token.FieldToken:
+		case refreshtoken.FieldFamilyID:
 			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field token", values[i])
+				return fmt.Errorf("unexpected type %T for field family_id", values[i])
 			} else if value.Valid {
-				_m.Token = value.String
+				_m.FamilyID = value.String
 			}
-		case token.FieldType:
+		case refreshtoken.FieldTokenHash:
 			if value, ok := values[i].(*sql.NullString); !ok {
-				return fmt.Errorf("unexpected type %T for field type", values[i])
+				return fmt.Errorf("unexpected type %T for field token_hash", values[i])
 			} else if value.Valid {
-				_m.Type = token.Type(value.String)
+				_m.TokenHash = value.String
 			}
-		case token.FieldExpiresAt:
+		case refreshtoken.FieldExpiresAt:
 			if value, ok := values[i].(*sql.NullTime); !ok {
 				return fmt.Errorf("unexpected type %T for field expires_at", values[i])
 			} else if value.Valid {
 				_m.ExpiresAt = value.Time
 			}
-		case token.FieldIsRevoked:
+		case refreshtoken.FieldIsRevoked:
 			if value, ok := values[i].(*sql.NullBool); !ok {
 				return fmt.Errorf("unexpected type %T for field is_revoked", values[i])
 			} else if value.Valid {
@@ -150,39 +150,39 @@ func (_m *Token) assignValues(columns []string, values []any) error {
 	return nil
 }
 
-// Value returns the ent.Value that was dynamically selected and assigned to the Token.
+// Value returns the ent.Value that was dynamically selected and assigned to the RefreshToken.
 // This includes values selected through modifiers, order, etc.
-func (_m *Token) Value(name string) (ent.Value, error) {
+func (_m *RefreshToken) Value(name string) (ent.Value, error) {
 	return _m.selectValues.Get(name)
 }
 
-// QueryUser queries the "user" edge of the Token entity.
-func (_m *Token) QueryUser() *UserQuery {
-	return NewTokenClient(_m.config).QueryUser(_m)
+// QueryUser queries the "user" edge of the RefreshToken entity.
+func (_m *RefreshToken) QueryUser() *UserQuery {
+	return NewRefreshTokenClient(_m.config).QueryUser(_m)
 }
 
-// Update returns a builder for updating this Token.
-// Note that you need to call Token.Unwrap() before calling this method if this Token
+// Update returns a builder for updating this RefreshToken.
+// Note that you need to call RefreshToken.Unwrap() before calling this method if this RefreshToken
 // was returned from a transaction, and the transaction was committed or rolled back.
-func (_m *Token) Update() *TokenUpdateOne {
-	return NewTokenClient(_m.config).UpdateOne(_m)
+func (_m *RefreshToken) Update() *RefreshTokenUpdateOne {
+	return NewRefreshTokenClient(_m.config).UpdateOne(_m)
 }
 
-// Unwrap unwraps the Token entity that was returned from a transaction after it was closed,
+// Unwrap unwraps the RefreshToken entity that was returned from a transaction after it was closed,
 // so that all future queries will be executed through the driver which created the transaction.
-func (_m *Token) Unwrap() *Token {
+func (_m *RefreshToken) Unwrap() *RefreshToken {
 	_tx, ok := _m.config.driver.(*txDriver)
 	if !ok {
-		panic("ent: Token is not a transactional entity")
+		panic("ent: RefreshToken is not a transactional entity")
 	}
 	_m.config.driver = _tx.drv
 	return _m
 }
 
 // String implements the fmt.Stringer.
-func (_m *Token) String() string {
+func (_m *RefreshToken) String() string {
 	var builder strings.Builder
-	builder.WriteString("Token(")
+	builder.WriteString("RefreshToken(")
 	builder.WriteString(fmt.Sprintf("id=%v, ", _m.ID))
 	builder.WriteString("created_at=")
 	builder.WriteString(_m.CreatedAt.Format(time.ANSIC))
@@ -196,10 +196,10 @@ func (_m *Token) String() string {
 	builder.WriteString("user_id=")
 	builder.WriteString(_m.UserID)
 	builder.WriteString(", ")
-	builder.WriteString("token=<sensitive>")
+	builder.WriteString("family_id=")
+	builder.WriteString(_m.FamilyID)
 	builder.WriteString(", ")
-	builder.WriteString("type=")
-	builder.WriteString(fmt.Sprintf("%v", _m.Type))
+	builder.WriteString("token_hash=<sensitive>")
 	builder.WriteString(", ")
 	builder.WriteString("expires_at=")
 	builder.WriteString(_m.ExpiresAt.Format(time.ANSIC))
@@ -210,5 +210,5 @@ func (_m *Token) String() string {
 	return builder.String()
 }
 
-// Tokens is a parsable slice of Token.
-type Tokens []*Token
+// RefreshTokens is a parsable slice of RefreshToken.
+type RefreshTokens []*RefreshToken

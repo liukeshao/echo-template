@@ -6,9 +6,9 @@ Rules and invariants for AI agents working in this repository.
 
 ## Architecture
 
-- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (thin HTTP wiring: BuildRouter, NewProblemEncoder, Locale middleware, BearerAuth, Server lifecycle)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
-- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/httperr`, `pkg/httpkit`, `pkg/logging`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, and business logic live under `internal/`.
-- **HTTP Transport & Error Split**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) is split cleanly into three `http*` packages: `pkg/httpclient` (outbound HTTP client & retry transport), `pkg/httperr` (13 finite HTTP error status sentinels, pure RFC 9457 `httperr.Problem`, AIP-193 `httperr.Metadata`, `httperr.NewEncoder` three-stage pipeline / `Classify` / `Write`), and `pkg/httpkit` (inbound `httpkit.Server` graceful shutdown, `httpkit.Router` with Echo-style `Static`/`StaticFS`/`File`/`FileFS`, `httpkit.Handler`, `@useAuth` middleware, base middlewares including `RequestID`/`AccessLog`/`Recover`/`BodyLimit`, stateless codecs, RFC 7386 Merge Patch). `internal/server` acts solely as a thin 3-file application wiring layer (`package.go` wiring `httpkit.Server`, `router.go` with `BuildRouter`/`BearerAuth`/`Locale` + docs mounting, `problem.go` wiring `httperr.NewEncoder`). Domain services, outbound clients, and `i18n` depend ONLY on `pkg/httperr`, never on `pkg/httpkit`. No third-party HTTP framework.
+- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (thin HTTP wiring: BuildRouter, NewProblemEncoder, Locale middleware, Server lifecycle)` + `internal/auth (stateless Access JWT, Principal context, BearerAuthenticator)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic: Auth credentials/tokens, User profile, Book)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
+- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/httperr`, `pkg/httpkit`, `pkg/logging`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, auth, and business logic live under `internal/`.
+- **HTTP Transport & Error Split**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) is split cleanly into three `http*` packages: `pkg/httpclient` (outbound HTTP client & retry transport), `pkg/httperr` (13 finite HTTP error status sentinels, pure RFC 9457 `httperr.Problem`, AIP-193 `httperr.Metadata`, `httperr.NewEncoder` three-stage pipeline / `Classify` / `Write`), and `pkg/httpkit` (inbound `httpkit.Server` graceful shutdown, `httpkit.Router` with Echo-style `Static`/`StaticFS`/`File`/`FileFS`, `httpkit.Handler`, `@useAuth` + `BearerAuth` middleware, base middlewares including `RequestID`/`AccessLog`/`Recover`/`BodyLimit`, stateless codecs, RFC 7386 Merge Patch). `internal/server` acts solely as a thin 3-file application wiring layer (`package.go` wiring `httpkit.Server`, `router.go` with `BuildRouter`/`Locale` + docs mounting, `problem.go` wiring `httperr.NewEncoder`). Domain services, outbound clients, and `i18n` depend ONLY on `pkg/httperr`, never on `pkg/httpkit`. No third-party HTTP framework.
 - **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Book`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Generated `api.NewXxxHandler(impl, opts...) httpkit.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `httperr.Encoder`.
 - **DI**: All singletons are registered via `samber/do`. Use `do.Lazy(NewFoo)` for lazy init; use `do.Provide(NewFoo)` only when eager init is necessary.
 - **Context**: Always propagate `context.Context` as the first argument. Never store it in struct fields.
@@ -95,7 +95,7 @@ errDomain.
 - Naming convention in `pkg/api`:
   - **Requests**: `*Request` (`CreateBookRequest`, `ReplaceBookRequest`, `ListBooksRequest`, `GetBookRequest`, `LoginRequest`).
   - **Responses**: pure domain nouns (`Book`, `BookList`, `User`, `TokenPair`, `Problem`) — no `*Response` suffix.
-  - Keep internal structs (such as `jwtClaims`) inside their owning service package, never in `pkg/api`.
+  - Keep internal structs (such as `auth.Principal` or `service.TokenPair`) inside their owning internal package, never in `pkg/api`.
 - Resource DTOs must not expose `password_hash`, `deleted_at`, or other internal fields.
 - Mapping functions (`toXxx`) belong in `internal/handler/<domain>.go`, not in services. Use `mapSlice(items, toXxx)` instead of per-domain slice mappers.
 
@@ -112,12 +112,13 @@ errDomain.
 
 ## Auth
 
-- `server.BearerAuth` (`httpkit.Authenticator`, defined alongside router wiring in `internal/server/router.go`) validates Bearer JWT tokens and enriches context via `handler.WithUser`.
+- `internal/auth` owns stateless Access JWT signing/parsing (`auth.JWT`), immutable request identity (`auth.Principal{UserID, TokenID}` via `auth.WithPrincipal` / `auth.MustPrincipal`), and `auth.BearerAuthenticator` (wrapping `httpkit.BearerAuth`, zero DB queries per request).
 - Route-level auth is driven declaratively by `@useAuth(...)` in TypeSpec; generated `api.NewXxxHandler` emits `httpkit.Operation{ID, Method, Pattern, Auth}` and delegates to `cfg.Wrap(op, ...)`.
 - Register named `@useAuth` schemes in `internal/server/router.go` via `httpkit.WithAuthScheme("BearerAuth", ...)` (natively supporting single, `AND`, `OR`, and `NoAuth` combinations with fail-fast checks on unregistered schemes), or plug in any third-party `net/http` middleware per-operation via `httpkit.WithMiddleware(func(op httpkit.Operation) httpkit.Middleware)`.
-- In handlers behind `@useAuth(BearerAuth)`, use `handler.MustUser` — never the non-panicking variant.
-- JWT claims (`jwtClaims` in `internal/service/auth.go`) contain only `user_id` and `token_type`. Do not add user fields to claims.
-- Token types use `ent/token.Type` enum. Do not use raw strings like `"access"`.
+- In handlers behind `@useAuth(BearerAuth)`, use `auth.MustPrincipal(ctx)` — never the non-panicking variant, and never place `*ent.User` in context.
+- Access tokens are short-lived stateless HS256 JWTs carrying only standard `jwt.RegisteredClaims` (`sub` = user ID, `jti` = UUID v7, `iss`, `iat`, `nbf`, `exp`) and are never persisted in the database. Do not add user profile fields to JWT claims.
+- Refresh tokens are 32-byte random opaque tokens persisted in `refresh_tokens` (`ent/schema/refresh_token.go`) strictly as SHA-256 hex digests (`token_hash`) with `family_id` rotation and reuse detection.
+- `service.Auth` owns all credential and token lifecycle operations (`Register`, `Login`, `RefreshToken`, `Logout`, `ChangePassword`, `bcrypt`, `refresh_tokens`); `service.User` owns pure user profile operations (`Get`, `Replace`); `handler.Me` orchestrates both for `/api/v1/me`.
 
 ---
 

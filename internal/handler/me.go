@@ -6,44 +6,52 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/pkg/api"
 )
 
 var _ api.MeHandler = (*Me)(nil)
 
-// Me 当前登录用户的处理器（纯 Go 业务编排层，实现 api.MeHandler，零 net/http 依赖）。
-// PATCH /api/v1/me 由 TypeSpec @autoPatch(Me.get, Me.replace) 自动串联 GetMe + ReplaceMe。
+// Me 当前登录用户的单例资源处理器（纯 Go 业务编排层，实现 api.MeHandler，零 net/http 依赖）。
+// 编排 service.User（资料读写）与 service.Auth（密码凭证变更），
+// PATCH /api/v1/me 由 TypeSpec @autoPatch(Me.getMe, Me.replaceMe) 自动串联 GetMe + ReplaceMe。
 type Me struct {
-	me *service.Me
+	user *service.User
+	auth *service.Auth
 }
 
 // NewMe 构造 Me 并注入依赖。
 func NewMe(i do.Injector) (*Me, error) {
 	return &Me{
-		me: do.MustInvoke[*service.Me](i),
+		user: do.MustInvoke[*service.User](i),
+		auth: do.MustInvoke[*service.Auth](i),
 	}, nil
 }
 
 func (h *Me) GetMe(ctx context.Context) (*api.User, error) {
-	user := MustUser(ctx)
-	u := toUser(user)
-	return &u, nil
-}
-
-func (h *Me) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*api.User, error) {
-	user := MustUser(ctx)
-	updated, err := h.me.Replace(ctx, user.ID, req)
+	principal := auth.MustPrincipal(ctx)
+	u, err := h.user.Get(ctx, principal.UserID)
 	if err != nil {
 		return nil, err
 	}
-	u := toUser(updated)
-	return &u, nil
+	res := toUser(u)
+	return &res, nil
+}
+
+func (h *Me) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*api.User, error) {
+	principal := auth.MustPrincipal(ctx)
+	updated, err := h.user.Replace(ctx, principal.UserID, req)
+	if err != nil {
+		return nil, err
+	}
+	res := toUser(updated)
+	return &res, nil
 }
 
 func (h *Me) ChangePassword(ctx context.Context, req *api.ChangePasswordRequest) error {
-	user := MustUser(ctx)
-	return h.me.ChangePassword(ctx, user.ID, req)
+	principal := auth.MustPrincipal(ctx)
+	return h.auth.ChangePassword(ctx, principal.UserID, req)
 }
 
 // toUser 将 *ent.User 映射为对外的资源视图 api.User（不含密码、删除标记等）。

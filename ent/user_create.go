@@ -10,7 +10,7 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -115,19 +115,19 @@ func (_c *UserCreate) SetID(v string) *UserCreate {
 	return _c
 }
 
-// AddTokenIDs adds the "tokens" edge to the Token entity by IDs.
-func (_c *UserCreate) AddTokenIDs(ids ...string) *UserCreate {
-	_c.mutation.AddTokenIDs(ids...)
+// AddRefreshTokenIDs adds the "refresh_tokens" edge to the RefreshToken entity by IDs.
+func (_c *UserCreate) AddRefreshTokenIDs(ids ...string) *UserCreate {
+	_c.mutation.AddRefreshTokenIDs(ids...)
 	return _c
 }
 
-// AddTokens adds the "tokens" edges to the Token entity.
-func (_c *UserCreate) AddTokens(v ...*Token) *UserCreate {
+// AddRefreshTokens adds the "refresh_tokens" edges to the RefreshToken entity.
+func (_c *UserCreate) AddRefreshTokens(v ...*RefreshToken) *UserCreate {
 	ids := make([]string, len(v))
 	for i := range v {
 		ids[i] = v[i].ID
 	}
-	return _c.AddTokenIDs(ids...)
+	return _c.AddRefreshTokenIDs(ids...)
 }
 
 // Mutation returns the UserMutation object of the builder.
@@ -307,15 +307,15 @@ func (_c *UserCreate) createSpec() (*User, *sqlgraph.CreateSpec) {
 		_spec.SetField(user.FieldLastLoginAt, field.TypeTime, value)
 		_node.LastLoginAt = &value
 	}
-	if nodes := _c.mutation.TokensIDs(); len(nodes) > 0 {
+	if nodes := _c.mutation.RefreshTokensIDs(); len(nodes) > 0 {
 		edge := &sqlgraph.EdgeSpec{
 			Rel:     sqlgraph.O2M,
 			Inverse: false,
-			Table:   user.TokensTable,
-			Columns: []string{user.TokensColumn},
+			Table:   user.RefreshTokensTable,
+			Columns: []string{user.RefreshTokensColumn},
 			Bidi:    false,
 			Target: &sqlgraph.EdgeTarget{
-				IDSpec: sqlgraph.NewFieldSpec(token.FieldID, field.TypeString),
+				IDSpec: sqlgraph.NewFieldSpec(refreshtoken.FieldID, field.TypeString),
 			},
 		}
 		for _, k := range nodes {

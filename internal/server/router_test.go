@@ -12,10 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/handler"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
@@ -34,13 +33,13 @@ func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 func TestBearerAuth(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
-	authSvc := do.MustInvoke[*service.Auth](env.Injector)
+	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 	tr := do.MustInvoke[i18n.Translator](env.Injector)
 	tok := env.MustAuthUser("mwuser", "mw@example.com", "password123")
 
 	cfg := httpkit.ApplyHandlerOptions(
 		httpkit.WithErrorEncoder(server.NewProblemEncoder(tr)),
-		httpkit.WithAuthScheme("BearerAuth", server.BearerAuth(authSvc)),
+		httpkit.WithAuthScheme("BearerAuth", auth.BearerAuthenticator(jwtMgr)),
 	)
 	op := httpkit.Operation{
 		ID:      "testProtected",
@@ -75,6 +74,7 @@ func TestBearerAuth(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			assert.False(t, called)
+			assert.Equal(t, "Bearer", rec.Header().Get("WWW-Authenticate"))
 			p := testutil.AssertProblem(t, rec, http.StatusUnauthorized)
 			meta := testutil.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
 			assert.Equal(t, tc.wantType, meta.Type)
@@ -82,9 +82,9 @@ func TestBearerAuth(t *testing.T) {
 		})
 	}
 
-	var gotUsername string
+	var gotUserID string
 	h := cfg.Wrap(op, func(w http.ResponseWriter, r *http.Request) {
-		gotUsername = handler.MustUser(r.Context()).Username
+		gotUserID = auth.MustPrincipal(r.Context()).UserID
 		w.WriteHeader(http.StatusOK)
 	})
 
@@ -94,7 +94,7 @@ func TestBearerAuth(t *testing.T) {
 	h.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "mwuser", gotUsername)
+	assert.NotEmpty(t, gotUserID)
 }
 
 func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {

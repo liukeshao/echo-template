@@ -9,8 +9,8 @@ import (
 // Book is the predicate function for book builders.
 type Book func(*sql.Selector)
 
-// Token is the predicate function for token builders.
-type Token func(*sql.Selector)
+// RefreshToken is the predicate function for refreshtoken builders.
+type RefreshToken func(*sql.Selector)
 
 // User is the predicate function for user builders.
 type User func(*sql.Selector)

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/liukeshao/echo-template/ent/book"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/schema"
-	"github.com/liukeshao/echo-template/ent/token"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -97,34 +97,34 @@ func init() {
 			return nil
 		}
 	}()
-	tokenMixin := schema.Token{}.Mixin()
-	tokenMixinHooks0 := tokenMixin[0].Hooks()
-	token.Hooks[0] = tokenMixinHooks0[0]
-	tokenMixinInters0 := tokenMixin[0].Interceptors()
-	token.Interceptors[0] = tokenMixinInters0[0]
-	tokenMixinFields0 := tokenMixin[0].Fields()
-	_ = tokenMixinFields0
-	tokenFields := schema.Token{}.Fields()
-	_ = tokenFields
-	// tokenDescCreatedAt is the schema descriptor for created_at field.
-	tokenDescCreatedAt := tokenMixinFields0[1].Descriptor()
-	// token.DefaultCreatedAt holds the default value on creation for the created_at field.
-	token.DefaultCreatedAt = tokenDescCreatedAt.Default.(func() time.Time)
-	// tokenDescUpdatedAt is the schema descriptor for updated_at field.
-	tokenDescUpdatedAt := tokenMixinFields0[2].Descriptor()
-	// token.DefaultUpdatedAt holds the default value on creation for the updated_at field.
-	token.DefaultUpdatedAt = tokenDescUpdatedAt.Default.(func() time.Time)
-	// token.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
-	token.UpdateDefaultUpdatedAt = tokenDescUpdatedAt.UpdateDefault.(func() time.Time)
-	// tokenDescDeletedAt is the schema descriptor for deleted_at field.
-	tokenDescDeletedAt := tokenMixinFields0[3].Descriptor()
-	// token.DefaultDeletedAt holds the default value on creation for the deleted_at field.
-	token.DefaultDeletedAt = tokenDescDeletedAt.Default.(int64)
-	// tokenDescUserID is the schema descriptor for user_id field.
-	tokenDescUserID := tokenFields[0].Descriptor()
-	// token.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
-	token.UserIDValidator = func() func(string) error {
-		validators := tokenDescUserID.Validators
+	refreshtokenMixin := schema.RefreshToken{}.Mixin()
+	refreshtokenMixinHooks0 := refreshtokenMixin[0].Hooks()
+	refreshtoken.Hooks[0] = refreshtokenMixinHooks0[0]
+	refreshtokenMixinInters0 := refreshtokenMixin[0].Interceptors()
+	refreshtoken.Interceptors[0] = refreshtokenMixinInters0[0]
+	refreshtokenMixinFields0 := refreshtokenMixin[0].Fields()
+	_ = refreshtokenMixinFields0
+	refreshtokenFields := schema.RefreshToken{}.Fields()
+	_ = refreshtokenFields
+	// refreshtokenDescCreatedAt is the schema descriptor for created_at field.
+	refreshtokenDescCreatedAt := refreshtokenMixinFields0[1].Descriptor()
+	// refreshtoken.DefaultCreatedAt holds the default value on creation for the created_at field.
+	refreshtoken.DefaultCreatedAt = refreshtokenDescCreatedAt.Default.(func() time.Time)
+	// refreshtokenDescUpdatedAt is the schema descriptor for updated_at field.
+	refreshtokenDescUpdatedAt := refreshtokenMixinFields0[2].Descriptor()
+	// refreshtoken.DefaultUpdatedAt holds the default value on creation for the updated_at field.
+	refreshtoken.DefaultUpdatedAt = refreshtokenDescUpdatedAt.Default.(func() time.Time)
+	// refreshtoken.UpdateDefaultUpdatedAt holds the default value on update for the updated_at field.
+	refreshtoken.UpdateDefaultUpdatedAt = refreshtokenDescUpdatedAt.UpdateDefault.(func() time.Time)
+	// refreshtokenDescDeletedAt is the schema descriptor for deleted_at field.
+	refreshtokenDescDeletedAt := refreshtokenMixinFields0[3].Descriptor()
+	// refreshtoken.DefaultDeletedAt holds the default value on creation for the deleted_at field.
+	refreshtoken.DefaultDeletedAt = refreshtokenDescDeletedAt.Default.(int64)
+	// refreshtokenDescUserID is the schema descriptor for user_id field.
+	refreshtokenDescUserID := refreshtokenFields[0].Descriptor()
+	// refreshtoken.UserIDValidator is a validator for the "user_id" field. It is called by the builders before save.
+	refreshtoken.UserIDValidator = func() func(string) error {
+		validators := refreshtokenDescUserID.Validators
 		fns := [...]func(string) error{
 			validators[0].(func(string) error),
 			validators[1].(func(string) error),
@@ -138,33 +138,51 @@ func init() {
 			return nil
 		}
 	}()
-	// tokenDescToken is the schema descriptor for token field.
-	tokenDescToken := tokenFields[1].Descriptor()
-	// token.TokenValidator is a validator for the "token" field. It is called by the builders before save.
-	token.TokenValidator = func() func(string) error {
-		validators := tokenDescToken.Validators
+	// refreshtokenDescFamilyID is the schema descriptor for family_id field.
+	refreshtokenDescFamilyID := refreshtokenFields[1].Descriptor()
+	// refreshtoken.FamilyIDValidator is a validator for the "family_id" field. It is called by the builders before save.
+	refreshtoken.FamilyIDValidator = func() func(string) error {
+		validators := refreshtokenDescFamilyID.Validators
 		fns := [...]func(string) error{
 			validators[0].(func(string) error),
 			validators[1].(func(string) error),
 		}
-		return func(token string) error {
+		return func(family_id string) error {
 			for _, fn := range fns {
-				if err := fn(token); err != nil {
+				if err := fn(family_id); err != nil {
 					return err
 				}
 			}
 			return nil
 		}
 	}()
-	// tokenDescIsRevoked is the schema descriptor for is_revoked field.
-	tokenDescIsRevoked := tokenFields[4].Descriptor()
-	// token.DefaultIsRevoked holds the default value on creation for the is_revoked field.
-	token.DefaultIsRevoked = tokenDescIsRevoked.Default.(bool)
-	// tokenDescID is the schema descriptor for id field.
-	tokenDescID := tokenMixinFields0[0].Descriptor()
-	// token.IDValidator is a validator for the "id" field. It is called by the builders before save.
-	token.IDValidator = func() func(string) error {
-		validators := tokenDescID.Validators
+	// refreshtokenDescTokenHash is the schema descriptor for token_hash field.
+	refreshtokenDescTokenHash := refreshtokenFields[2].Descriptor()
+	// refreshtoken.TokenHashValidator is a validator for the "token_hash" field. It is called by the builders before save.
+	refreshtoken.TokenHashValidator = func() func(string) error {
+		validators := refreshtokenDescTokenHash.Validators
+		fns := [...]func(string) error{
+			validators[0].(func(string) error),
+			validators[1].(func(string) error),
+		}
+		return func(token_hash string) error {
+			for _, fn := range fns {
+				if err := fn(token_hash); err != nil {
+					return err
+				}
+			}
+			return nil
+		}
+	}()
+	// refreshtokenDescIsRevoked is the schema descriptor for is_revoked field.
+	refreshtokenDescIsRevoked := refreshtokenFields[4].Descriptor()
+	// refreshtoken.DefaultIsRevoked holds the default value on creation for the is_revoked field.
+	refreshtoken.DefaultIsRevoked = refreshtokenDescIsRevoked.Default.(bool)
+	// refreshtokenDescID is the schema descriptor for id field.
+	refreshtokenDescID := refreshtokenMixinFields0[0].Descriptor()
+	// refreshtoken.IDValidator is a validator for the "id" field. It is called by the builders before save.
+	refreshtoken.IDValidator = func() func(string) error {
+		validators := refreshtokenDescID.Validators
 		fns := [...]func(string) error{
 			validators[0].(func(string) error),
 			validators[1].(func(string) error),

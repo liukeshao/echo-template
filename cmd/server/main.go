@@ -15,6 +15,7 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/client"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/internal/handler"
@@ -38,7 +39,7 @@ func main() {
 	logging.Setup(logLevel)
 
 	// 3. DI container
-	i := do.New(database.Package, i18n.Package, client.Package, service.Package, handler.Package, server.Package)
+	i := do.New(database.Package, i18n.Package, auth.Package, client.Package, service.Package, handler.Package, server.Package)
 	do.ProvideValue(i, &cfg)
 
 	// 4. Start HTTP server

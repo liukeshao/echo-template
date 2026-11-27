@@ -16,7 +16,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -27,8 +27,8 @@ type Client struct {
 	Schema *migrate.Schema
 	// Book is the client for interacting with the Book builders.
 	Book *BookClient
-	// Token is the client for interacting with the Token builders.
-	Token *TokenClient
+	// RefreshToken is the client for interacting with the RefreshToken builders.
+	RefreshToken *RefreshTokenClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 }
@@ -43,7 +43,7 @@ func NewClient(opts ...Option) *Client {
 func (c *Client) init() {
 	c.Schema = migrate.NewSchema(c.driver)
 	c.Book = NewBookClient(c.config)
-	c.Token = NewTokenClient(c.config)
+	c.RefreshToken = NewRefreshTokenClient(c.config)
 	c.User = NewUserClient(c.config)
 }
 
@@ -135,11 +135,11 @@ func (c *Client) Tx(ctx context.Context) (*Tx, error) {
 	cfg := c.config
 	cfg.driver = tx
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Book:   NewBookClient(cfg),
-		Token:  NewTokenClient(cfg),
-		User:   NewUserClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Book:         NewBookClient(cfg),
+		RefreshToken: NewRefreshTokenClient(cfg),
+		User:         NewUserClient(cfg),
 	}, nil
 }
 
@@ -157,11 +157,11 @@ func (c *Client) BeginTx(ctx context.Context, opts *sql.TxOptions) (*Tx, error) 
 	cfg := c.config
 	cfg.driver = &txDriver{tx: tx, drv: c.driver}
 	return &Tx{
-		ctx:    ctx,
-		config: cfg,
-		Book:   NewBookClient(cfg),
-		Token:  NewTokenClient(cfg),
-		User:   NewUserClient(cfg),
+		ctx:          ctx,
+		config:       cfg,
+		Book:         NewBookClient(cfg),
+		RefreshToken: NewRefreshTokenClient(cfg),
+		User:         NewUserClient(cfg),
 	}, nil
 }
 
@@ -191,7 +191,7 @@ func (c *Client) Close() error {
 // In order to add hooks to a specific client, call: `client.Node.Use(...)`.
 func (c *Client) Use(hooks ...Hook) {
 	c.Book.Use(hooks...)
-	c.Token.Use(hooks...)
+	c.RefreshToken.Use(hooks...)
 	c.User.Use(hooks...)
 }
 
@@ -199,7 +199,7 @@ func (c *Client) Use(hooks ...Hook) {
 // In order to add interceptors to a specific client, call: `client.Node.Intercept(...)`.
 func (c *Client) Intercept(interceptors ...Interceptor) {
 	c.Book.Intercept(interceptors...)
-	c.Token.Intercept(interceptors...)
+	c.RefreshToken.Intercept(interceptors...)
 	c.User.Intercept(interceptors...)
 }
 
@@ -208,8 +208,8 @@ func (c *Client) Mutate(ctx context.Context, m Mutation) (Value, error) {
 	switch m := m.(type) {
 	case *BookMutation:
 		return c.Book.mutate(ctx, m)
-	case *TokenMutation:
-		return c.Token.mutate(ctx, m)
+	case *RefreshTokenMutation:
+		return c.RefreshToken.mutate(ctx, m)
 	case *UserMutation:
 		return c.User.mutate(ctx, m)
 	default:
@@ -352,107 +352,107 @@ func (c *BookClient) mutate(ctx context.Context, m *BookMutation) (Value, error)
 	}
 }
 
-// TokenClient is a client for the Token schema.
-type TokenClient struct {
+// RefreshTokenClient is a client for the RefreshToken schema.
+type RefreshTokenClient struct {
 	config
 }
 
-// NewTokenClient returns a client for the Token from the given config.
-func NewTokenClient(c config) *TokenClient {
-	return &TokenClient{config: c}
+// NewRefreshTokenClient returns a client for the RefreshToken from the given config.
+func NewRefreshTokenClient(c config) *RefreshTokenClient {
+	return &RefreshTokenClient{config: c}
 }
 
 // Use adds a list of mutation hooks to the hooks stack.
-// A call to `Use(f, g, h)` equals to `token.Hooks(f(g(h())))`.
-func (c *TokenClient) Use(hooks ...Hook) {
-	c.hooks.Token = append(c.hooks.Token, hooks...)
+// A call to `Use(f, g, h)` equals to `refreshtoken.Hooks(f(g(h())))`.
+func (c *RefreshTokenClient) Use(hooks ...Hook) {
+	c.hooks.RefreshToken = append(c.hooks.RefreshToken, hooks...)
 }
 
 // Intercept adds a list of query interceptors to the interceptors stack.
-// A call to `Intercept(f, g, h)` equals to `token.Intercept(f(g(h())))`.
-func (c *TokenClient) Intercept(interceptors ...Interceptor) {
-	c.inters.Token = append(c.inters.Token, interceptors...)
+// A call to `Intercept(f, g, h)` equals to `refreshtoken.Intercept(f(g(h())))`.
+func (c *RefreshTokenClient) Intercept(interceptors ...Interceptor) {
+	c.inters.RefreshToken = append(c.inters.RefreshToken, interceptors...)
 }
 
-// Create returns a builder for creating a Token entity.
-func (c *TokenClient) Create() *TokenCreate {
-	mutation := newTokenMutation(c.config, OpCreate)
-	return &TokenCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Create returns a builder for creating a RefreshToken entity.
+func (c *RefreshTokenClient) Create() *RefreshTokenCreate {
+	mutation := newRefreshTokenMutation(c.config, OpCreate)
+	return &RefreshTokenCreate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
-// CreateBulk returns a builder for creating a bulk of Token entities.
-func (c *TokenClient) CreateBulk(builders ...*TokenCreate) *TokenCreateBulk {
-	return &TokenCreateBulk{config: c.config, builders: builders}
+// CreateBulk returns a builder for creating a bulk of RefreshToken entities.
+func (c *RefreshTokenClient) CreateBulk(builders ...*RefreshTokenCreate) *RefreshTokenCreateBulk {
+	return &RefreshTokenCreateBulk{config: c.config, builders: builders}
 }
 
 // MapCreateBulk creates a bulk creation builder from the given slice. For each item in the slice, the function creates
 // a builder and applies setFunc on it.
-func (c *TokenClient) MapCreateBulk(slice any, setFunc func(*TokenCreate, int)) *TokenCreateBulk {
+func (c *RefreshTokenClient) MapCreateBulk(slice any, setFunc func(*RefreshTokenCreate, int)) *RefreshTokenCreateBulk {
 	rv := reflect.ValueOf(slice)
 	if rv.Kind() != reflect.Slice {
-		return &TokenCreateBulk{err: fmt.Errorf("calling to TokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
+		return &RefreshTokenCreateBulk{err: fmt.Errorf("calling to RefreshTokenClient.MapCreateBulk with wrong type %T, need slice", slice)}
 	}
-	builders := make([]*TokenCreate, rv.Len())
+	builders := make([]*RefreshTokenCreate, rv.Len())
 	for i := 0; i < rv.Len(); i++ {
 		builders[i] = c.Create()
 		setFunc(builders[i], i)
 	}
-	return &TokenCreateBulk{config: c.config, builders: builders}
+	return &RefreshTokenCreateBulk{config: c.config, builders: builders}
 }
 
-// Update returns an update builder for Token.
-func (c *TokenClient) Update() *TokenUpdate {
-	mutation := newTokenMutation(c.config, OpUpdate)
-	return &TokenUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Update returns an update builder for RefreshToken.
+func (c *RefreshTokenClient) Update() *RefreshTokenUpdate {
+	mutation := newRefreshTokenMutation(c.config, OpUpdate)
+	return &RefreshTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // UpdateOne returns an update builder for the given entity.
-func (c *TokenClient) UpdateOne(_m *Token) *TokenUpdateOne {
-	mutation := newTokenMutation(c.config, OpUpdateOne, withToken(_m))
-	return &TokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+func (c *RefreshTokenClient) UpdateOne(_m *RefreshToken) *RefreshTokenUpdateOne {
+	mutation := newRefreshTokenMutation(c.config, OpUpdateOne, withRefreshToken(_m))
+	return &RefreshTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // UpdateOneID returns an update builder for the given id.
-func (c *TokenClient) UpdateOneID(id string) *TokenUpdateOne {
-	mutation := newTokenMutation(c.config, OpUpdateOne, withTokenID(id))
-	return &TokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
+func (c *RefreshTokenClient) UpdateOneID(id string) *RefreshTokenUpdateOne {
+	mutation := newRefreshTokenMutation(c.config, OpUpdateOne, withRefreshTokenID(id))
+	return &RefreshTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
-// Delete returns a delete builder for Token.
-func (c *TokenClient) Delete() *TokenDelete {
-	mutation := newTokenMutation(c.config, OpDelete)
-	return &TokenDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
+// Delete returns a delete builder for RefreshToken.
+func (c *RefreshTokenClient) Delete() *RefreshTokenDelete {
+	mutation := newRefreshTokenMutation(c.config, OpDelete)
+	return &RefreshTokenDelete{config: c.config, hooks: c.Hooks(), mutation: mutation}
 }
 
 // DeleteOne returns a builder for deleting the given entity.
-func (c *TokenClient) DeleteOne(_m *Token) *TokenDeleteOne {
+func (c *RefreshTokenClient) DeleteOne(_m *RefreshToken) *RefreshTokenDeleteOne {
 	return c.DeleteOneID(_m.ID)
 }
 
 // DeleteOneID returns a builder for deleting the given entity by its id.
-func (c *TokenClient) DeleteOneID(id string) *TokenDeleteOne {
-	builder := c.Delete().Where(token.ID(id))
+func (c *RefreshTokenClient) DeleteOneID(id string) *RefreshTokenDeleteOne {
+	builder := c.Delete().Where(refreshtoken.ID(id))
 	builder.mutation.id = &id
 	builder.mutation.op = OpDeleteOne
-	return &TokenDeleteOne{builder}
+	return &RefreshTokenDeleteOne{builder}
 }
 
-// Query returns a query builder for Token.
-func (c *TokenClient) Query() *TokenQuery {
-	return &TokenQuery{
+// Query returns a query builder for RefreshToken.
+func (c *RefreshTokenClient) Query() *RefreshTokenQuery {
+	return &RefreshTokenQuery{
 		config: c.config,
-		ctx:    &QueryContext{Type: TypeToken},
+		ctx:    &QueryContext{Type: TypeRefreshToken},
 		inters: c.Interceptors(),
 	}
 }
 
-// Get returns a Token entity by its id.
-func (c *TokenClient) Get(ctx context.Context, id string) (*Token, error) {
-	return c.Query().Where(token.ID(id)).Only(ctx)
+// Get returns a RefreshToken entity by its id.
+func (c *RefreshTokenClient) Get(ctx context.Context, id string) (*RefreshToken, error) {
+	return c.Query().Where(refreshtoken.ID(id)).Only(ctx)
 }
 
 // GetX is like Get, but panics if an error occurs.
-func (c *TokenClient) GetX(ctx context.Context, id string) *Token {
+func (c *RefreshTokenClient) GetX(ctx context.Context, id string) *RefreshToken {
 	obj, err := c.Get(ctx, id)
 	if err != nil {
 		panic(err)
@@ -460,15 +460,15 @@ func (c *TokenClient) GetX(ctx context.Context, id string) *Token {
 	return obj
 }
 
-// QueryUser queries the user edge of a Token.
-func (c *TokenClient) QueryUser(_m *Token) *UserQuery {
+// QueryUser queries the user edge of a RefreshToken.
+func (c *RefreshTokenClient) QueryUser(_m *RefreshToken) *UserQuery {
 	query := (&UserClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
-			sqlgraph.From(token.Table, token.FieldID, id),
+			sqlgraph.From(refreshtoken.Table, refreshtoken.FieldID, id),
 			sqlgraph.To(user.Table, user.FieldID),
-			sqlgraph.Edge(sqlgraph.M2O, true, token.UserTable, token.UserColumn),
+			sqlgraph.Edge(sqlgraph.M2O, true, refreshtoken.UserTable, refreshtoken.UserColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -477,29 +477,29 @@ func (c *TokenClient) QueryUser(_m *Token) *UserQuery {
 }
 
 // Hooks returns the client hooks.
-func (c *TokenClient) Hooks() []Hook {
-	hooks := c.hooks.Token
-	return append(hooks[:len(hooks):len(hooks)], token.Hooks[:]...)
+func (c *RefreshTokenClient) Hooks() []Hook {
+	hooks := c.hooks.RefreshToken
+	return append(hooks[:len(hooks):len(hooks)], refreshtoken.Hooks[:]...)
 }
 
 // Interceptors returns the client interceptors.
-func (c *TokenClient) Interceptors() []Interceptor {
-	inters := c.inters.Token
-	return append(inters[:len(inters):len(inters)], token.Interceptors[:]...)
+func (c *RefreshTokenClient) Interceptors() []Interceptor {
+	inters := c.inters.RefreshToken
+	return append(inters[:len(inters):len(inters)], refreshtoken.Interceptors[:]...)
 }
 
-func (c *TokenClient) mutate(ctx context.Context, m *TokenMutation) (Value, error) {
+func (c *RefreshTokenClient) mutate(ctx context.Context, m *RefreshTokenMutation) (Value, error) {
 	switch m.Op() {
 	case OpCreate:
-		return (&TokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&RefreshTokenCreate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpUpdate:
-		return (&TokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&RefreshTokenUpdate{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpUpdateOne:
-		return (&TokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
+		return (&RefreshTokenUpdateOne{config: c.config, hooks: c.Hooks(), mutation: m}).Save(ctx)
 	case OpDelete, OpDeleteOne:
-		return (&TokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
+		return (&RefreshTokenDelete{config: c.config, hooks: c.Hooks(), mutation: m}).Exec(ctx)
 	default:
-		return nil, fmt.Errorf("ent: unknown Token mutation op: %q", m.Op())
+		return nil, fmt.Errorf("ent: unknown RefreshToken mutation op: %q", m.Op())
 	}
 }
 
@@ -611,15 +611,15 @@ func (c *UserClient) GetX(ctx context.Context, id string) *User {
 	return obj
 }
 
-// QueryTokens queries the tokens edge of a User.
-func (c *UserClient) QueryTokens(_m *User) *TokenQuery {
-	query := (&TokenClient{config: c.config}).Query()
+// QueryRefreshTokens queries the refresh_tokens edge of a User.
+func (c *UserClient) QueryRefreshTokens(_m *User) *RefreshTokenQuery {
+	query := (&RefreshTokenClient{config: c.config}).Query()
 	query.path = func(context.Context) (fromV *sql.Selector, _ error) {
 		id := _m.ID
 		step := sqlgraph.NewStep(
 			sqlgraph.From(user.Table, user.FieldID, id),
-			sqlgraph.To(token.Table, token.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.TokensTable, user.TokensColumn),
+			sqlgraph.To(refreshtoken.Table, refreshtoken.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.RefreshTokensTable, user.RefreshTokensColumn),
 		)
 		fromV = sqlgraph.Neighbors(_m.driver.Dialect(), step)
 		return fromV, nil
@@ -657,9 +657,9 @@ func (c *UserClient) mutate(ctx context.Context, m *UserMutation) (Value, error)
 // hooks and interceptors per client, for fast access.
 type (
 	hooks struct {
-		Book, Token, User []ent.Hook
+		Book, RefreshToken, User []ent.Hook
 	}
 	inters struct {
-		Book, Token, User []ent.Interceptor
+		Book, RefreshToken, User []ent.Interceptor
 	}
 )

@@ -1,20 +1,15 @@
 package server
 
 import (
-	"context"
-	"log/slog"
 	"net/http"
-	"strings"
 
 	"github.com/samber/do/v2"
-	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/handler"
 	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/static"
 )
@@ -25,13 +20,13 @@ const defaultMaxBodyBytes = 2 << 20 // 2 MiB
 func BuildRouter(i do.Injector) (http.Handler, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	tr := do.MustInvoke[i18n.Translator](i)
-	authSvc := do.MustInvoke[*service.Auth](i)
+	jwtMgr := do.MustInvoke[*auth.JWT](i)
 
 	encodeErr := NewProblemEncoder(tr)
 
 	opts := []httpkit.HandlerOption{
 		httpkit.WithErrorEncoder(encodeErr),
-		httpkit.WithAuthScheme("BearerAuth", BearerAuth(authSvc)),
+		httpkit.WithAuthScheme("BearerAuth", auth.BearerAuthenticator(jwtMgr)),
 	}
 
 	router := httpkit.NewRouter()
@@ -73,56 +68,4 @@ func Locale(tr i18n.Translator) httpkit.Middleware {
 			next.ServeHTTP(w, r.WithContext(i18n.WithLocale(r.Context(), tag)))
 		})
 	}
-}
-
-// BearerAuth 返回对应 TypeSpec @useAuth(BearerAuth) 的 httpkit.Authenticator：
-// 验证 Bearer token 并将已认证 *ent.User 写入 context。
-// token 不写入 context，防止被日志框架意外序列化后泄露。
-func BearerAuth(authService *service.Auth) httpkit.Authenticator {
-	return func(ctx context.Context, r *http.Request) (context.Context, error) {
-		tokenString, err := extractTokenFromHeader(r)
-		if err != nil {
-			slog.WarnContext(ctx, "auth failed: extract token", "error", err)
-			return ctx, err
-		}
-
-		user, err := authService.AuthenticateUser(ctx, tokenString)
-		if err != nil {
-			return ctx, err
-		}
-
-		return handler.WithUser(ctx, user), nil
-	}
-}
-
-// extractTokenFromHeader 从 Authorization header 提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
-// header 缺失或格式非法时返回 401 Unauthorized oops 错误（附带 PreconditionInfo）。
-func extractTokenFromHeader(r *http.Request) (string, error) {
-	authHeader := r.Header.Get("Authorization")
-	if strings.TrimSpace(authHeader) == "" {
-		return "", bearerHeaderError(httperr.PreconditionMissingHeader)
-	}
-
-	scheme, rawToken, ok := strings.Cut(authHeader, " ")
-	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", bearerHeaderError(httperr.PreconditionMalformedHeader)
-	}
-
-	token := strings.TrimSpace(rawToken)
-	if token == "" {
-		return "", bearerHeaderError(httperr.PreconditionEmptyToken)
-	}
-
-	return token, nil
-}
-
-func bearerHeaderError(reason string) error {
-	return oops.
-		In("auth").
-		With(httperr.MetaKey, httperr.PreconditionInfo{
-			Type:    reason,
-			Subject: "authorization",
-			Detail:  "Bearer",
-		}).
-		Wrap(httperr.Unauthorized)
 }

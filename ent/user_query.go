@@ -13,18 +13,18 @@ import (
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
 	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
 // UserQuery is the builder for querying User entities.
 type UserQuery struct {
 	config
-	ctx        *QueryContext
-	order      []user.OrderOption
-	inters     []Interceptor
-	predicates []predicate.User
-	withTokens *TokenQuery
+	ctx               *QueryContext
+	order             []user.OrderOption
+	inters            []Interceptor
+	predicates        []predicate.User
+	withRefreshTokens *RefreshTokenQuery
 	// intermediate query (i.e. traversal path).
 	sql  *sql.Selector
 	path func(context.Context) (*sql.Selector, error)
@@ -61,9 +61,9 @@ func (_q *UserQuery) Order(o ...user.OrderOption) *UserQuery {
 	return _q
 }
 
-// QueryTokens chains the current query on the "tokens" edge.
-func (_q *UserQuery) QueryTokens() *TokenQuery {
-	query := (&TokenClient{config: _q.config}).Query()
+// QueryRefreshTokens chains the current query on the "refresh_tokens" edge.
+func (_q *UserQuery) QueryRefreshTokens() *RefreshTokenQuery {
+	query := (&RefreshTokenClient{config: _q.config}).Query()
 	query.path = func(ctx context.Context) (fromU *sql.Selector, err error) {
 		if err := _q.prepareQuery(ctx); err != nil {
 			return nil, err
@@ -74,8 +74,8 @@ func (_q *UserQuery) QueryTokens() *TokenQuery {
 		}
 		step := sqlgraph.NewStep(
 			sqlgraph.From(user.Table, user.FieldID, selector),
-			sqlgraph.To(token.Table, token.FieldID),
-			sqlgraph.Edge(sqlgraph.O2M, false, user.TokensTable, user.TokensColumn),
+			sqlgraph.To(refreshtoken.Table, refreshtoken.FieldID),
+			sqlgraph.Edge(sqlgraph.O2M, false, user.RefreshTokensTable, user.RefreshTokensColumn),
 		)
 		fromU = sqlgraph.SetNeighbors(_q.driver.Dialect(), step)
 		return fromU, nil
@@ -270,26 +270,26 @@ func (_q *UserQuery) Clone() *UserQuery {
 		return nil
 	}
 	return &UserQuery{
-		config:     _q.config,
-		ctx:        _q.ctx.Clone(),
-		order:      append([]user.OrderOption{}, _q.order...),
-		inters:     append([]Interceptor{}, _q.inters...),
-		predicates: append([]predicate.User{}, _q.predicates...),
-		withTokens: _q.withTokens.Clone(),
+		config:            _q.config,
+		ctx:               _q.ctx.Clone(),
+		order:             append([]user.OrderOption{}, _q.order...),
+		inters:            append([]Interceptor{}, _q.inters...),
+		predicates:        append([]predicate.User{}, _q.predicates...),
+		withRefreshTokens: _q.withRefreshTokens.Clone(),
 		// clone intermediate query.
 		sql:  _q.sql.Clone(),
 		path: _q.path,
 	}
 }
 
-// WithTokens tells the query-builder to eager-load the nodes that are connected to
-// the "tokens" edge. The optional arguments are used to configure the query builder of the edge.
-func (_q *UserQuery) WithTokens(opts ...func(*TokenQuery)) *UserQuery {
-	query := (&TokenClient{config: _q.config}).Query()
+// WithRefreshTokens tells the query-builder to eager-load the nodes that are connected to
+// the "refresh_tokens" edge. The optional arguments are used to configure the query builder of the edge.
+func (_q *UserQuery) WithRefreshTokens(opts ...func(*RefreshTokenQuery)) *UserQuery {
+	query := (&RefreshTokenClient{config: _q.config}).Query()
 	for _, opt := range opts {
 		opt(query)
 	}
-	_q.withTokens = query
+	_q.withRefreshTokens = query
 	return _q
 }
 
@@ -372,7 +372,7 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 		nodes       = []*User{}
 		_spec       = _q.querySpec()
 		loadedTypes = [1]bool{
-			_q.withTokens != nil,
+			_q.withRefreshTokens != nil,
 		}
 	)
 	_spec.ScanValues = func(columns []string) ([]any, error) {
@@ -393,17 +393,17 @@ func (_q *UserQuery) sqlAll(ctx context.Context, hooks ...queryHook) ([]*User, e
 	if len(nodes) == 0 {
 		return nodes, nil
 	}
-	if query := _q.withTokens; query != nil {
-		if err := _q.loadTokens(ctx, query, nodes,
-			func(n *User) { n.Edges.Tokens = []*Token{} },
-			func(n *User, e *Token) { n.Edges.Tokens = append(n.Edges.Tokens, e) }); err != nil {
+	if query := _q.withRefreshTokens; query != nil {
+		if err := _q.loadRefreshTokens(ctx, query, nodes,
+			func(n *User) { n.Edges.RefreshTokens = []*RefreshToken{} },
+			func(n *User, e *RefreshToken) { n.Edges.RefreshTokens = append(n.Edges.RefreshTokens, e) }); err != nil {
 			return nil, err
 		}
 	}
 	return nodes, nil
 }
 
-func (_q *UserQuery) loadTokens(ctx context.Context, query *TokenQuery, nodes []*User, init func(*User), assign func(*User, *Token)) error {
+func (_q *UserQuery) loadRefreshTokens(ctx context.Context, query *RefreshTokenQuery, nodes []*User, init func(*User), assign func(*User, *RefreshToken)) error {
 	fks := make([]driver.Value, 0, len(nodes))
 	nodeids := make(map[string]*User)
 	for i := range nodes {
@@ -414,10 +414,10 @@ func (_q *UserQuery) loadTokens(ctx context.Context, query *TokenQuery, nodes []
 		}
 	}
 	if len(query.ctx.Fields) > 0 {
-		query.ctx.AppendFieldOnce(token.FieldUserID)
+		query.ctx.AppendFieldOnce(refreshtoken.FieldUserID)
 	}
-	query.Where(predicate.Token(func(s *sql.Selector) {
-		s.Where(sql.InValues(s.C(user.TokensColumn), fks...))
+	query.Where(predicate.RefreshToken(func(s *sql.Selector) {
+		s.Where(sql.InValues(s.C(user.RefreshTokensColumn), fks...))
 	}))
 	neighbors, err := query.All(ctx)
 	if err != nil {

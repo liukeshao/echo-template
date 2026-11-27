@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"maps"
 	"net/http"
+	"strings"
 
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
@@ -12,6 +13,49 @@ import (
 // Authenticator 实现单个命名认证方案（与 TypeSpec @useAuth 名称对应，如 "BearerAuth"、"ApiKeyAuth"）。
 // 认证成功时返回附加了身份信息的 context；失败时返回 error，由 httperr.Encoder 统一渲染。
 type Authenticator func(ctx context.Context, r *http.Request) (context.Context, error)
+
+// ExtractBearerToken 从 Authorization 请求头提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
+// header 缺失、scheme 非法或 token 为空时返回携带 PreconditionInfo 的 401 httperr.Problem。
+func ExtractBearerToken(r *http.Request) (string, error) {
+	authHeader := r.Header.Get("Authorization")
+	if strings.TrimSpace(authHeader) == "" {
+		return "", bearerHeaderProblem(httperr.PreconditionMissingHeader)
+	}
+
+	scheme, rawToken, ok := strings.Cut(authHeader, " ")
+	if !ok || !strings.EqualFold(scheme, "Bearer") {
+		return "", bearerHeaderProblem(httperr.PreconditionMalformedHeader)
+	}
+
+	token := strings.TrimSpace(rawToken)
+	if token == "" {
+		return "", bearerHeaderProblem(httperr.PreconditionEmptyToken)
+	}
+
+	return token, nil
+}
+
+func bearerHeaderProblem(reason string) error {
+	return httperr.Problem{
+		Status: http.StatusUnauthorized,
+		Metadata: httperr.PreconditionInfo{
+			Type:    reason,
+			Subject: "authorization",
+			Detail:  "Bearer",
+		},
+	}
+}
+
+// BearerAuth 将纯 token 验证函数包装为 Authenticator：先按 RFC 9110/6750 提取 Bearer token，再交由 verify 校验并丰富 context。
+func BearerAuth(verify func(ctx context.Context, token string) (context.Context, error)) Authenticator {
+	return func(ctx context.Context, r *http.Request) (context.Context, error) {
+		token, err := ExtractBearerToken(r)
+		if err != nil {
+			return ctx, err
+		}
+		return verify(ctx, token)
+	}
+}
 
 // AuthMiddleware 返回基于命名方案映射的 RouteMiddleware，原生支持 TypeSpec @useAuth 的
 // 单方案、AND 组合、OR 备选以及 NoAuth 可选认证。

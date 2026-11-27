@@ -2,19 +2,22 @@ package service
 
 import (
 	"context"
-	"errors"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
 	"log/slog"
 	"time"
 	"uuid"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/samber/do/v2"
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	entuser "github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
@@ -29,28 +32,33 @@ type TokenPair struct {
 	ExpiresAt    int64
 }
 
-// jwtClaims 是 JWT 令牌内部声明（仅含 user_id 与 token_type，不暴露给外部 DTO）。
-type jwtClaims struct {
-	UserID    string `json:"user_id"`
-	TokenType string `json:"token_type"`
-	jwt.RegisteredClaims
-}
-
-// Auth 认证服务
+// Auth 认证与凭证领域服务（负责注册、登录、令牌轮换、登出与改密，唯一持有 bcrypt 与 refresh_tokens 表操作）。
 type Auth struct {
-	orm        *ent.Client
-	jwtConfig  config.JWT
-	bcryptCost int
+	orm                *ent.Client
+	jwt                *auth.JWT
+	refreshTokenExpiry time.Duration
+	bcryptCost         int
+	dummyPasswordHash  string
 }
 
 // NewAuth 构造 Auth 并从 DI 容器注入依赖。
 func NewAuth(i do.Injector) (*Auth, error) {
 	orm := do.MustInvoke[*database.ORM](i)
 	cfg := do.MustInvoke[*config.Config](i)
+	jwtMgr := do.MustInvoke[*auth.JWT](i)
+
+	cost := resolveBcryptCost(cfg.Auth.BcryptCost)
+	dummyHash, err := hashPassword("dummy-password-for-constant-time-login", cost)
+	if err != nil {
+		return nil, authInternal(err, "initializing dummy password hash")
+	}
+
 	return &Auth{
-		orm:        orm.Client,
-		jwtConfig:  cfg.JWT,
-		bcryptCost: resolveBcryptCost(cfg.Auth.BcryptCost),
+		orm:                orm.Client,
+		jwt:                jwtMgr,
+		refreshTokenExpiry: cfg.JWT.RefreshTokenExpiry,
+		bcryptCost:         cost,
+		dummyPasswordHash:  dummyHash,
 	}, nil
 }
 
@@ -62,16 +70,11 @@ func authInternal(err error, op string) error {
 		Join(httperr.Internal, err)
 }
 
-func authTokenInvalid(tokenType token.Type, reason string, cause error) error {
-	info := httperr.PreconditionInfo{
+func refreshTokenError(reason string, cause error) error {
+	b := errAuth.With(httperr.MetaKey, httperr.PreconditionInfo{
 		Type:    reason,
 		Subject: "refresh_token",
-	}
-	if tokenType == token.TypeAccess {
-		info.Subject = "authorization"
-		info.Detail = "Bearer"
-	}
-	b := errAuth.With(httperr.MetaKey, info)
+	})
 	if cause != nil {
 		return b.Join(httperr.Unauthorized, cause)
 	}
@@ -89,66 +92,18 @@ func authInvalidCredentials() error {
 
 // --- 私有方法 ---
 
-func (s *Auth) parseJWTOfType(ctx context.Context, tokenString string, expectedType token.Type) (*jwtClaims, error) {
-	opts := []jwt.ParserOption{
-		jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+func generateOpaqueRefreshToken() (raw, hash string, err error) {
+	var buf [32]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "", "", err
 	}
-	if s.jwtConfig.Issuer != "" {
-		opts = append(opts, jwt.WithIssuer(s.jwtConfig.Issuer))
-	}
-
-	t, err := jwt.ParseWithClaims(tokenString, &jwtClaims{}, func(_ *jwt.Token) (any, error) {
-		return []byte(s.jwtConfig.Secret), nil
-	}, opts...)
-	if err != nil {
-		if errors.Is(err, jwt.ErrTokenExpired) {
-			return nil, authTokenInvalid(expectedType, httperr.PreconditionTokenExpired, err)
-		}
-		return nil, authTokenInvalid(expectedType, httperr.PreconditionTokenInvalid, err)
-	}
-	claims, ok := t.Claims.(*jwtClaims)
-	if !ok || !t.Valid {
-		return nil, authTokenInvalid(expectedType, httperr.PreconditionTokenInvalid, nil)
-	}
-	if token.Type(claims.TokenType) != expectedType {
-		slog.WarnContext(ctx, "token type mismatch", "expected", expectedType, "actual", claims.TokenType)
-		return nil, authTokenInvalid(expectedType, httperr.PreconditionTokenInvalid, nil)
-	}
-	return claims, nil
+	raw = base64.RawURLEncoding.EncodeToString(buf[:])
+	return raw, hashToken(raw), nil
 }
 
-func (s *Auth) generateToken(userID string, tokenType token.Type) (string, time.Time, error) {
-	var expiry time.Duration
-	switch tokenType {
-	case token.TypeAccess:
-		expiry = s.jwtConfig.AccessTokenExpiry
-	case token.TypeRefresh:
-		expiry = s.jwtConfig.RefreshTokenExpiry
-	default:
-		return "", time.Time{}, authInternal(oops.Errorf("unknown token type: %s", tokenType), "generating token")
-	}
-
-	now := time.Now()
-	expirationTime := now.Add(expiry)
-
-	claims := &jwtClaims{
-		UserID:    userID,
-		TokenType: string(tokenType),
-		ID:        uuid.NewV7().String(),
-		ExpiresAt: jwt.NewNumericDate(expirationTime),
-		IssuedAt:  jwt.NewNumericDate(now),
-		NotBefore: jwt.NewNumericDate(now),
-		Issuer:    s.jwtConfig.Issuer,
-		Subject:   userID,
-	}
-
-	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := t.SignedString([]byte(s.jwtConfig.Secret))
-	if err != nil {
-		return "", time.Time{}, authInternal(err, "signing token")
-	}
-
-	return tokenString, expirationTime, nil
+func hashToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
 }
 
 func (s *Auth) validateUser(user *ent.User) error {
@@ -165,58 +120,38 @@ func (s *Auth) validateUser(user *ent.User) error {
 	return nil
 }
 
-func (s *Auth) findUserByEmail(ctx context.Context, email string) (*ent.User, error) {
-	user, err := s.orm.User.Query().
-		Where(entuser.Email(email)).
-		Only(ctx)
-	switch {
-	case err == nil:
-		return user, nil
-	case ent.IsNotFound(err):
-		slog.WarnContext(ctx, "login attempt with unknown email", "email", email)
-		return nil, authInvalidCredentials()
-	default:
-		return nil, authInternal(err, "querying user by email")
+func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID, familyID string) (*TokenPair, error) {
+	if familyID == "" {
+		familyID = uuid.NewV7().String()
 	}
-}
 
-func (s *Auth) saveTokenToDatabase(ctx context.Context, tx *ent.Tx, userID string, tokenString string, tokenType token.Type, expiresAt time.Time) error {
-	_, err := tx.Token.Create().
+	// Access Token 为短生命周期无状态 JWT，不落库。
+	accessToken, accessExpiry, err := s.jwt.SignAccessToken(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Refresh Token 为高熵随机不透明令牌，库中仅存 SHA-256 哈希。
+	rawRefresh, refreshHash, err := generateOpaqueRefreshToken()
+	if err != nil {
+		return nil, authInternal(err, "generating refresh token")
+	}
+
+	_, err = tx.RefreshToken.Create().
 		SetID(uuid.NewV7().String()).
-		SetToken(tokenString).
 		SetUserID(userID).
-		SetType(tokenType).
-		SetExpiresAt(expiresAt).
+		SetFamilyID(familyID).
+		SetTokenHash(refreshHash).
+		SetExpiresAt(time.Now().Add(s.refreshTokenExpiry)).
 		SetIsRevoked(false).
 		Save(ctx)
 	if err != nil {
-		return authInternal(err, "saving token to database")
-	}
-	return nil
-}
-
-func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID string) (*TokenPair, error) {
-	accessToken, accessExpiry, err := s.generateToken(userID, token.TypeAccess)
-	if err != nil {
-		return nil, err
-	}
-
-	refreshToken, refreshExpiry, err := s.generateToken(userID, token.TypeRefresh)
-	if err != nil {
-		return nil, err
-	}
-
-	if err = s.saveTokenToDatabase(ctx, tx, userID, accessToken, token.TypeAccess, accessExpiry); err != nil {
-		return nil, err
-	}
-
-	if err = s.saveTokenToDatabase(ctx, tx, userID, refreshToken, token.TypeRefresh, refreshExpiry); err != nil {
-		return nil, err
+		return nil, authInternal(err, "saving refresh token")
 	}
 
 	return &TokenPair{
 		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
+		RefreshToken: rawRefresh,
 		ExpiresAt:    accessExpiry.Unix(),
 	}, nil
 }
@@ -253,7 +188,7 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 			}
 			return authInternal(err, "creating user")
 		}
-		resp, err = s.issueTokenPairTx(ctx, tx, user.ID)
+		resp, err = s.issueTokenPairTx(ctx, tx, user.ID, "")
 		return err
 	})
 	if err != nil {
@@ -270,9 +205,18 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 
 // Login 用户登录（在同一事务内签发令牌对并更新最后登录时间）。
 func (s *Auth) Login(ctx context.Context, req *api.LoginRequest) (*TokenPair, error) {
-	user, err := s.findUserByEmail(ctx, req.Email)
-	if err != nil {
-		return nil, err
+	user, err := s.orm.User.Query().
+		Where(entuser.Email(req.Email)).
+		Only(ctx)
+	switch {
+	case err == nil:
+	case ent.IsNotFound(err):
+		// 对虚拟哈希执行一次 bcrypt 校验，消除查无邮箱与密码错误之间的耗时侧信道。
+		_ = verifyPassword(s.dummyPasswordHash, req.Password)
+		slog.WarnContext(ctx, "login attempt with unknown email", "email", req.Email)
+		return nil, authInvalidCredentials()
+	default:
+		return nil, authInternal(err, "querying user by email")
 	}
 
 	// 先校验密码再检查账户状态，防止未认证攻击者枚举已停用账户。
@@ -288,7 +232,7 @@ func (s *Auth) Login(ctx context.Context, req *api.LoginRequest) (*TokenPair, er
 	var resp *TokenPair
 	err = withTx(ctx, s.orm, authInternal, func(tx *ent.Tx) error {
 		var err error
-		resp, err = s.issueTokenPairTx(ctx, tx, user.ID)
+		resp, err = s.issueTokenPairTx(ctx, tx, user.ID, "")
 		if err != nil {
 			return err
 		}
@@ -304,21 +248,40 @@ func (s *Auth) Login(ctx context.Context, req *api.LoginRequest) (*TokenPair, er
 	return resp, nil
 }
 
-// RefreshToken 刷新令牌对。
+// RefreshToken 轮换刷新令牌对；检测到已撤销的刷新令牌被重放时，吊销整个令牌族（family_id）。
 func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (*TokenPair, error) {
-	claims, err := s.parseJWTOfType(ctx, req.RefreshToken, token.TypeRefresh)
-	if err != nil {
-		return nil, err
-	}
+	tokenHash := hashToken(req.RefreshToken)
 
-	var resp *TokenPair
-	err = withTx(ctx, s.orm, authInternal, func(tx *ent.Tx) error {
-		revoked, err := tx.Token.Update().
+	var (
+		resp           *TokenPair
+		reusedFamilyID string
+		reusedUserID   string
+	)
+	err := withTx(ctx, s.orm, authInternal, func(tx *ent.Tx) error {
+		rt, err := tx.RefreshToken.Query().
+			Where(refreshtoken.TokenHash(tokenHash)).
+			Only(ctx)
+		if err != nil {
+			if ent.IsNotFound(err) {
+				return refreshTokenError(httperr.PreconditionTokenInvalid, err)
+			}
+			return authInternal(err, "querying refresh token")
+		}
+
+		if rt.IsRevoked {
+			reusedFamilyID = rt.FamilyID
+			reusedUserID = rt.UserID
+			return refreshTokenError(httperr.PreconditionTokenRevoked, nil)
+		}
+
+		if !rt.ExpiresAt.After(time.Now()) {
+			return refreshTokenError(httperr.PreconditionTokenExpired, nil)
+		}
+
+		revoked, err := tx.RefreshToken.Update().
 			Where(
-				token.Token(req.RefreshToken),
-				token.UserID(claims.UserID),
-				token.TypeEQ(token.TypeRefresh),
-				token.IsRevoked(false),
+				refreshtoken.ID(rt.ID),
+				refreshtoken.IsRevoked(false),
 			).
 			SetIsRevoked(true).
 			Save(ctx)
@@ -326,15 +289,17 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 			return authInternal(err, "revoking old refresh token")
 		}
 		if revoked == 0 {
-			return authTokenInvalid(token.TypeRefresh, httperr.PreconditionTokenRevoked, nil)
+			reusedFamilyID = rt.FamilyID
+			reusedUserID = rt.UserID
+			return refreshTokenError(httperr.PreconditionTokenRevoked, nil)
 		}
 
 		user, err := tx.User.Query().
-			Where(entuser.ID(claims.UserID)).
+			Where(entuser.ID(rt.UserID)).
 			Only(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
-				return authTokenInvalid(token.TypeRefresh, httperr.PreconditionTokenInvalid, err)
+				return refreshTokenError(httperr.PreconditionTokenInvalid, err)
 			}
 			return authInternal(err, "querying user for refresh")
 		}
@@ -343,58 +308,87 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 			return err
 		}
 
-		resp, err = s.issueTokenPairTx(ctx, tx, user.ID)
+		resp, err = s.issueTokenPairTx(ctx, tx, user.ID, rt.FamilyID)
 		return err
 	})
 	if err != nil {
+		if reusedFamilyID != "" {
+			slog.WarnContext(ctx, "refresh token reuse detected; revoking token family",
+				"user_id", reusedUserID,
+				"family_id", reusedFamilyID,
+			)
+			if _, revokeErr := s.orm.RefreshToken.Update().
+				Where(
+					refreshtoken.FamilyID(reusedFamilyID),
+					refreshtoken.IsRevoked(false),
+				).
+				SetIsRevoked(true).
+				Save(ctx); revokeErr != nil {
+				slog.ErrorContext(ctx, "failed to revoke compromised refresh token family",
+					"family_id", reusedFamilyID,
+					"error", revokeErr,
+				)
+			}
+		}
 		return nil, err
 	}
 
 	return resp, nil
 }
 
-// Logout 撤销该用户全部未撤销的令牌（access + refresh）。
+// Logout 撤销该用户全部未撤销的刷新令牌（已签发的短周期无状态 Access JWT 将自然过期）。
 func (s *Auth) Logout(ctx context.Context, userID string) error {
-	_, err := s.orm.Token.Update().
+	_, err := s.orm.RefreshToken.Update().
 		Where(
-			token.UserID(userID),
-			token.IsRevoked(false),
+			refreshtoken.UserID(userID),
+			refreshtoken.IsRevoked(false),
 		).
 		SetIsRevoked(true).
 		Save(ctx)
 	if err != nil {
-		return authInternal(err, "revoking user tokens on logout")
+		return authInternal(err, "revoking user refresh tokens on logout")
 	}
 	return nil
 }
 
-// AuthenticateUser 验证请求中的 access token，供中间件调用。
-func (s *Auth) AuthenticateUser(ctx context.Context, tokenString string) (*ent.User, error) {
-	claims, err := s.parseJWTOfType(ctx, tokenString, token.TypeAccess)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := s.orm.Token.Query().
-		Where(
-			token.Token(tokenString),
-			token.UserID(claims.UserID),
-			token.IsRevoked(false),
-			token.TypeEQ(token.TypeAccess),
-		).
-		QueryUser().
+// ChangePassword 修改用户密码并在同一事务内撤销该用户全部活跃刷新令牌。
+func (s *Auth) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) error {
+	u, err := s.orm.User.Query().
+		Where(entuser.IDEQ(userID)).
 		Only(ctx)
-	switch {
-	case err == nil:
-	case ent.IsNotFound(err):
-		return nil, authTokenInvalid(token.TypeAccess, httperr.PreconditionTokenRevoked, err)
-	default:
-		return nil, authInternal(err, "authenticating user")
+	if err != nil {
+		if ent.IsNotFound(err) {
+			return userNotFound(errAuth, userID)
+		}
+		return authInternal(err, "fetching user for password change")
 	}
 
-	if err := s.validateUser(user); err != nil {
-		return nil, err
+	if err := verifyPassword(u.PasswordHash, req.OldPassword); err != nil {
+		slog.WarnContext(ctx, "invalid old password", "user_id", userID)
+		return errAuth.
+			User(userID).
+			With(httperr.MetaKey, httperr.PreconditionInfo{
+				Type:    httperr.PreconditionInvalidPassword,
+				Subject: "old_password",
+			}).
+			Wrap(httperr.BadRequest)
 	}
 
-	return user, nil
+	newHash, err := hashPassword(req.NewPassword, s.bcryptCost)
+	if err != nil {
+		return authInternal(err, "hashing new password")
+	}
+
+	return withTx(ctx, s.orm, authInternal, func(tx *ent.Tx) error {
+		if err := tx.User.UpdateOneID(userID).SetPasswordHash(newHash).Exec(ctx); err != nil {
+			return authInternal(err, "updating password")
+		}
+		if _, err := tx.RefreshToken.Update().
+			Where(refreshtoken.UserID(userID), refreshtoken.IsRevoked(false)).
+			SetIsRevoked(true).
+			Save(ctx); err != nil {
+			return authInternal(err, "revoking refresh tokens after password change")
+		}
+		return nil
+	})
 }

@@ -14,8 +14,8 @@ type Tx struct {
 	config
 	// Book is the client for interacting with the Book builders.
 	Book *BookClient
-	// Token is the client for interacting with the Token builders.
-	Token *TokenClient
+	// RefreshToken is the client for interacting with the RefreshToken builders.
+	RefreshToken *RefreshTokenClient
 	// User is the client for interacting with the User builders.
 	User *UserClient
 
@@ -150,7 +150,7 @@ func (tx *Tx) Client() *Client {
 
 func (tx *Tx) init() {
 	tx.Book = NewBookClient(tx.config)
-	tx.Token = NewTokenClient(tx.config)
+	tx.RefreshToken = NewRefreshTokenClient(tx.config)
 	tx.User = NewUserClient(tx.config)
 }
 

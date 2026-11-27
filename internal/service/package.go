@@ -2,9 +2,9 @@ package service
 
 import "github.com/samber/do/v2"
 
-// Package registers all service providers into the DI container.
+// Package 向 DI 容器注册全部领域服务。
 var Package = do.Package(
 	do.Lazy(NewAuth),
-	do.Lazy(NewMe),
+	do.Lazy(NewUser),
 	do.Lazy(NewBook),
 )

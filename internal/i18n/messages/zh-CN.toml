@@ -36,6 +36,7 @@ ACCOUNT_DISABLED = "该账户已被停用。"
 
 [details.404]
 book = "未找到 ID 为 {resource_name} 的书籍。"
+user = "未找到 ID 为 {resource_name} 的用户。"
 
 [details.409]
 user.email    = "邮箱 {resource_name} 已被使用。"

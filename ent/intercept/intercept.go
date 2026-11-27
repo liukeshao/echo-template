@@ -10,7 +10,7 @@ import (
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/book"
 	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -97,31 +97,31 @@ func (f TraverseBook) Traverse(ctx context.Context, q ent.Query) error {
 	return fmt.Errorf("unexpected query type %T. expect *ent.BookQuery", q)
 }
 
-// The TokenFunc type is an adapter to allow the use of ordinary function as a Querier.
-type TokenFunc func(context.Context, *ent.TokenQuery) (ent.Value, error)
+// The RefreshTokenFunc type is an adapter to allow the use of ordinary function as a Querier.
+type RefreshTokenFunc func(context.Context, *ent.RefreshTokenQuery) (ent.Value, error)
 
 // Query calls f(ctx, q).
-func (f TokenFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
-	if q, ok := q.(*ent.TokenQuery); ok {
+func (f RefreshTokenFunc) Query(ctx context.Context, q ent.Query) (ent.Value, error) {
+	if q, ok := q.(*ent.RefreshTokenQuery); ok {
 		return f(ctx, q)
 	}
-	return nil, fmt.Errorf("unexpected query type %T. expect *ent.TokenQuery", q)
+	return nil, fmt.Errorf("unexpected query type %T. expect *ent.RefreshTokenQuery", q)
 }
 
-// The TraverseToken type is an adapter to allow the use of ordinary function as Traverser.
-type TraverseToken func(context.Context, *ent.TokenQuery) error
+// The TraverseRefreshToken type is an adapter to allow the use of ordinary function as Traverser.
+type TraverseRefreshToken func(context.Context, *ent.RefreshTokenQuery) error
 
 // Intercept is a dummy implementation of Intercept that returns the next Querier in the pipeline.
-func (f TraverseToken) Intercept(next ent.Querier) ent.Querier {
+func (f TraverseRefreshToken) Intercept(next ent.Querier) ent.Querier {
 	return next
 }
 
 // Traverse calls f(ctx, q).
-func (f TraverseToken) Traverse(ctx context.Context, q ent.Query) error {
-	if q, ok := q.(*ent.TokenQuery); ok {
+func (f TraverseRefreshToken) Traverse(ctx context.Context, q ent.Query) error {
+	if q, ok := q.(*ent.RefreshTokenQuery); ok {
 		return f(ctx, q)
 	}
-	return fmt.Errorf("unexpected query type %T. expect *ent.TokenQuery", q)
+	return fmt.Errorf("unexpected query type %T. expect *ent.RefreshTokenQuery", q)
 }
 
 // The UserFunc type is an adapter to allow the use of ordinary function as a Querier.
@@ -156,8 +156,8 @@ func NewQuery(q ent.Query) (Query, error) {
 	switch q := q.(type) {
 	case *ent.BookQuery:
 		return &query[*ent.BookQuery, predicate.Book, book.OrderOption]{typ: ent.TypeBook, tq: q}, nil
-	case *ent.TokenQuery:
-		return &query[*ent.TokenQuery, predicate.Token, token.OrderOption]{typ: ent.TypeToken, tq: q}, nil
+	case *ent.RefreshTokenQuery:
+		return &query[*ent.RefreshTokenQuery, predicate.RefreshToken, refreshtoken.OrderOption]{typ: ent.TypeRefreshToken, tq: q}, nil
 	case *ent.UserQuery:
 		return &query[*ent.UserQuery, predicate.User, user.OrderOption]{typ: ent.TypeUser, tq: q}, nil
 	default:

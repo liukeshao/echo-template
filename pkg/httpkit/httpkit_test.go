@@ -270,3 +270,48 @@ func TestServer_ShutdownBeforeStartAndStartAfterShutdown(t *testing.T) {
 	require.NoError(t, srv.Shutdown(ctx))
 	require.NoError(t, srv.Start())
 }
+
+func TestBearerAuth_ExtractAndWWWAuthenticate(t *testing.T) {
+	t.Parallel()
+
+	type ctxKey struct{}
+	authFn := httpkit.BearerAuth(func(ctx context.Context, tok string) (context.Context, error) {
+		return context.WithValue(ctx, ctxKey{}, tok), nil
+	})
+	cfg := httpkit.ApplyHandlerOptions(httpkit.WithAuthScheme("BearerAuth", authFn))
+	op := httpkit.Operation{ID: "protected", Auth: [][]string{{"BearerAuth"}}}
+
+	var gotTok string
+	h := cfg.Wrap(op, func(w http.ResponseWriter, r *http.Request) {
+		gotTok, _ = r.Context().Value(ctxKey{}).(string)
+		w.WriteHeader(http.StatusOK)
+	})
+
+	for _, tc := range []struct {
+		header   string
+		wantType string
+	}{
+		{"", httperr.PreconditionMissingHeader},
+		{"Basic dXNlcjpwYXNz", httperr.PreconditionMalformedHeader},
+		{"Bearer   ", httperr.PreconditionEmptyToken},
+	} {
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		if tc.header != "" {
+			req.Header.Set("Authorization", tc.header)
+		}
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		assert.Equal(t, "Bearer", rec.Header().Get("WWW-Authenticate"))
+		meta, err := httperr.DecodeMetadata[httperr.PreconditionInfo](decodeProblem(t, rec))
+		require.NoError(t, err)
+		assert.Equal(t, tc.wantType, meta.Type)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "bearer my-token")
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "my-token", gotTok)
+}

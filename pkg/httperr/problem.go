@@ -62,6 +62,11 @@ func Write(w http.ResponseWriter, r *http.Request, p Problem) {
 	if ri, ok := p.Metadata.(RetryInfo); ok && ri.RetryAfter != "" && w.Header().Get("Retry-After") == "" {
 		w.Header().Set("Retry-After", ri.RetryAfter)
 	}
+	if p.Status == http.StatusUnauthorized && w.Header().Get("WWW-Authenticate") == "" {
+		if pi, ok := p.Metadata.(PreconditionInfo); ok && pi.Subject == "authorization" && pi.Detail != "" {
+			w.Header().Set("WWW-Authenticate", pi.Detail)
+		}
+	}
 	if p.Type == "" {
 		p.Type = "about:blank"
 	}

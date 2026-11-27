@@ -58,8 +58,8 @@ func (User) Fields() []ent.Field {
 // Edges of the User.
 func (User) Edges() []ent.Edge {
 	return []ent.Edge{
-		// 一个用户可以有多个token
-		edge.To("tokens", Token.Type),
+		// 一个用户可以有多个刷新令牌
+		edge.To("refresh_tokens", RefreshToken.Type),
 	}
 }
 

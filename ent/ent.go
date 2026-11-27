@@ -13,7 +13,7 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/token"
+	"github.com/liukeshao/echo-template/ent/refreshtoken"
 	"github.com/liukeshao/echo-template/ent/user"
 )
 
@@ -75,9 +75,9 @@ var (
 func checkColumn(t, c string) error {
 	initCheck.Do(func() {
 		columnCheck = sql.NewColumnCheck(map[string]func(string) bool{
-			book.Table:  book.ValidColumn,
-			token.Table: token.ValidColumn,
-			user.Table:  user.ValidColumn,
+			book.Table:         book.ValidColumn,
+			refreshtoken.Table: refreshtoken.ValidColumn,
+			user.Table:         user.ValidColumn,
 		})
 	})
 	return columnCheck(t, c)
