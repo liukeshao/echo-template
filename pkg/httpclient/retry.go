@@ -1,7 +1,6 @@
 package httpclient
 
 import (
-	"io"
 	"math/rand/v2"
 	"net/http"
 	"time"
@@ -62,8 +61,7 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		// Drain and close intermediate error response bodies so the underlying
 		// TCP connection can be reused on the next attempt.
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		_ = resp.Body.Close()
+		DrainAndClose(resp.Body)
 	}
 
 	return resp, err

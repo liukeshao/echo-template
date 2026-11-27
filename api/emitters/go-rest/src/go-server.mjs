@@ -72,7 +72,7 @@ function formatOperationLiteral(opID, method, path, authOptions) {
       .join(", ");
     fields.push(`Auth: [][]string{${alts}}`);
   }
-  return `rest.Operation{${fields.join(", ")}}`;
+  return `httpkit.Operation{${fields.join(", ")}}`;
 }
 
 function httpMethodConst(method) {
@@ -120,12 +120,12 @@ export function emitInterfaceAndMount(program, ifaceName, opInfos) {
   lines.push("}");
   lines.push("");
 
-  // 2. Connect-Go style constructor returning rest.Handler (implements http.Handler + Mount(*http.ServeMux)).
-  lines.push(`// New${handlerName} 构造符合 Connect-Go 风格的 rest.Handler（同时实现标准 http.Handler）。`);
-  lines.push(`// 可直接挂载到 rest.Router（router.Mount(api.New${handlerName}(impl, ...))），也可独立用于 httptest。`);
-  lines.push(`func New${handlerName}(impl ${handlerName}, opts ...rest.HandlerOption) rest.Handler {`);
-  lines.push(`\tcfg := rest.ApplyHandlerOptions(opts...)`);
-  lines.push(`\treturn rest.NewHandler(func(mux *http.ServeMux) {`);
+  // 2. Connect-Go style constructor returning httpkit.Handler (implements http.Handler + Mount(*http.ServeMux)).
+  lines.push(`// New${handlerName} 构造符合 Connect-Go 风格的 httpkit.Handler（同时实现标准 http.Handler）。`);
+  lines.push(`// 可直接挂载到 httpkit.Router（router.Mount(api.New${handlerName}(impl, ...))），也可独立用于 httptest。`);
+  lines.push(`func New${handlerName}(impl ${handlerName}, opts ...httpkit.HandlerOption) httpkit.Handler {`);
+  lines.push(`\tcfg := httpkit.ApplyHandlerOptions(opts...)`);
+  lines.push(`\treturn httpkit.NewHandler(func(mux *http.ServeMux) {`);
 
   const opByRef = new Map(opInfos.map((info) => [info.httpOp.operation, info]));
 
@@ -161,7 +161,7 @@ function emitStandardOpBody(info) {
     lines.push(`\t\tvar req ${info.reqStruct}`);
 
     if (info.bodyModel) {
-      lines.push(`\t\tif err := rest.DecodeJSON(r, &req); err != nil {`);
+      lines.push(`\t\tif err := httpkit.DecodeJSON(r, &req); err != nil {`);
       lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
       lines.push(`\t\t\treturn`);
       lines.push(`\t\t}`);
@@ -191,15 +191,15 @@ function emitStandardOpBody(info) {
         }
         const scalarName = p.param.type.kind === "Scalar" ? baseScalarName(p.param.type) : "string";
         if (scalarName === "int32") {
-          lines.push(`\t\treq.${goField} = rest.ParseInt32Query(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = httpkit.ParseInt32Query(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "int64") {
-          lines.push(`\t\treq.${goField} = rest.ParseInt64Query(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = httpkit.ParseInt64Query(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "float64") {
           const fn = p.param.optional ? "ParseOptionalFloat64Query" : "ParseFloat64Query";
-          lines.push(`\t\treq.${goField} = rest.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = httpkit.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
         } else if (scalarName === "boolean") {
           const fn = p.param.optional ? "ParseOptionalBoolQuery" : "ParseBoolQuery";
-          lines.push(`\t\treq.${goField} = rest.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
+          lines.push(`\t\treq.${goField} = httpkit.${fn}(q, ${JSON.stringify(p.name)}, &qv)`);
         } else {
           lines.push(`\t\treq.${goField} = q.Get(${JSON.stringify(p.name)})`);
         }
@@ -227,14 +227,14 @@ function emitStandardOpBody(info) {
     lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
-    lines.push(`\t\trest.WriteJSON(w, r, ${httpStatusConst(info.status)}, res)`);
+    lines.push(`\t\thttpkit.WriteJSON(w, r, ${httpStatusConst(info.status)}, res)`);
   } else {
     lines.push(`\t\tif err := impl.${info.methodName}(${callArgs}); err != nil {`);
     lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
     lines.push(`\t\t\treturn`);
     lines.push(`\t\t}`);
     if (info.status === 204) {
-      lines.push(`\t\trest.WriteNoContent(w)`);
+      lines.push(`\t\thttpkit.WriteNoContent(w)`);
     } else {
       lines.push(`\t\tw.WriteHeader(${httpStatusConst(info.status)})`);
     }
@@ -267,7 +267,7 @@ function emitAutoPatchBody(info, getInfo, replaceInfo) {
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
   lines.push(`\t\tvar req ${replaceInfo.reqStruct}`);
-  lines.push(`\t\tif err := rest.ApplyPatch(r, current, &req); err != nil {`);
+  lines.push(`\t\tif err := httpkit.ApplyPatch(r, current, &req); err != nil {`);
   lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
@@ -285,7 +285,7 @@ function emitAutoPatchBody(info, getInfo, replaceInfo) {
   lines.push(`\t\t\tcfg.WriteError(w, r, err)`);
   lines.push(`\t\t\treturn`);
   lines.push(`\t\t}`);
-  lines.push(`\t\trest.WriteJSON(w, r, http.StatusOK, res)`);
+  lines.push(`\t\thttpkit.WriteJSON(w, r, http.StatusOK, res)`);
   return lines;
 }
 

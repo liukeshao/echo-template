@@ -8,7 +8,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -73,21 +73,21 @@ func flattenTOML(prefix string, m map[string]any, dst map[string]string) error {
 }
 
 // assertCoverage 保证默认 locale 中的 [errors] 与 [validation] 100% 覆盖
-// 全部有限标准 HTTP 错误码（pkg/rest.AllCodes）与校验规则码（pkg/validator.RegisteredRules）。
+// 全部有限标准 HTTP 错误状态码（pkg/httperr.AllStatuses）与校验规则码（pkg/validator.RegisteredRules）。
 func assertCoverage(defaultTable map[string]string, defaultTag language.Tag) error {
 	if defaultTable == nil {
 		return fmt.Errorf("i18n: default locale %s has no messages loaded", defaultTag)
 	}
 
 	var missing []string
-	for _, code := range rest.AllCodes() {
-		key := "errors." + code.String()
+	for _, s := range httperr.AllStatuses() {
+		key := "errors." + s.Key()
 		if _, ok := defaultTable[key]; !ok {
 			missing = append(missing, key)
 		}
 	}
 	for _, rule := range validator.RegisteredRules() {
-		key := "validation." + rule
+		key := "validation." + rule.Key()
 		if _, ok := defaultTable[key]; !ok {
 			missing = append(missing, key)
 		}

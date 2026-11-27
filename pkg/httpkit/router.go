@@ -1,17 +1,21 @@
-package rest
+// Package httpkit 提供基于 Go 1.22+ 标准库 net/http 的轻量、零外部依赖入站 HTTP 服务端原语套件，
+// 涵盖 Router、Connect-Go 风格 Handler、@useAuth 鉴权编排、基础中间件、JSON/Query 编解码与 RFC 7386 Merge Patch。
+package httpkit
 
 import (
 	"net/http"
 	"slices"
 	"strings"
 	"sync"
+
+	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
-// RouterOption 配置 rest.Router。
+// RouterOption 配置 httpkit.Router。
 type RouterOption func(*Router)
 
-// WithRouterErrorEncoder 设置 Router 用于 404/405 兜底响应的 ErrorEncoder。
-func WithRouterErrorEncoder(enc ErrorEncoder) RouterOption {
+// WithRouterErrorEncoder 设置 Router 用于 404/405 兜底响应的 httperr.Encoder。
+func WithRouterErrorEncoder(enc httperr.Encoder) RouterOption {
 	return func(r *Router) {
 		if enc != nil {
 			r.errorEncoder = enc
@@ -23,18 +27,18 @@ func WithRouterErrorEncoder(enc ErrorEncoder) RouterOption {
 // （同时保留 Go ServeMux 原生的 301/307/308 路径规范化重定向）。
 type Router struct {
 	mux          *http.ServeMux
-	errorEncoder ErrorEncoder
+	errorEncoder httperr.Encoder
 	middlewares  []Middleware
 
 	once    sync.Once
 	wrapped http.Handler
 }
 
-// NewRouter 创建 Router 实例（零配置默认使用 DefaultErrorEncoder）。
+// NewRouter 创建 Router 实例（零配置默认使用 httperr.DefaultEncoder）。
 func NewRouter(opts ...RouterOption) *Router {
 	r := &Router{
 		mux:          http.NewServeMux(),
-		errorEncoder: DefaultErrorEncoder,
+		errorEncoder: httperr.DefaultEncoder,
 	}
 	for _, opt := range opts {
 		if opt != nil {
@@ -53,7 +57,7 @@ func (r *Router) Use(mws ...Middleware) {
 	}
 }
 
-// Mount 将一个或多个 rest.Handler（如 api.NewBooksHandler(...)）挂载到 Router。
+// Mount 将一个或多个 httpkit.Handler（如 api.NewBooksHandler(...)）挂载到 Router。
 func (r *Router) Mount(handlers ...Handler) {
 	for _, h := range handlers {
 		if h != nil {
@@ -102,10 +106,9 @@ func (r *Router) buildHandler() http.Handler {
 						}
 					}
 				}
-				r.errorEncoder(w, req, Problem{
+				r.errorEncoder(w, req, httperr.Problem{
 					Status: http.StatusMethodNotAllowed,
-					Code:   CodeMethodNotAllowed,
-					Metadata: MethodInfo{
+					Metadata: httperr.MethodInfo{
 						Method:  req.Method,
 						Path:    req.URL.Path,
 						Allowed: allowed,
@@ -113,10 +116,9 @@ func (r *Router) buildHandler() http.Handler {
 				})
 				return
 			default:
-				r.errorEncoder(w, req, Problem{
+				r.errorEncoder(w, req, httperr.Problem{
 					Status: http.StatusNotFound,
-					Code:   CodeNotFound,
-					Metadata: ResourceInfo{
+					Metadata: httperr.ResourceInfo{
 						ResourceType: "route",
 						ResourceName: req.URL.Path,
 					},

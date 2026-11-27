@@ -21,6 +21,7 @@ import (
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/server"
 	"github.com/liukeshao/echo-template/internal/service"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/pkg/logging"
 )
 
@@ -41,7 +42,7 @@ func main() {
 	do.ProvideValue(i, &cfg)
 
 	// 4. Start HTTP server
-	srv := do.MustInvoke[*server.Server](i)
+	srv := do.MustInvoke[*httpkit.Server](i)
 	if cfg.App.Environment != config.EnvProduction {
 		slog.Info("API docs", "url", fmt.Sprintf("%s/docs", strings.TrimRight(cfg.App.Host, "/")))
 	}

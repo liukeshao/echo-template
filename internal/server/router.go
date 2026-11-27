@@ -14,12 +14,13 @@ import (
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
 
 const defaultMaxBodyBytes = 2 << 20 // 2 MiB
 
-// BuildRouter 构建 rest.Router，显式编排全局中间件链并挂载全部业务端点与文档路由。
+// BuildRouter 构建 httpkit.Router，显式编排全局中间件链并挂载全部业务端点与文档路由。
 func BuildRouter(i do.Injector) (http.Handler, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	tr := do.MustInvoke[i18n.Translator](i)
@@ -27,18 +28,18 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 
 	encodeErr := NewProblemEncoder(tr)
 
-	opts := []rest.HandlerOption{
-		rest.WithErrorEncoder(encodeErr),
-		rest.WithAuthScheme("BearerAuth", BearerAuth(authSvc)),
+	opts := []httpkit.HandlerOption{
+		httpkit.WithErrorEncoder(encodeErr),
+		httpkit.WithAuthScheme("BearerAuth", BearerAuth(authSvc)),
 	}
 
-	router := rest.NewRouter(rest.WithRouterErrorEncoder(encodeErr))
+	router := httpkit.NewRouter(httpkit.WithRouterErrorEncoder(encodeErr))
 	router.Use(
-		RequestID(),
+		httpkit.RequestID(),
 		Locale(tr),
-		rest.AccessLog(),
-		rest.Recover(encodeErr),
-		rest.BodyLimit(defaultMaxBodyBytes),
+		httpkit.AccessLog(),
+		httpkit.Recover(encodeErr),
+		httpkit.BodyLimit(defaultMaxBodyBytes),
 	)
 	router.Mount(
 		api.NewAuthHandler(do.MustInvoke[*handler.Auth](i), opts...),
@@ -54,10 +55,26 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 	return router, nil
 }
 
-// BearerAuth 返回对应 TypeSpec @useAuth(BearerAuth) 的 rest.Authenticator：
+// Locale 协商请求语言（?lang= > Accept-Language > Default）并写入 context。
+func Locale(tr i18n.Translator) httpkit.Middleware {
+	if tr == nil {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			tag := tr.Match(
+				r.Header.Get("Accept-Language"),
+				r.URL.Query().Get("lang"),
+			)
+			next.ServeHTTP(w, r.WithContext(i18n.WithLocale(r.Context(), tag)))
+		})
+	}
+}
+
+// BearerAuth 返回对应 TypeSpec @useAuth(BearerAuth) 的 httpkit.Authenticator：
 // 验证 Bearer token 并将已认证 *ent.User 写入 context。
 // token 不写入 context，防止被日志框架意外序列化后泄露。
-func BearerAuth(authService *service.Auth) rest.Authenticator {
+func BearerAuth(authService *service.Auth) httpkit.Authenticator {
 	return func(ctx context.Context, r *http.Request) (context.Context, error) {
 		tokenString, err := extractTokenFromHeader(r)
 		if err != nil {
@@ -75,46 +92,33 @@ func BearerAuth(authService *service.Auth) rest.Authenticator {
 }
 
 // extractTokenFromHeader 从 Authorization header 提取 Bearer token（scheme 大小写不敏感，遵循 RFC 9110）。
-// header 缺失或格式非法时返回 UNAUTHORIZED oops 错误（→ HTTP 401 + PreconditionInfo）。
+// header 缺失或格式非法时返回 401 Unauthorized oops 错误（附带 PreconditionInfo）。
 func extractTokenFromHeader(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if strings.TrimSpace(authHeader) == "" {
-		return "", oops.
-			In("auth").
-			Code(rest.CodeUnauthorized).
-			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    rest.PreconditionMissingHeader,
-				Subject: "authorization",
-				Detail:  "Bearer",
-			}).
-			Wrap(rest.CodeUnauthorized)
+		return "", bearerHeaderError(httperr.PreconditionMissingHeader)
 	}
 
 	scheme, rawToken, ok := strings.Cut(authHeader, " ")
 	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", oops.
-			In("auth").
-			Code(rest.CodeUnauthorized).
-			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    rest.PreconditionMalformedHeader,
-				Subject: "authorization",
-				Detail:  "Bearer",
-			}).
-			Wrap(rest.CodeUnauthorized)
+		return "", bearerHeaderError(httperr.PreconditionMalformedHeader)
 	}
 
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
-		return "", oops.
-			In("auth").
-			Code(rest.CodeUnauthorized).
-			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    rest.PreconditionEmptyToken,
-				Subject: "authorization",
-				Detail:  "Bearer",
-			}).
-			Wrap(rest.CodeUnauthorized)
+		return "", bearerHeaderError(httperr.PreconditionEmptyToken)
 	}
 
 	return token, nil
+}
+
+func bearerHeaderError(reason string) error {
+	return oops.
+		In("auth").
+		With(httperr.MetaKey, httperr.PreconditionInfo{
+			Type:    reason,
+			Subject: "authorization",
+			Detail:  "Bearer",
+		}).
+		Wrap(httperr.Unauthorized)
 }

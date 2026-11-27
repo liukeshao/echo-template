@@ -16,7 +16,7 @@ export const $decorators = {
 export async function $onEmit(context) {
   const { program, emitterOutputDir, options } = context;
   const pkgName = options["package-name"] || "api";
-  const runtimeImport = options["runtime-import"] || "github.com/liukeshao/echo-template/pkg/rest";
+  const runtimeImport = options["runtime-import"] || "github.com/liukeshao/echo-template/pkg/httpkit";
   const validatorImport = options["validator-import"] || "github.com/liukeshao/echo-template/pkg/validator";
 
   const [services] = getAllHttpServices(program);
@@ -50,7 +50,7 @@ export async function $onEmit(context) {
 }
 
 function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
-  const imports = new Set(["context", "net/http", "rest"]);
+  const imports = new Set(["context", "net/http", "httpkit"]);
   const emittedTypes = new Set();
   const validatedModels = new Set();
   const typeBlocks = [];
@@ -153,7 +153,7 @@ function renderInterfaceFile(program, ifaceName, httpOps, cfg) {
   const stdImports = [];
   const extImports = [];
   for (const imp of imports) {
-    if (imp === "rest") {
+    if (imp === "httpkit") {
       extImports.push(cfg.runtimeImport);
     } else if (imp === "validator") {
       extImports.push(cfg.validatorImport);

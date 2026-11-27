@@ -8,6 +8,7 @@ scalar UUID extends string;
 
 @doc("RFC 5322 email address")
 @format("email")
+@maxLength(255)
 scalar Email extends string;
 
 @doc("Username (3-50 chars, letters/digits/underscore/hyphen)")

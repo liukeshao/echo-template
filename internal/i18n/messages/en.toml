@@ -1,34 +1,34 @@
 # English translations.
 # Structure:
-#   [errors]          1:1 with the 13 finite canonical HTTP codes in pkg/rest (100% required).
-#   [details.<CODE>]  optional fine-grained overrides indexed by rest.Metadata.I18nSubkeys().
-#   [validation]      1:1 with validation rule codes registered in pkg/validator (100% required).
+#   [errors]            1:1 with the 13 finite HTTP error statuses in pkg/httperr (100% required).
+#   [details.<STATUS>]  optional fine-grained overrides indexed by httperr.Metadata.I18nSubkeys().
+#   [validation]        1:1 with validation rule codes registered in pkg/validator (100% required).
 #
-# Placeholders use the {name} form and are populated by rest.Metadata.I18nVars()
+# Placeholders use the {name} form and are populated by httperr.Metadata.I18nVars()
 # or validator.Violation metadata (with {field} auto-injected). Missing vars are kept verbatim.
 
 [errors]
-BAD_REQUEST            = "Invalid request."
-UNAUTHORIZED           = "Authentication required or invalid credentials."
-FORBIDDEN              = "Access to this resource is forbidden."
-NOT_FOUND              = "The requested resource was not found."
-METHOD_NOT_ALLOWED     = "HTTP method not allowed for this resource."
-CONFLICT               = "The request conflicts with the current state of the resource."
-CONTENT_TOO_LARGE      = "Request body exceeds the maximum allowed size ({max_bytes} bytes)."
-UNSUPPORTED_MEDIA_TYPE = "Unsupported PATCH content type {content_type}; supported: {supported}."
-TOO_MANY_REQUESTS      = "Rate limit exceeded. Please retry later."
-CLIENT_CLOSED_REQUEST  = "Client closed the request before the server could respond."
-INTERNAL_ERROR         = "An internal server error occurred."
-SERVICE_UNAVAILABLE    = "Service is temporarily unavailable."
-GATEWAY_TIMEOUT        = "The request timed out."
+400 = "Invalid request."
+401 = "Authentication required or invalid credentials."
+403 = "Access to this resource is forbidden."
+404 = "The requested resource was not found."
+405 = "HTTP method not allowed for this resource."
+409 = "The request conflicts with the current state of the resource."
+413 = "Request body exceeds the maximum allowed size."
+415 = "Unsupported media type."
+429 = "Rate limit exceeded. Please retry later."
+499 = "Client closed the request before the server could respond."
+500 = "An internal server error occurred."
+503 = "Service is temporarily unavailable."
+504 = "The request timed out."
 
-[details.BAD_REQUEST]
+[details.400]
 validation       = "Request validation failed."
 decode           = "Invalid JSON request body."
 patch            = "Invalid patch document for content type {content_type}."
 INVALID_PASSWORD = "Current password is incorrect."
 
-[details.UNAUTHORIZED]
+[details.401]
 INVALID_CREDENTIALS = "Invalid email or password."
 TOKEN_EXPIRED       = "Token has expired."
 TOKEN_INVALID       = "Invalid or expired token."
@@ -37,30 +37,31 @@ MISSING_HEADER      = "Missing Authorization header."
 MALFORMED_HEADER    = "Invalid Authorization header format."
 EMPTY_TOKEN         = "Bearer token is empty."
 
-[details.FORBIDDEN]
+[details.403]
 ACCOUNT_DISABLED = "This account has been disabled."
 
-[details.NOT_FOUND]
-book         = "Book {resource_name} was not found."
-route        = "The requested resource was not found."
-static_asset = "The requested resource was not found."
-resource     = "{resource_type} {resource_name} was not found."
+[details.404]
+book = "Book {resource_name} was not found."
 
-[details.CONFLICT]
+[details.409]
 user.email    = "The email {resource_name} is already in use."
 user.username = "The username {resource_name} is already taken."
 book.book_id  = "Book {resource_name} already exists. Please use a different book_id."
-resource      = "{resource_type} {resource_name} already exists."
 
-[details.TOO_MANY_REQUESTS]
+[details.413]
+body_limit = "Request body exceeds the maximum allowed size ({max_bytes} bytes)."
+
+[details.415]
+patch = "Unsupported PATCH content type {content_type}; supported: {supported}."
+
+[details.429]
 weather = "Weather service rate limit exceeded. Please retry later."
 
 [validation]
 required                   = "{field} is required."
 min_length                 = "{field} must be at least {min} characters."
 max_length                 = "{field} must be at most {max} characters."
-length_range               = "{field} must be between {min} and {max} characters."
-username_charset           = "{field} may only contain ASCII letters, digits, underscores, and hyphens."
+max_bytes                  = "{field} must be at most {max} bytes."
 email                      = "{field} must be a valid email address."
 password_weak              = "{field} must contain at least one letter and one digit."
 integer                    = "{field} must be a valid integer."

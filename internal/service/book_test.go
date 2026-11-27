@@ -13,7 +13,7 @@ import (
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -62,14 +62,14 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 		Title:  "Duplicate",
 		Author: "Someone",
 	})
-	testutil.AssertOopsCode(t, err, rest.CodeConflict)
+	testutil.AssertOopsStatus(t, err, httperr.Conflict)
 
 	// Invalid order_by returns *validator.FieldViolations with rule codes & metadata.
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "unknown_col"})
 	var fv *validator.FieldViolations
 	require.ErrorAs(t, err, &fv)
 	require.Len(t, fv.Items(), 1)
-	assert.Equal(t, validator.CodeUnknownOrderByField, fv.Items()[0].Code)
+	assert.Equal(t, validator.RuleUnknownOrderByField, fv.Items()[0].Code)
 	assert.Equal(t, "unknown_col", fv.Items()[0].Metadata["value"])
 
 	// Comma-only order_by falls back to default sort without error.
@@ -94,17 +94,17 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 
 	// Soft-deleted book is hidden from Get, Replace, and Delete.
 	_, err = bookSvc.Get(ctx, customID)
-	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
+	testutil.AssertOopsStatus(t, err, httperr.NotFound)
 
 	_, err = bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
 		Book:   customID,
 		Title:  "Ghost",
 		Author: "Ghost",
 	})
-	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
+	testutil.AssertOopsStatus(t, err, httperr.NotFound)
 
 	err = bookSvc.Delete(ctx, customID)
-	testutil.AssertOopsCode(t, err, rest.CodeNotFound)
+	testutil.AssertOopsStatus(t, err, httperr.NotFound)
 
 	// Even a direct Ent UpdateOneID must refuse to modify a soft-deleted row.
 	err = env.ORM().Book.UpdateOneID(customID).SetTitle("Mutated").Exec(ctx)
@@ -148,9 +148,9 @@ func TestBook_ListQueryFieldsAndOrderBy(t *testing.T) {
 	var fv *validator.FieldViolations
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc extra"})
 	require.ErrorAs(t, err, &fv)
-	assert.Equal(t, validator.CodeInvalidOrderByClause, fv.Items()[0].Code)
+	assert.Equal(t, validator.RuleInvalidOrderByClause, fv.Items()[0].Code)
 
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc"})
 	require.ErrorAs(t, err, &fv)
-	assert.Equal(t, validator.CodeInvalidOrderByDirection, fv.Items()[0].Code)
+	assert.Equal(t, validator.RuleInvalidOrderByDirection, fv.Items()[0].Code)
 }

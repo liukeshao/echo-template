@@ -1,21 +1,27 @@
-package server
+package httpkit
 
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"sync"
-
-	"github.com/samber/do/v2"
-
-	"github.com/liukeshao/echo-template/config"
+	"time"
 )
 
-// Server 封装标准库 *http.Server 并实现优雅停机，供 DI 容器在关闭 ORM/DB 前排空在途请求。
+// ServerConfig 配置 httpkit.Server 的底层 *http.Server 参数与优雅停机超时。
+type ServerConfig struct {
+	Addr            string
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
+	IdleTimeout     time.Duration
+	GracefulTimeout time.Duration
+}
+
+// Server 封装标准库 *http.Server 并实现竞态安全的优雅停机（含启动前 Shutdown 不死锁），
+// 隐式满足 samber/do 的 Shutdown(context.Context) error 契约，零三方依赖。
 type Server struct {
-	srv *http.Server
-	cfg config.HTTP
+	srv             *http.Server
+	gracefulTimeout time.Duration
 
 	mu      sync.Mutex
 	started bool
@@ -23,12 +29,12 @@ type Server struct {
 	stopped chan struct{}
 }
 
-// New 使用给定 HTTP 配置与根 http.Handler 构造 Server。
-func New(cfg config.HTTP, handler http.Handler) *Server {
+// NewServer 使用给定配置与根 http.Handler 构造 Server。
+func NewServer(cfg ServerConfig, handler http.Handler) *Server {
 	return &Server{
-		cfg: cfg,
+		gracefulTimeout: cfg.GracefulTimeout,
 		srv: &http.Server{
-			Addr:         fmt.Sprintf("%s:%d", cfg.Hostname, cfg.Port),
+			Addr:         cfg.Addr,
 			Handler:      handler,
 			ReadTimeout:  cfg.ReadTimeout,
 			WriteTimeout: cfg.WriteTimeout,
@@ -36,16 +42,6 @@ func New(cfg config.HTTP, handler http.Handler) *Server {
 		},
 		stopped: make(chan struct{}),
 	}
-}
-
-// newServer 供 DI 容器构造已绑定路由与优雅停机生命周期的 *Server。
-func newServer(i do.Injector) (*Server, error) {
-	cfg := do.MustInvoke[*config.Config](i)
-	h, err := BuildRouter(i)
-	if err != nil {
-		return nil, err
-	}
-	return New(cfg.HTTP, h), nil
 }
 
 // Start 阻塞式启动 HTTP 服务，直到 Shutdown 触发优雅停机或监听出错。
@@ -67,7 +63,7 @@ func (s *Server) Start() error {
 	return err
 }
 
-// Shutdown 实现 do.ShutdownerWithContextAndError：优雅排空在途 HTTP 请求并等待 Start 返回。
+// Shutdown 优雅排空在途 HTTP 请求并等待 Start 返回。
 func (s *Server) Shutdown(ctx context.Context) error {
 	s.mu.Lock()
 	s.closed = true
@@ -79,9 +75,9 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	}
 
 	shutdownCtx := ctx
-	if s.cfg.GracefulTimeout > 0 {
+	if s.gracefulTimeout > 0 {
 		var cancel context.CancelFunc
-		shutdownCtx, cancel = context.WithTimeout(ctx, s.cfg.GracefulTimeout)
+		shutdownCtx, cancel = context.WithTimeout(ctx, s.gracefulTimeout)
 		defer cancel()
 	}
 

@@ -7,7 +7,7 @@
 | 分层 | 选型 |
 |---|---|
 | API 契约 & 代码生成 | TypeSpec 1.18 + `@typespec/openapi3` (OpenAPI 3.1) + 自研 `go-rest` Emitter |
-| HTTP 运行时 | Go 1.22+ 标准库 `net/http` (`*http.ServeMux`) + 零依赖 `pkg/rest`（`Router` / `Handler` / `ErrorEncoder` / 无状态编解码 / RFC 9457 / RFC 7386）+ `internal/server` |
+| HTTP 运行时 | Go 1.22+ 标准库 `net/http` (`*http.ServeMux`) + 零依赖 `pkg/httpkit`（`Router` / `Handler` / `@useAuth` / 中间件 / 无状态编解码 / RFC 7386）+ `pkg/httperr`（RFC 9457 / 有限状态码 / AIP-193 Metadata）+ `internal/server` |
 | Handler 接口风格 | Connect-Go v2 风格无泛型纯 Go 方法 `(ctx context.Context, req *api.Req) (*api.Resp, error)` |
 | 依赖注入 | samber/do v2 |
 | ORM | entgo v0.14 + SQLite（可换 PostgreSQL/MySQL）|
@@ -34,10 +34,11 @@ ent/
   *.go                  ent 自动生成代码（不要手改）
 pkg/                    纯公共、零 internal/ 与零三方依赖的可复用包
   api/                  TypeSpec 生成的平铺 DTO、Validate()、Handler 接口与 api.NewXxxHandler 适配器
-  httpclient/           共享 HTTPClient 连接池与内置超时/重试 RoundTripper（通过 Config/WithOptions 参数注入，零外部依赖）
+  httpclient/           共享出站 HTTP 客户端连接池与内置超时/重试 RoundTripper（通过 Config/WithOptions 参数注入，零外部依赖）
+  httperr/              13 个有限 HTTP 错误状态码哨兵（httperr.NotFound 等）、AIP-193 Metadata、纯 RFC 9457 Problem 与可插拔三段式 NewEncoder
+  httpkit/              纯标准库 net/http 入站服务端原语套件（Server 优雅停机、Router、Handler、@useAuth 鉴权、RequestID/AccessLog/Recover/BodyLimit 中间件、编解码、RFC 7386 Merge Patch）
   logging/              slog ContextHandler（日志自动带 request_id + request_id context，零外部依赖）
-  rest/                 纯标准库 net/http REST 原语（Router、Handler、有限标准 HTTP 错误码 rest.Code、AIP-193 Metadata、RFC 9457 Problem、RFC 7386 Merge Patch）
-  validator/            FieldViolations + 原子校验规则（含 UUID / Email / Username / Password）
+  validator/            强类型 Rule / Param、FieldViolations、声明式校验原语、泛型边界校验与通用 ParseOrderBy
 internal/               应用私有实现
   client/               第三方 API 客户端（每个 API 一个子包）
     <apiname>/
@@ -48,7 +49,7 @@ internal/               应用私有实现
   database/             DB / ORM 基础设施（DI 生命周期）
   handler/              纯 Go 业务编排与 DTO 投影 Handler（Auth / Me / Book，彻底零 net/http 依赖）
   i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商 + locale context）
-  server/               HTTP 传输装配层（Server 优雅停机、NewProblemEncoder、RequestID/Locale 中间件、BuildRouter、BearerAuth、Docs）
+  server/               极薄的 4 文件 HTTP 装配层（package.go 装配 httpkit.Server、router.go、problem.go 胶水、docs.go）
   service/              领域服务（业务逻辑、分页规范化、bcrypt 密码策略与各自资源的 ent 查询条件）
   testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
 static/                 Stoplight Elements + OpenAPI 3.1 YAML（embed.FS）
@@ -94,7 +95,7 @@ ECHO_TEMPLATE_JWT_SECRET=mysecret go run ./cmd/server
 
 在 TypeSpec 中为 `patch` 操作标注 `@autoPatch(Domain.getXxx, Domain.replaceXxx)` 后：
 - OpenAPI 3.1 会记录强类型的 `PatchXxxRequest` Schema 及 `415 Unsupported Media Type`。
-- 生成的 `api.<Domain>Handler` 接口**无需**手写 `Patch` 方法，`api.New<Domain>Handler` 会自动串联 `Get → rest.ApplyPatch → Validate → Replace`。
+- 生成的 `api.<Domain>Handler` 接口**无需**手写 `Patch` 方法，`api.New<Domain>Handler` 会自动串联 `Get → httpkit.ApplyPatch → Validate → Replace`。
 
 | Content-Type                   | 主体格式                                 | 示例                                      |
 |--------------------------------|------------------------------------------|-------------------------------------------|
@@ -161,10 +162,10 @@ make ent
 **3. 按需补充细化国际化文案**（`internal/i18n/messages/{en,zh-CN}.toml`，无需注册新错误码）
 
 ```toml
-[details.NOT_FOUND]
+[details.404]
 order = "未找到 ID 为 {resource_name} 的订单。"
 
-[details.CONFLICT]
+[details.409]
 order.order_id = "订单 {resource_name} 已存在，请换一个 order_id。"
 ```
 
@@ -178,24 +179,24 @@ order.order_id = "订单 {resource_name} 已存在，请换一个 order_id。"
 
 ## 错误处理约定
 
-全仓采用 **13 个有限标准 HTTP 错误码（`rest.Code`，自身即不可变 `errors.Is` 哨兵）+ 原生 `oops` + AIP-193 强类型 `rest.Metadata` 结构体**，**禁止使用 `.Public(...)`**，由终端 `server.NewProblemEncoder` 统一做分层国际化渲染：
+全仓采用 **纯 RFC 9457 + 13 个有限 HTTP 错误状态码（`httperr.Status`，底层即 `int` HTTP 状态码且自身实现 `errors.Is` 哨兵）+ 原生 `oops` + AIP-193 强类型 `httperr.Metadata` 结构体**，无冗余 `code` 字段、**禁止使用 `.Public(...)`**，领域服务与外部客户端只依赖轻量的 `pkg/httperr`，由终端 `server.NewProblemEncoder` 统一做分层国际化渲染：
 
 ```go
 var errOrder = oops.In("order")
 
 // 领域内部错误（5xx：With 上下文仅打入 slog 日志，不对外暴露；Join 保留哨兵与根因链）
-errOrder.Tags("database").Code(rest.CodeInternal).With("order_id", id, "op", op).Join(rest.CodeInternal, err)
+errOrder.Tags("database").With("order_id", id, "op", op).Join(httperr.Internal, err)
 
-// 客户端错误（4xx：Wrap 哨兵支持 errors.Is，仅 rest.MetaKey 下实现 rest.Metadata 的结构体对外暴露并供给分层 i18n）
-errOrder.Code(rest.CodeNotFound).
-    With(rest.MetaKey, rest.ResourceInfo{
+// 客户端错误（4xx：Wrap 哨兵作为唯一状态码事实来源并支持 errors.Is，仅 httperr.MetaKey 下实现 httperr.Metadata 的结构体对外暴露并供给分层 i18n）
+errOrder.
+    With(httperr.MetaKey, httperr.ResourceInfo{
         ResourceType: "order",
         ResourceName: id,
     }).
-    Wrap(rest.CodeNotFound)
+    Wrap(httperr.NotFound)
 ```
 
-`server.NewProblemEncoder` 自动按 `Classify（优先识别请求 Context 取消/超时）→ Sanitize & Log → Unified Localize（[details.<CODE>] → [errors] + Content-Language / Retry-After 头）` 流水线输出 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
+`server.NewProblemEncoder` 自动按 `Classify（优先识别请求 Context 取消/超时）→ Sanitize & Log → Unified Localize（[details.<STATUS>] → [errors] + Content-Language / Retry-After 头）` 流水线输出 RFC 9457 `application/problem+json` 响应，无需在 handler 层手动处理。
 
 ## 命令
 

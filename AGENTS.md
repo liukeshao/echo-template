@@ -6,10 +6,10 @@ Rules and invariants for AI agents working in this repository.
 
 ## Architecture
 
-- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (HTTP router wiring, ErrorEncoder, RequestID/Locale middleware, BearerAuth, Docs, Server lifecycle)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
-- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/logging`, `pkg/rest`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, and business logic live under `internal/`.
-- **HTTP Transport**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) encapsulated by `pkg/rest` (`rest.Router`, `rest.Handler`, `rest.ErrorEncoder`, stateless codecs, RFC 9457 `rest.Problem`, RFC 7386 Merge Patch) and wired by `internal/server` (`server.Server`, `server.NewProblemEncoder`). No third-party HTTP framework.
-- **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Book`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Generated `api.NewXxxHandler(impl, opts...) rest.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `rest.ErrorEncoder`.
+- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (thin HTTP wiring: BuildRouter, NewProblemEncoder, Locale middleware, BearerAuth, Docs, Server lifecycle)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
+- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/httperr`, `pkg/httpkit`, `pkg/logging`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, and business logic live under `internal/`.
+- **HTTP Transport & Error Split**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) is split cleanly into three `http*` packages: `pkg/httpclient` (outbound HTTP client & retry transport), `pkg/httperr` (13 finite HTTP error status sentinels, pure RFC 9457 `httperr.Problem`, AIP-193 `httperr.Metadata`, `httperr.NewEncoder` three-stage pipeline / `Classify` / `Write`), and `pkg/httpkit` (inbound `httpkit.Server` graceful shutdown, `httpkit.Router`, `httpkit.Handler`, `@useAuth` middleware, base middlewares including `RequestID`/`AccessLog`/`Recover`/`BodyLimit`, stateless codecs, RFC 7386 Merge Patch). `internal/server` acts solely as a thin 4-file application wiring layer (`package.go` wiring `httpkit.Server`, `router.go` with `BuildRouter`/`BearerAuth`/`Locale`, `problem.go` wiring `httperr.NewEncoder`, `docs.go`). Domain services, outbound clients, and `i18n` depend ONLY on `pkg/httperr`, never on `pkg/httpkit`. No third-party HTTP framework.
+- **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Book`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Generated `api.NewXxxHandler(impl, opts...) httpkit.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `httperr.Encoder`.
 - **DI**: All singletons are registered via `samber/do`. Use `do.Lazy(NewFoo)` for lazy init; use `do.Provide(NewFoo)` only when eager init is necessary.
 - **Context**: Always propagate `context.Context` as the first argument. Never store it in struct fields.
 
@@ -40,24 +40,24 @@ make ent
 - Each third-party API lives in `internal/client/<apiname>/` with four files: `interface.go`, `client.go`, `errors.go`, `package.go`.
 - Services depend on the **interface** (`<apiname>.API`), never on `*Client` directly.
 - Config goes in `config.Clients.<ApiName>` (type `config.ExternalClient`); add a `[clients.<apiname>]` block in `config.toml`.
-- Map upstream failures to the finite canonical HTTP codes in `pkg/rest`: HTTP 429 → `rest.CodeTooManyRequests` (with `rest.RetryInfo{Service, RetryAfter}`), 502/503/504 and network errors → `rest.CodeServiceUnavailable`, everything else → `rest.CodeInternal`. Optionally add fine-grained i18n copy under `[details.TOO_MANY_REQUESTS]` in `internal/i18n/messages/*.toml`.
+- Map upstream failures to the finite HTTP error statuses in `pkg/httperr`: HTTP 429 → `httperr.TooManyRequests` (with `httperr.RetryInfo{Service, RetryAfter}`), 502/503/504 and network errors → `httperr.ServiceUnavailable`, everything else → `httperr.Internal`. Optionally add fine-grained i18n copy under `[details.429]` in `internal/i18n/messages/*.toml`.
 - Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with exponential backoff and jitter (within the total `Timeout`).
 - Register the package in `internal/client/package.go` and wire `client.Package` in `cmd/server/main.go` between `database.Package` and `service.Package`.
 - **Forbidden**: raw `http.Get` / `http.Post` calls anywhere outside `internal/client/`.
 
 ---
 
-## Error Handling (Finite Canonical HTTP Codes + RFC 9457 + AIP-193 Metadata)
+## Error Handling (Pure RFC 9457 + Finite HTTP Statuses + AIP-193 Metadata)
 
-All errors use the **13 finite canonical HTTP codes** defined in `pkg/rest/code.go` (`rest.Code`: `CodeBadRequest`, `CodeUnauthorized`, `CodeForbidden`, `CodeNotFound`, `CodeMethodNotAllowed`, `CodeConflict`, `CodeContentTooLarge`, `CodeUnsupportedMediaType`, `CodeTooManyRequests`, `CodeClientClosedRequest`, `CodeInternal`, `CodeServiceUnavailable`, `CodeGatewayTimeout`). Each `rest.Code` implements `error` (immutable zero-allocation sentinel for `errors.Is`) and `HTTPStatus() int` (no global code registry or `init()`).
+All errors use the **13 finite HTTP error statuses** defined in `pkg/httperr/status.go` (`httperr.Status`, backed directly by `int` HTTP status codes: `BadRequest` 400, `Unauthorized` 401, `Forbidden` 403, `NotFound` 404, `MethodNotAllowed` 405, `Conflict` 409, `ContentTooLarge` 413, `UnsupportedMediaType` 415, `TooManyRequests` 429, `ClientClosedRequest` 499, `Internal` 500, `ServiceUnavailable` 503, `GatewayTimeout` 504). Each `httperr.Status` implements `error` (immutable zero-allocation sentinel for `errors.Is`) — no duplicate `Code` string, no `Code ↔ HTTPStatus` switch table, and no global registry or `init()`.
 
-Errors are serialized by `server.NewProblemEncoder` (implementing `rest.ErrorEncoder`) as flat, strongly-typed `rest.Problem` (`Content-Type: application/problem+json`) through a three-stage pipeline (`Classify` → `Sanitize & Log` → `Unified Localize`). Classification precedence:
+Errors are serialized by `httperr.NewEncoder` (wired in `server.NewProblemEncoder` with `logging.RequestID`, `oops` metadata extractor, and `internal/i18n` translator) as pure RFC 9457 `httperr.Problem` (`Content-Type: application/problem+json`: `type`, `title`, `status`, `detail`, `instance`, `request_id`, `metadata`, `errors`) through a three-stage pipeline (`Classify` → `Sanitize & Log` → `Unified Localize`). Classification precedence:
 
-1. Request context cancellation/timeout (`r.Context().Err() != nil && errors.Is(err, r.Context().Err())`) → `499 CLIENT_CLOSED_REQUEST` / `504 GATEWAY_TIMEOUT` (prevents mid-query client disconnects from triggering false 500 alerts)
-2. `oops.OopsError` (`oops.AsOops`) with `.Code(rest.CodeXxx)` — maps via `rest.CodeFromAny` + `code.HTTPStatus()`, extracts typed `rest.Metadata` strictly from `oopsErr.Context()[rest.MetaKey]` on 4xx only (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
-3. Everything else delegates to `rest.Classify(err)` (`rest.Problem`, `*validator.FieldViolations` → `400 BAD_REQUEST` + `rest.ValidationInfo` + `errors[]`, `*http.MaxBytesError` → `413 CONTENT_TOO_LARGE` + `rest.RequestLimitInfo`, `context.DeadlineExceeded`/`Canceled`, bare `rest.Code` sentinels, and default `500 INTERNAL_ERROR`)
+1. Request context cancellation/timeout (`r.Context().Err() != nil && errors.Is(err, r.Context().Err())`) → `499` / `504` (prevents mid-query client disconnects from triggering false 500 alerts)
+2. `httperr.Classify(err)` (`httperr.Problem`, `*validator.FieldViolations` → `400` + `httperr.ValidationInfo` + `errors[]`, `*http.MaxBytesError` → `413` + `httperr.RequestLimitInfo`, explicit `httperr.Status` sentinel from `.Wrap`/`.Join` ahead of bare `context.DeadlineExceeded`/`Canceled`, and default `500`)
+3. For 4xx `oops.OopsError` (`oops.AsOops`) with empty `Problem.Metadata`, extract typed `httperr.Metadata` strictly from `oopsErr.Context()[httperr.MetaKey]` (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
 
-Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json`. `WriteProblem` automatically sets `Retry-After` from `rest.RetryInfo`, and `ProblemEncoder` sets `Content-Language` from the matched locale. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[details.<CODE>]` hierarchical subkeys → `[errors]` canonical fallback + `[validation]`); `oops.Public(...)` is never read.
+Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json`. `httperr.Write` automatically sets `Retry-After` from `httperr.RetryInfo`, and `ProblemEncoder` sets `Content-Language` from the matched locale. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[details.<STATUS>]` hierarchical subkeys → placeholder-free `[errors]` status fallback + `[validation]`); `oops.Public(...)` is never read.
 
 **Service layer error pattern:**
 
@@ -65,25 +65,25 @@ Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo
 var errDomain = oops.In("domain")
 
 // internal error — internal debug context logged via slog, never exposed in Problem.Metadata
-errDomain.Tags("database").Code(rest.CodeInternal).With("domain_id", id, "op", op).Join(rest.CodeInternal, err)
+errDomain.Tags("database").With("domain_id", id, "op", op).Join(httperr.Internal, err)
 
-// client error — wrap rest.Code sentinel + attach AIP-193 rest.Metadata under rest.MetaKey; NEVER call .Public(...)
-errDomain.Code(rest.CodeNotFound).
-	With(rest.MetaKey, rest.ResourceInfo{
+// client error — wrap httperr.Status sentinel + attach AIP-193 httperr.Metadata under httperr.MetaKey; NEVER call .Public(...)
+errDomain.
+	With(httperr.MetaKey, httperr.ResourceInfo{
 		ResourceType: "domain",
 		ResourceName: id,
 	}).
-	Wrap(rest.CodeNotFound)
+	Wrap(httperr.NotFound)
 ```
 
 **Rules:**
 - Never use bare `fmt.Errorf` or `errors.New` in service layer.
-- Never call `oops.Public(...)` or hardcode user-facing English/Chinese sentences in services, clients, middleware, or `pkg/rest`.
-- Never invent per-domain error code registries (use the 13 finite `rest.Code` sentinels + AIP-193 `rest.Metadata` structs).
-- Always wrap the `rest.Code` sentinel via `.Wrap(rest.CodeXxx)` or `.Join(rest.CodeXxx, cause)` so callers can use standard `errors.Is(err, rest.CodeNotFound)`.
+- Never call `oops.Public(...)` or hardcode user-facing English/Chinese sentences in services, clients, middleware, `pkg/httperr`, or `pkg/httpkit`.
+- Never invent per-domain error code registries or duplicate `Code` fields alongside HTTP `status` (use the 13 finite `httperr.Status` sentinels + AIP-193 `httperr.Metadata` structs).
+- Always wrap the `httperr.Status` sentinel via `.Wrap(httperr.NotFound)` or `.Join(httperr.Internal, cause)` (no redundant `.Code(...)`) so both `errors.Is(err, httperr.NotFound)` and `httperr.Classify(err)` share one single source of truth.
 - Never return `*ent.NotFoundError` directly to handlers.
-- Store internal actor IDs with `oops.User(userID)` and internal diagnostic fields with arbitrary `oops.With("k", v)` keys; only values implementing `rest.Metadata` (with a **value receiver**, as `oops.Context()` dereferences pointers) under `rest.MetaKey` are exposed to HTTP clients (and stripped on 5xx).
-- Startup `assertCoverage` enforces 100% coverage for all 13 canonical `[errors]` codes and all `[validation]` rules in `internal/i18n/messages/*.toml`; fine-grained domain messages go under `[details.<CODE>]` with cross-locale key and placeholder parity checked in tests.
+- Store internal actor IDs with `oops.User(userID)` and internal diagnostic fields with arbitrary `oops.With("k", v)` keys; only values implementing `httperr.Metadata` (with a **value receiver**, as `oops.Context()` dereferences pointers) under `httperr.MetaKey` are exposed to HTTP clients (and stripped on 5xx).
+- Startup `assertCoverage` enforces 100% coverage for all 13 placeholder-free `[errors]` HTTP statuses and all `[validation]` rules in `internal/i18n/messages/*.toml`; fine-grained domain messages go under `[details.<STATUS>]` with cross-locale key and placeholder parity checked in tests.
 
 ---
 
@@ -103,17 +103,18 @@ errDomain.Code(rest.CodeNotFound).
 
 ## Validation
 
-- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@minValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` returning `*validator.FieldViolations`.
-- Cross-field rules live in hand-written `pkg/api/<domain>_validate.go` via `validateExtra(*validator.FieldViolations)`.
+- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@pattern`, `@minValue`, `@maxValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` calling declarative `pkg/validator` checks (`Required`, `MinLength`, `MaxLength`, `MaxBytes`, `Pattern`, `UUID`, `Email`, `PasswordComplexity`, `CheckMin`, `CheckMax`, `CheckOneOf`) and returning `*validator.FieldViolations` with strongly-typed `validator.Rule` codes.
+- Cross-field rules live in hand-written `pkg/api/<domain>_validate.go` via `validateExtra(*validator.FieldViolations)` (e.g. `v.MustDiffer(...)`).
+- List sorting (`order_by`) uses `validator.ParseOrderBy("order_by", req.OrderBy, allowedFields...)` to validate and parse `"field"` / `"field desc"` expressions into `[]validator.OrderTerm`.
 - Generated `api.NewXxxHandler` runs `Validate()` automatically before invoking the handler method.
 
 ---
 
 ## Auth
 
-- `server.BearerAuth` (`rest.Authenticator`, defined alongside router wiring in `internal/server/router.go`) validates Bearer JWT tokens and enriches context via `handler.WithUser`.
-- Route-level auth is driven declaratively by `@useAuth(...)` in TypeSpec; generated `api.NewXxxHandler` emits `rest.Operation{ID, Method, Pattern, Auth}` and delegates to `cfg.Wrap(op, ...)`.
-- Register named `@useAuth` schemes in `internal/server/router.go` via `rest.WithAuthScheme("BearerAuth", ...)` (natively supporting single, `AND`, `OR`, and `NoAuth` combinations with fail-fast checks on unregistered schemes), or plug in any third-party `net/http` middleware per-operation via `rest.WithMiddleware(func(op rest.Operation) rest.Middleware)`.
+- `server.BearerAuth` (`httpkit.Authenticator`, defined alongside router wiring in `internal/server/router.go`) validates Bearer JWT tokens and enriches context via `handler.WithUser`.
+- Route-level auth is driven declaratively by `@useAuth(...)` in TypeSpec; generated `api.NewXxxHandler` emits `httpkit.Operation{ID, Method, Pattern, Auth}` and delegates to `cfg.Wrap(op, ...)`.
+- Register named `@useAuth` schemes in `internal/server/router.go` via `httpkit.WithAuthScheme("BearerAuth", ...)` (natively supporting single, `AND`, `OR`, and `NoAuth` combinations with fail-fast checks on unregistered schemes), or plug in any third-party `net/http` middleware per-operation via `httpkit.WithMiddleware(func(op httpkit.Operation) httpkit.Middleware)`.
 - In handlers behind `@useAuth(BearerAuth)`, use `handler.MustUser` — never the non-panicking variant.
 - JWT claims (`jwtClaims` in `internal/service/auth.go`) contain only `user_id` and `token_type`. Do not add user fields to claims.
 - Token types use `ent/token.Type` enum. Do not use raw strings like `"access"`.
@@ -123,7 +124,7 @@ errDomain.Code(rest.CodeNotFound).
 ## Logging
 
 - `log/slog` with `ContextHandler` (`pkg/logging`) — always pass `ctx` to `slog.InfoContext` / `slog.ErrorContext`.
-- `request_id` is injected into context by `server.RequestID()` (via `logging.WithRequestID`) and surfaces automatically in both logs and `Problem.RequestID`.
+- `request_id` is injected into context by `httpkit.RequestID()` (via `logging.WithRequestID`) and surfaces automatically in both logs and `Problem.RequestID`.
 - Never call `slog.Info` (without context) in request-scoped code.
 
 ---
@@ -134,7 +135,7 @@ errDomain.Code(rest.CodeNotFound).
   - `env := testutil.New(t, ...)` builds the full lazy DI container with an isolated in-memory SQLite DB and automatic `t.Cleanup` shutdown (safe for `t.Parallel()`).
   - Use `testutil.WithConfig(...)`, `testutil.WithOverride[T](mock)`, or `testutil.WithHTTPTransport(rt)` to customize config or inject mocks.
   - Handler tests use `env.MustAuthUser(...)`, `env.DoRequest(...)`, `testutil.DecodeJSON[T](t, rec)`, and `testutil.AssertProblem(...)`.
-  - Service/client tests use `testutil.AssertOopsCode(t, err, rest.CodeNotFound)` (which asserts both `errors.Is` sentinel matching and `oops.Code`).
+  - Service/client tests use `testutil.AssertOopsStatus(t, err, httperr.NotFound)` (which asserts `oops.AsOops`, `errors.Is`, and the primary wrapped `httperr.Status` sentinel).
 
 ---
 
@@ -163,12 +164,12 @@ Supported `Content-Type` values:
 | `application/merge-patch+json` | RFC 7386 JSON Merge Patch — omit to keep, `null` to clear      |
 | `application/json` / empty     | Compatibility: treated as RFC 7386 JSON Merge Patch            |
 
-Unsupported media types return `415 Unsupported Media Type` (`UNSUPPORTED_MEDIA_TYPE`).
+Unsupported media types return `415 Unsupported Media Type`.
 
 Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domain.replaceXxx)`:
 - OpenAPI 3.1 documents `PATCH` with the typed `PatchXxxRequest` schema and `415`.
 - The generated `api.<Domain>Handler` interface **omits** `PatchXxx` — handlers only implement `GetXxx` and `ReplaceXxx`.
-- Generated `api.New<Domain>Handler` automatically executes `GetXxx` → `rest.ApplyPatch` → restore path param → `Validate()` → `ReplaceXxx`.
+- Generated `api.New<Domain>Handler` automatically executes `GetXxx` → `httpkit.ApplyPatch` → restore path param → `Validate()` → `ReplaceXxx`.
 - Read-only fields (`id`, `created_at`, `updated_at`, etc.) are absent from `ReplaceXxxRequest`, so patches attempting to mutate them are silently dropped during unmarshalling.
 
 ### List methods
@@ -184,14 +185,14 @@ Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domai
 | Pattern | Reason |
 |---|---|
 | `fmt.Errorf` in service layer | Breaks error classification pipeline |
-| `oops.Public(...)` or hardcoded `Problem.Detail` | Bypasses unified terminal i18n; pass `rest.Code` + `rest.Metadata` instead |
+| `oops.Public(...)` or hardcoded `Problem.Detail` | Bypasses unified terminal i18n; pass `httperr.Status` + `httperr.Metadata` instead |
 | Returning `*ent.Xxx` from handler | Leaks internal fields |
 | `bcrypt` calls outside `internal/service/password.go` | Centralised cost policy (cost=12) |
-| Per-domain custom error code registries | Use the 13 finite `rest.Code` sentinels + AIP-193 `rest.Metadata` |
+| Per-domain custom error code registries | Use the 13 finite `httperr.Status` sentinels + AIP-193 `httperr.Metadata` |
 | Storing `context.Context` in struct | Violates Go context contract |
 | Adding user data to JWT claims | Over-exposure; trust DB as source of truth |
 | Manually editing `pkg/api/*.gen.go` or `static/openapi/openapi.yaml` | Generated by `make api`; manual edits are overwritten |
-| Touching `http.Request`/`http.ResponseWriter` or writing `Mount` inside domain handlers | Generated `api.NewXxxHandler` + `pkg/rest` + `internal/server` own HTTP transport |
+| Touching `http.Request`/`http.ResponseWriter` or writing `Mount` inside domain handlers | Generated `api.NewXxxHandler` + `pkg/httpkit` + `internal/server` own HTTP transport |
 | Hand-writing `PatchXxx` in handlers | Use `@autoPatch(GetOp, ReplaceOp)` in TypeSpec so RFC 7386 Merge Patch converges on `Get` + `Replace` |
 | camelCase URL verb segments (e.g. `/resetPassword`) | Use kebab-case (`/reset-password`) |
 | Raw `http.Get`/`http.Post` outside `internal/client/` | Bypasses shared transport, retry, and error classification |

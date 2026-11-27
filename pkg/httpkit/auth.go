@@ -1,22 +1,24 @@
-package rest
+package httpkit
 
 import (
 	"context"
 	"fmt"
 	"maps"
 	"net/http"
+
+	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
 // Authenticator 实现单个命名认证方案（与 TypeSpec @useAuth 名称对应，如 "BearerAuth"、"ApiKeyAuth"）。
-// 认证成功时返回附加了身份信息的 context；失败时返回 error，由 ErrorEncoder 统一渲染。
+// 认证成功时返回附加了身份信息的 context；失败时返回 error，由 httperr.Encoder 统一渲染。
 type Authenticator func(ctx context.Context, r *http.Request) (context.Context, error)
 
 // AuthMiddleware 返回基于命名方案映射的 RouteMiddleware，原生支持 TypeSpec @useAuth 的
 // 单方案、AND 组合、OR 备选以及 NoAuth 可选认证。
 // 若路由声明了未在 schemes 中注册的方案名，会在挂载阶段直接 panic（fail-fast）。
-func AuthMiddleware(enc ErrorEncoder, schemes map[string]Authenticator) RouteMiddleware {
+func AuthMiddleware(enc httperr.Encoder, schemes map[string]Authenticator) RouteMiddleware {
 	if enc == nil {
-		enc = DefaultErrorEncoder
+		enc = httperr.DefaultEncoder
 	}
 	cloned := maps.Clone(schemes)
 
@@ -29,7 +31,7 @@ func AuthMiddleware(enc ErrorEncoder, schemes map[string]Authenticator) RouteMid
 		for _, alt := range op.Auth {
 			for _, name := range alt {
 				if cloned[name] == nil {
-					panic(fmt.Sprintf("rest: operation %q requires unregistered auth scheme %q", op.ID, name))
+					panic(fmt.Sprintf("httpkit: operation %q requires unregistered auth scheme %q", op.ID, name))
 				}
 			}
 		}

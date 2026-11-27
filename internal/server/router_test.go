@@ -17,13 +17,14 @@ import (
 	"github.com/liukeshao/echo-template/internal/server"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
 
 func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 	t.Parallel()
 	env := testutil.New(t)
-	srv := do.MustInvoke[*server.Server](env.Injector)
+	srv := do.MustInvoke[*httpkit.Server](env.Injector)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
@@ -37,11 +38,11 @@ func TestBearerAuth(t *testing.T) {
 	tr := do.MustInvoke[i18n.Translator](env.Injector)
 	tok := env.MustAuthUser("mwuser", "mw@example.com", "password123")
 
-	cfg := rest.ApplyHandlerOptions(
-		rest.WithErrorEncoder(server.NewProblemEncoder(tr)),
-		rest.WithAuthScheme("BearerAuth", server.BearerAuth(authSvc)),
+	cfg := httpkit.ApplyHandlerOptions(
+		httpkit.WithErrorEncoder(server.NewProblemEncoder(tr)),
+		httpkit.WithAuthScheme("BearerAuth", server.BearerAuth(authSvc)),
 	)
-	op := rest.Operation{
+	op := httpkit.Operation{
 		ID:      "testProtected",
 		Method:  http.MethodGet,
 		Pattern: "/",
@@ -51,13 +52,12 @@ func TestBearerAuth(t *testing.T) {
 	cases := []struct {
 		name     string
 		header   string
-		wantCode rest.Code
 		wantType string
 	}{
-		{"missing header", "", rest.CodeUnauthorized, rest.PreconditionMissingHeader},
-		{"wrong scheme", "Basic abc", rest.CodeUnauthorized, rest.PreconditionMalformedHeader},
-		{"empty bearer", "Bearer ", rest.CodeUnauthorized, rest.PreconditionEmptyToken},
-		{"invalid jwt", "Bearer not.a.jwt", rest.CodeUnauthorized, rest.PreconditionTokenInvalid},
+		{"missing header", "", httperr.PreconditionMissingHeader},
+		{"wrong scheme", "Basic abc", httperr.PreconditionMalformedHeader},
+		{"empty bearer", "Bearer ", httperr.PreconditionEmptyToken},
+		{"invalid jwt", "Bearer not.a.jwt", httperr.PreconditionTokenInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -75,8 +75,8 @@ func TestBearerAuth(t *testing.T) {
 			h.ServeHTTP(rec, req)
 
 			assert.False(t, called)
-			p := testutil.AssertProblem(t, rec, http.StatusUnauthorized, tc.wantCode)
-			meta := testutil.DecodeProblemMeta[rest.PreconditionInfo](t, p)
+			p := testutil.AssertProblem(t, rec, http.StatusUnauthorized)
+			meta := testutil.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
 			assert.Equal(t, tc.wantType, meta.Type)
 			assert.Equal(t, "authorization", meta.Subject)
 		})
@@ -104,15 +104,15 @@ func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
 	rec := env.DoRequest(http.MethodGet, "/api/v1/does-not-exist",
 		testutil.WithHeader("Accept-Language", "zh-CN"),
 	)
-	assert.NotEmpty(t, rec.Header().Get(server.HeaderRequestID), "404 should still run RequestID middleware")
-	p := testutil.AssertProblem(t, rec, http.StatusNotFound, rest.CodeNotFound)
+	assert.NotEmpty(t, rec.Header().Get(httpkit.HeaderRequestID), "404 should still run RequestID middleware")
+	p := testutil.AssertProblem(t, rec, http.StatusNotFound)
 	assert.Equal(t, "/api/v1/does-not-exist", p.Instance)
-	nfMeta := testutil.DecodeProblemMeta[rest.ResourceInfo](t, p)
-	assert.Equal(t, rest.ResourceInfo{ResourceType: "route", ResourceName: "/api/v1/does-not-exist"}, nfMeta)
+	nfMeta := testutil.DecodeProblemMeta[httperr.ResourceInfo](t, p)
+	assert.Equal(t, httperr.ResourceInfo{ResourceType: "route", ResourceName: "/api/v1/does-not-exist"}, nfMeta)
 
 	rec = env.DoRequest(http.MethodPut, "/api/v1/books")
-	p = testutil.AssertProblem(t, rec, http.StatusMethodNotAllowed, rest.CodeMethodNotAllowed)
-	methodMeta := testutil.DecodeProblemMeta[rest.MethodInfo](t, p)
+	p = testutil.AssertProblem(t, rec, http.StatusMethodNotAllowed)
+	methodMeta := testutil.DecodeProblemMeta[httperr.MethodInfo](t, p)
 	assert.Equal(t, http.MethodPut, methodMeta.Method)
 	assert.Equal(t, "/api/v1/books", methodMeta.Path)
 	assert.NotEmpty(t, methodMeta.Allowed)
@@ -126,8 +126,8 @@ func TestRouter_BodyLimitReturns413(t *testing.T) {
 	rec := env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testutil.WithRawBody("application/json", bytes.NewReader(oversized)),
 	)
-	p := testutil.AssertProblem(t, rec, http.StatusRequestEntityTooLarge, rest.CodeContentTooLarge)
-	limitMeta := testutil.DecodeProblemMeta[rest.RequestLimitInfo](t, p)
+	p := testutil.AssertProblem(t, rec, http.StatusRequestEntityTooLarge)
+	limitMeta := testutil.DecodeProblemMeta[httperr.RequestLimitInfo](t, p)
 	assert.Equal(t, int64(2<<20), limitMeta.MaxBytes)
 }
 

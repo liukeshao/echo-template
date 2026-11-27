@@ -9,7 +9,7 @@ import (
 type localeKey struct{}
 
 // WithLocale 在 context 中设置已协商好的 BCP-47 语言标签。
-// 由 rest.Runtime.Locale 中间件在请求入口写入，供 rest.Runtime.WriteProblem 等下游消费。
+// 由 server.Locale 中间件在请求入口写入，供 server.NewProblemEncoder 等下游消费。
 func WithLocale(ctx context.Context, tag language.Tag) context.Context {
 	return context.WithValue(ctx, localeKey{}, tag)
 }

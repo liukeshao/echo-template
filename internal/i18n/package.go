@@ -1,7 +1,7 @@
 // Package i18n 提供服务对外错误消息与字段校验消息的本地化能力。
 //
 // 核心思路：
-//   - 使用 pkg/rest.Code（13 个有限标准 HTTP 错误码）作为 [errors] 翻译主键，并支持按 Metadata.I18nSubkeys() 分层查找 [details.<CODE>]。
+//   - 使用 pkg/httperr.Status（13 个有限标准 HTTP 错误状态码）作为 [errors] 翻译主键，并支持按 Metadata.I18nSubkeys() 分层查找 [details.<STATUS>]。
 //   - 使用 pkg/validator 规则码作为 [validation] 翻译主键。
 //   - 翻译结果通过 RFC 9457 Problem.Detail 与 FieldError.Message 暴露。
 //

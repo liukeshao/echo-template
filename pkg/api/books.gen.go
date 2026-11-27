@@ -4,11 +4,9 @@ package api
 import (
 	"context"
 	"net/http"
-	"strings"
 	"time"
-	"unicode/utf8"
 
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -33,28 +31,24 @@ type CreateBookRequest struct {
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *CreateBookRequest) Validate() error {
 	var v validator.FieldViolations
-	if r.BookID != "" && !validator.IsValidUUID(r.BookID) {
-		v.Add("book_id", validator.CodeUUID, nil)
+	if r.BookID != "" {
+		v.UUID("book_id", r.BookID)
 	}
-	if strings.TrimSpace(r.Title) == "" {
-		v.Add("title", validator.CodeRequired, nil)
-	} else if utf8.RuneCountInString(r.Title) > 200 {
-		v.Add("title", validator.CodeMaxLength, map[string]string{"max": "200"})
+	if v.Required("title", r.Title) {
+		v.MaxLength("title", r.Title, 200)
 	}
-	if strings.TrimSpace(r.Author) == "" {
-		v.Add("author", validator.CodeRequired, nil)
-	} else if utf8.RuneCountInString(r.Author) > 100 {
-		v.Add("author", validator.CodeMaxLength, map[string]string{"max": "100"})
+	if v.Required("author", r.Author) {
+		v.MaxLength("author", r.Author, 100)
 	}
-	if utf8.RuneCountInString(r.Description) > 1000 {
-		v.Add("description", validator.CodeMaxLength, map[string]string{"max": "1000"})
+	if r.Description != "" {
+		v.MaxLength("description", r.Description, 1000)
 	}
-	if r.Price != nil && *r.Price < 0 {
-		v.Add("price", validator.CodeNonNegative, map[string]string{"min": "0"})
+	if r.Price != nil {
+		validator.CheckMin(&v, "price", *r.Price, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -81,21 +75,17 @@ type ListBooksRequest struct {
 	MaxPrice *float64
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *ListBooksRequest) Validate() error {
 	var v validator.FieldViolations
-	if r.Page < 0 {
-		v.Add("page", validator.CodeNonNegative, map[string]string{"min": "0"})
+	validator.CheckMin(&v, "page", r.Page, 0)
+	validator.CheckMin(&v, "page_size", r.PageSize, 0)
+	if r.MinPrice != nil {
+		validator.CheckMin(&v, "min_price", *r.MinPrice, 0)
 	}
-	if r.PageSize < 0 {
-		v.Add("page_size", validator.CodeNonNegative, map[string]string{"min": "0"})
-	}
-	if r.MinPrice != nil && *r.MinPrice < 0 {
-		v.Add("min_price", validator.CodeNonNegative, map[string]string{"min": "0"})
-	}
-	if r.MaxPrice != nil && *r.MaxPrice < 0 {
-		v.Add("max_price", validator.CodeNonNegative, map[string]string{"min": "0"})
+	if r.MaxPrice != nil {
+		validator.CheckMin(&v, "max_price", *r.MaxPrice, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -109,13 +99,11 @@ type GetBookRequest struct {
 	Book string
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *GetBookRequest) Validate() error {
 	var v validator.FieldViolations
-	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.CodeUUID, nil)
-	}
+	v.UUID("book", r.Book)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -133,28 +121,22 @@ type ReplaceBookRequest struct {
 	PublishedAt *time.Time `json:"published_at,omitempty"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *ReplaceBookRequest) Validate() error {
 	var v validator.FieldViolations
-	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.CodeUUID, nil)
+	v.UUID("book", r.Book)
+	if v.Required("title", r.Title) {
+		v.MaxLength("title", r.Title, 200)
 	}
-	if strings.TrimSpace(r.Title) == "" {
-		v.Add("title", validator.CodeRequired, nil)
-	} else if utf8.RuneCountInString(r.Title) > 200 {
-		v.Add("title", validator.CodeMaxLength, map[string]string{"max": "200"})
+	if v.Required("author", r.Author) {
+		v.MaxLength("author", r.Author, 100)
 	}
-	if strings.TrimSpace(r.Author) == "" {
-		v.Add("author", validator.CodeRequired, nil)
-	} else if utf8.RuneCountInString(r.Author) > 100 {
-		v.Add("author", validator.CodeMaxLength, map[string]string{"max": "100"})
+	if r.Description != "" {
+		v.MaxLength("description", r.Description, 1000)
 	}
-	if utf8.RuneCountInString(r.Description) > 1000 {
-		v.Add("description", validator.CodeMaxLength, map[string]string{"max": "1000"})
-	}
-	if r.Price != nil && *r.Price < 0 {
-		v.Add("price", validator.CodeNonNegative, map[string]string{"min": "0"})
+	if r.Price != nil {
+		validator.CheckMin(&v, "price", *r.Price, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -168,13 +150,11 @@ type DeleteBookRequest struct {
 	Book string
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *DeleteBookRequest) Validate() error {
 	var v validator.FieldViolations
-	if !validator.IsValidUUID(r.Book) {
-		v.Add("book", validator.CodeUUID, nil)
-	}
+	v.UUID("book", r.Book)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -198,15 +178,15 @@ type BooksHandler interface {
 	DeleteBook(ctx context.Context, req *DeleteBookRequest) error
 }
 
-// NewBooksHandler 构造符合 Connect-Go 风格的 rest.Handler（同时实现标准 http.Handler）。
-// 可直接挂载到 rest.Router（router.Mount(api.NewBooksHandler(impl, ...))），也可独立用于 httptest。
-func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler {
-	cfg := rest.ApplyHandlerOptions(opts...)
-	return rest.NewHandler(func(mux *http.ServeMux) {
-		mux.Handle("POST /api/v1/books", cfg.Wrap(rest.Operation{ID: "createBook", Method: http.MethodPost, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+// NewBooksHandler 构造符合 Connect-Go 风格的 httpkit.Handler（同时实现标准 http.Handler）。
+// 可直接挂载到 httpkit.Router（router.Mount(api.NewBooksHandler(impl, ...))），也可独立用于 httptest。
+func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.Handler {
+	cfg := httpkit.ApplyHandlerOptions(opts...)
+	return httpkit.NewHandler(func(mux *http.ServeMux) {
+		mux.Handle("POST /api/v1/books", cfg.Wrap(httpkit.Operation{ID: "createBook", Method: http.MethodPost, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req CreateBookRequest
-			if err := rest.DecodeJSON(r, &req); err != nil {
+			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -219,21 +199,21 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusCreated, res)
+			httpkit.WriteJSON(w, r, http.StatusCreated, res)
 		}))
 
-		mux.Handle("GET /api/v1/books", cfg.Wrap(rest.Operation{ID: "listBooks", Method: http.MethodGet, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("GET /api/v1/books", cfg.Wrap(httpkit.Operation{ID: "listBooks", Method: http.MethodGet, Pattern: "/api/v1/books", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req ListBooksRequest
 			q := r.URL.Query()
 			var qv validator.FieldViolations
-			req.Page = rest.ParseInt32Query(q, "page", &qv)
-			req.PageSize = rest.ParseInt32Query(q, "page_size", &qv)
+			req.Page = httpkit.ParseInt32Query(q, "page", &qv)
+			req.PageSize = httpkit.ParseInt32Query(q, "page_size", &qv)
 			req.OrderBy = q.Get("order_by")
 			req.Title = q.Get("title")
 			req.Author = q.Get("author")
-			req.MinPrice = rest.ParseOptionalFloat64Query(q, "min_price", &qv)
-			req.MaxPrice = rest.ParseOptionalFloat64Query(q, "max_price", &qv)
+			req.MinPrice = httpkit.ParseOptionalFloat64Query(q, "min_price", &qv)
+			req.MaxPrice = httpkit.ParseOptionalFloat64Query(q, "max_price", &qv)
 			if err := qv.Err(); err != nil {
 				cfg.WriteError(w, r, err)
 				return
@@ -247,10 +227,10 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("GET /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "getBook", Method: http.MethodGet, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("GET /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "getBook", Method: http.MethodGet, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req GetBookRequest
 			req.Book = r.PathValue("book")
@@ -263,13 +243,13 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("PUT /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "replaceBook", Method: http.MethodPut, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("PUT /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "replaceBook", Method: http.MethodPut, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req ReplaceBookRequest
-			if err := rest.DecodeJSON(r, &req); err != nil {
+			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -283,10 +263,10 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("PATCH /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "patchBook", Method: http.MethodPatch, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("PATCH /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "patchBook", Method: http.MethodPatch, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			// Auto-generated by @autoPatch(getBook, replaceBook)
 			var getReq GetBookRequest
@@ -301,7 +281,7 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				return
 			}
 			var req ReplaceBookRequest
-			if err := rest.ApplyPatch(r, current, &req); err != nil {
+			if err := httpkit.ApplyPatch(r, current, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -315,10 +295,10 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("DELETE /api/v1/books/{book}", cfg.Wrap(rest.Operation{ID: "deleteBook", Method: http.MethodDelete, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("DELETE /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "deleteBook", Method: http.MethodDelete, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req DeleteBookRequest
 			req.Book = r.PathValue("book")
@@ -330,7 +310,7 @@ func NewBooksHandler(impl BooksHandler, opts ...rest.HandlerOption) rest.Handler
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteNoContent(w)
+			httpkit.WriteNoContent(w)
 		}))
 
 	})

@@ -14,7 +14,7 @@ import (
 	"github.com/liukeshao/echo-template/ent/predicate"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -34,31 +34,28 @@ func NewBook(i do.Injector) (*Book, error) {
 
 func bookAlreadyExists(id string) error {
 	return errBook.
-		Code(rest.CodeConflict).
-		With(rest.MetaKey, rest.ResourceInfo{
+		With(httperr.MetaKey, httperr.ResourceInfo{
 			ResourceType: "book",
 			ResourceName: id,
 			Field:        "book_id",
 		}).
-		Wrap(rest.CodeConflict)
+		Wrap(httperr.Conflict)
 }
 
 func bookNotFound(id string) error {
 	return errBook.
-		Code(rest.CodeNotFound).
-		With(rest.MetaKey, rest.ResourceInfo{
+		With(httperr.MetaKey, httperr.ResourceInfo{
 			ResourceType: "book",
 			ResourceName: id,
 		}).
-		Wrap(rest.CodeNotFound)
+		Wrap(httperr.NotFound)
 }
 
 func bookDB(err error, op, id string) error {
 	return errBook.
 		Tags("database").
-		Code(rest.CodeInternal).
 		With("book_id", id, "op", op).
-		Join(rest.CodeInternal, err)
+		Join(httperr.Internal, err)
 }
 
 // Create 创建书籍。
@@ -219,46 +216,24 @@ func (s *Book) Delete(ctx context.Context, id string) error {
 
 // --- 排序辅助 ---
 
-const bookAllowedOrderByFields = "title, author, price, created_at, updated_at, published_at"
-
 func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
-	if strings.TrimSpace(orderBy) == "" {
+	terms, err := validator.ParseOrderBy("order_by", orderBy,
+		"title", "author", "price", "created_at", "updated_at", "published_at",
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(terms) == 0 {
 		return []book.OrderOption{book.ByCreatedAt(sql.OrderDesc())}, nil
 	}
 
-	var (
-		opts []book.OrderOption
-		v    validator.FieldViolations
-	)
-	for part := range strings.SplitSeq(orderBy, ",") {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			continue
-		}
-		tokens := strings.Fields(part)
-		if len(tokens) > 2 {
-			v.Add("order_by", validator.CodeInvalidOrderByClause, map[string]string{
-				"clause": part,
-			})
-			continue
-		}
-
-		fieldName := strings.ToLower(tokens[0])
-		desc := len(tokens) == 2 && strings.ToLower(tokens[1]) == "desc"
-		if len(tokens) == 2 && !desc {
-			v.Add("order_by", validator.CodeInvalidOrderByDirection, map[string]string{
-				"direction": tokens[1],
-				"clause":    part,
-			})
-			continue
-		}
-
+	opts := make([]book.OrderOption, 0, len(terms))
+	for _, t := range terms {
 		dir := sql.OrderAsc()
-		if desc {
+		if t.Desc {
 			dir = sql.OrderDesc()
 		}
-
-		switch fieldName {
+		switch t.Field {
 		case "title":
 			opts = append(opts, book.ByTitle(dir))
 		case "author":
@@ -271,18 +246,7 @@ func parseBookOrderBy(orderBy string) ([]book.OrderOption, error) {
 			opts = append(opts, book.ByUpdatedAt(dir))
 		case "published_at":
 			opts = append(opts, book.ByPublishedAt(dir))
-		default:
-			v.Add("order_by", validator.CodeUnknownOrderByField, map[string]string{
-				"value":   fieldName,
-				"allowed": bookAllowedOrderByFields,
-			})
 		}
-	}
-	if err := v.Err(); err != nil {
-		return nil, err
-	}
-	if len(opts) == 0 {
-		return []book.OrderOption{book.ByCreatedAt(sql.OrderDesc())}, nil
 	}
 	return opts, nil
 }

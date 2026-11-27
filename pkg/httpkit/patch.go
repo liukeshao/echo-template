@@ -1,4 +1,4 @@
-package rest
+package httpkit
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"slices"
 	"strings"
+
+	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
 // RFC 7386 JSON Merge Patch 支持的 Content-Type 常量。
@@ -25,8 +27,7 @@ var SupportedPatchMediaTypes = []string{
 }
 
 // ApplyMergePatch 按 RFC 7386 JSON Merge Patch 将 body 合并到 original 上。
-//
-// 返回错误为 Problem（无硬编码 Detail），包含 CodeBadRequest（400）或 CodeUnsupportedMediaType（415）及 MediaTypeInfo。
+// 返回错误为 400 或 415 Problem（无硬编码 Detail，附带 MediaTypeInfo）。
 func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) {
 	mediaType := parseMediaType(contentType)
 
@@ -43,7 +44,7 @@ func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) 
 }
 
 // ApplyMergePatchInto 执行 ApplyMergePatch 并将结果反序列化到 dst（通常为 *api.ReplaceXxxRequest）。
-// 反序列化失败包装为 BAD_REQUEST（HTTP 400）并附带 MediaTypeInfo，不泄漏内部 Go 类型名。
+// 反序列化失败包装为 400 Problem 并附带 MediaTypeInfo，不泄漏内部 Go 类型名。
 func ApplyMergePatchInto(original, body []byte, contentType string, dst any) error {
 	patched, err := ApplyMergePatch(original, body, contentType)
 	if err != nil {
@@ -54,16 +55,15 @@ func ApplyMergePatchInto(original, body []byte, contentType string, dst any) err
 		if effectiveType == "" {
 			effectiveType = ContentTypeMergePatch
 		}
-		info := MediaTypeInfo{
+		info := httperr.MediaTypeInfo{
 			ContentType: effectiveType,
-			Reason:      PatchReasonSchemaMismatch,
+			Reason:      httperr.PatchReasonSchemaMismatch,
 		}
 		if typeErr, ok := errors.AsType[*json.UnmarshalTypeError](err); ok && typeErr.Field != "" {
 			info.Field = typeErr.Field
 		}
-		return Problem{
+		return httperr.Problem{
 			Status:   http.StatusBadRequest,
-			Code:     CodeBadRequest,
 			Metadata: info,
 		}
 	}
@@ -85,17 +85,17 @@ func parseMediaType(ct string) string {
 func applyMergePatch(original, body []byte, effectiveMediaType string) ([]byte, error) {
 	target, err := decodeJSONValue(original)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, PatchReasonInvalidOriginal)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonInvalidOriginal)
 	}
 	patchVal, err := decodeJSONValue(body)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, PatchReasonInvalidJSON)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonInvalidJSON)
 	}
 
 	merged := mergeValue(target, patchVal)
 	out, err := json.Marshal(merged)
 	if err != nil {
-		return nil, invalidPatch(effectiveMediaType, PatchReasonMarshalFailed)
+		return nil, invalidPatch(effectiveMediaType, httperr.PatchReasonMarshalFailed)
 	}
 	return out, nil
 }
@@ -133,10 +133,9 @@ func mergeValue(target, patchVal any) any {
 }
 
 func invalidPatch(mediaType, reason string) error {
-	return Problem{
+	return httperr.Problem{
 		Status: http.StatusBadRequest,
-		Code:   CodeBadRequest,
-		Metadata: MediaTypeInfo{
+		Metadata: httperr.MediaTypeInfo{
 			ContentType: mediaType,
 			Reason:      reason,
 		},
@@ -144,10 +143,9 @@ func invalidPatch(mediaType, reason string) error {
 }
 
 func unsupportedPatchMediaType(actual string) error {
-	return Problem{
+	return httperr.Problem{
 		Status: http.StatusUnsupportedMediaType,
-		Code:   CodeUnsupportedMediaType,
-		Metadata: MediaTypeInfo{
+		Metadata: httperr.MediaTypeInfo{
 			ContentType: actual,
 			Supported:   slices.Clone(SupportedPatchMediaTypes),
 		},

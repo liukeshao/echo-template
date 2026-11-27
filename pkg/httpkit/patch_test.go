@@ -1,4 +1,4 @@
-package rest_test
+package httpkit_test
 
 import (
 	"encoding/json"
@@ -8,7 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
 
 const samplePatchDoc = `{"id":"0195a3b0-7c4e-7000-8000-000000000001","title":"Old","author":"A","price":10,"meta":{"lang":"en","pages":100}}`
@@ -16,7 +17,7 @@ const samplePatchDoc = `{"id":"0195a3b0-7c4e-7000-8000-000000000001","title":"Ol
 func TestApplyMergePatch(t *testing.T) {
 	t.Parallel()
 	body := []byte(`{"title":"New","price":null,"meta":{"pages":200}}`)
-	out, err := rest.ApplyMergePatch([]byte(samplePatchDoc), body, rest.ContentTypeMergePatch)
+	out, err := httpkit.ApplyMergePatch([]byte(samplePatchDoc), body, httpkit.ContentTypeMergePatch)
 	require.NoError(t, err)
 
 	var got map[string]any
@@ -35,12 +36,12 @@ func TestApplyMergePatch(t *testing.T) {
 func TestApplyMergePatch_AcceptsJSONEmptyAndCharsetParams(t *testing.T) {
 	t.Parallel()
 	for _, ct := range []string{
-		rest.ContentTypeMergePatch,
-		rest.ContentTypeJSON,
+		httpkit.ContentTypeMergePatch,
+		httpkit.ContentTypeJSON,
 		"",
 		"application/merge-patch+json; charset=utf-8",
 	} {
-		out, err := rest.ApplyMergePatch([]byte(samplePatchDoc), []byte(`{"title":"Updated"}`), ct)
+		out, err := httpkit.ApplyMergePatch([]byte(samplePatchDoc), []byte(`{"title":"Updated"}`), ct)
 		require.NoError(t, err, "contentType=%q", ct)
 		var got map[string]any
 		require.NoError(t, json.Unmarshal(out, &got))
@@ -56,18 +57,17 @@ func TestApplyMergePatch_UnsupportedMediaTypes(t *testing.T) {
 		"application/merge-patch+shorthand",
 		";;;bad-media-type",
 	} {
-		_, err := rest.ApplyMergePatch([]byte(samplePatchDoc), []byte(`{}`), ct)
+		_, err := httpkit.ApplyMergePatch([]byte(samplePatchDoc), []byte(`{}`), ct)
 		require.Error(t, err, "contentType=%q", ct)
 
-		p, ok := errors.AsType[rest.Problem](err)
+		p, ok := errors.AsType[httperr.Problem](err)
 		require.True(t, ok)
 		assert.Equal(t, 415, p.Status)
-		assert.Equal(t, rest.CodeUnsupportedMediaType, p.Code)
 		assert.Empty(t, p.Detail, "transport errors must not hardcode user-facing Detail")
-		mt, err := rest.DecodeMetadata[rest.MediaTypeInfo](p)
+		mt, err := httperr.DecodeMetadata[httperr.MediaTypeInfo](p)
 		require.NoError(t, err)
 		assert.Equal(t, ct, mt.ContentType)
-		assert.Equal(t, rest.SupportedPatchMediaTypes, mt.Supported)
+		assert.Equal(t, httpkit.SupportedPatchMediaTypes, mt.Supported)
 	}
 }
 
@@ -78,13 +78,12 @@ func TestApplyMergePatch_InvalidJSONAndTrailingGarbage(t *testing.T) {
 		`{"title":"A"}{"title":"B"}`,
 		``,
 	} {
-		_, err := rest.ApplyMergePatch([]byte(samplePatchDoc), []byte(body), rest.ContentTypeMergePatch)
+		_, err := httpkit.ApplyMergePatch([]byte(samplePatchDoc), []byte(body), httpkit.ContentTypeMergePatch)
 		require.Error(t, err, "body=%q", body)
 
-		p, ok := errors.AsType[rest.Problem](err)
+		p, ok := errors.AsType[httperr.Problem](err)
 		require.True(t, ok)
 		assert.Equal(t, 400, p.Status)
-		assert.Equal(t, rest.CodeBadRequest, p.Code)
 	}
 }
 
@@ -96,25 +95,25 @@ func TestApplyMergePatchInto_SuccessAndTypeMismatch(t *testing.T) {
 	}
 
 	var dst target
-	require.NoError(t, rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`{"title":"Into"}`), "", &dst))
+	require.NoError(t, httpkit.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`{"title":"Into"}`), "", &dst))
 	assert.Equal(t, "Into", dst.Title)
 	assert.InDelta(t, 10.0, dst.Price, 1e-9)
 
 	var bad target
-	err := rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`{"price":"not-a-number"}`), rest.ContentTypeMergePatch, &bad)
+	err := httpkit.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`{"price":"not-a-number"}`), httpkit.ContentTypeMergePatch, &bad)
 	require.Error(t, err)
-	p, ok := errors.AsType[rest.Problem](err)
+	p, ok := errors.AsType[httperr.Problem](err)
 	require.True(t, ok)
-	assert.Equal(t, rest.CodeBadRequest, p.Code)
+	assert.Equal(t, 400, p.Status)
 	assert.Empty(t, p.Detail)
-	mt, decErr := rest.DecodeMetadata[rest.MediaTypeInfo](p)
+	mt, decErr := httperr.DecodeMetadata[httperr.MediaTypeInfo](p)
 	require.NoError(t, decErr)
-	assert.Equal(t, rest.PatchReasonSchemaMismatch, mt.Reason)
+	assert.Equal(t, httperr.PatchReasonSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
-	err = rest.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`[{"op":"replace","path":"/title","value":"x"}]`), rest.ContentTypeMergePatch, &bad)
+	err = httpkit.ApplyMergePatchInto([]byte(samplePatchDoc), []byte(`[{"op":"replace","path":"/title","value":"x"}]`), httpkit.ContentTypeMergePatch, &bad)
 	require.Error(t, err)
-	p, ok = errors.AsType[rest.Problem](err)
+	p, ok = errors.AsType[httperr.Problem](err)
 	require.True(t, ok)
-	assert.Equal(t, rest.CodeBadRequest, p.Code)
+	assert.Equal(t, 400, p.Status)
 }

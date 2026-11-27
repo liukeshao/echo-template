@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -76,10 +75,7 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 		// Covers upstream network errors and per-client HTTP timeouts.
 		return nil, weatherUnavailable(err, op)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, 4096))
-		_ = resp.Body.Close()
-	}()
+	defer httpclient.DrainAndClose(resp.Body)
 
 	switch resp.StatusCode {
 	case http.StatusOK:

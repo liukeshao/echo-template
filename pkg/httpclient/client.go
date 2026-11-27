@@ -4,6 +4,7 @@
 package httpclient
 
 import (
+	"io"
 	"net/http"
 	"time"
 )
@@ -67,7 +68,7 @@ func New(cfg Config) *Client {
 		tr := http.DefaultTransport.(*http.Transport).Clone()
 		tr.MaxIdleConns = positiveOrDefault(cfg.MaxIdleConns, defaultMaxIdleConns)
 		tr.MaxIdleConnsPerHost = positiveOrDefault(cfg.MaxIdleConnsPerHost, defaultMaxIdleConnsPerHost)
-		tr.IdleConnTimeout = durationOrDefault(cfg.IdleConnTimeout, defaultIdleConnTimeout)
+		tr.IdleConnTimeout = positiveOrDefault(cfg.IdleConnTimeout, defaultIdleConnTimeout)
 		rt = tr
 	}
 	if cfg.Retry > 0 {
@@ -121,14 +122,17 @@ func baseTransport(rt http.RoundTripper) http.RoundTripper {
 	return rt
 }
 
-func positiveOrDefault(v, fallback int) int {
-	if v <= 0 {
-		return fallback
+// DrainAndClose drains up to 4 KiB from an HTTP response body before closing it
+// so the underlying TCP connection can be returned to the keep-alive pool.
+func DrainAndClose(body io.ReadCloser) {
+	if body == nil {
+		return
 	}
-	return v
+	_, _ = io.Copy(io.Discard, io.LimitReader(body, 4096))
+	_ = body.Close()
 }
 
-func durationOrDefault(v, fallback time.Duration) time.Duration {
+func positiveOrDefault[T ~int | ~int64](v, fallback T) T {
 	if v <= 0 {
 		return fallback
 	}

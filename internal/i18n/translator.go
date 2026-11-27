@@ -29,7 +29,7 @@ type Translator interface {
 
 // translator 是 Translator 的默认实现。
 //
-// messages: key = 翻译键（如 "errors.BOOK_NOT_FOUND"），value = 模板字符串。
+// messages: key = 翻译键（如 "errors.404"、"details.404.book"、"validation.required"），value = 模板字符串。
 // 每个 supportedLocale 对应一张独立表，缺失键走默认 locale 兜底。
 type translator struct {
 	defaultTag language.Tag
@@ -41,7 +41,7 @@ type translator struct {
 // NewTranslator 从 DI 容器构造 Translator：
 //   - 读取 I18n 配置确定默认 locale 与已支持 locale 列表。
 //   - 从 embed.FS 加载 messages/*.toml 到内存。
-//   - 校验所有 pkg/rest.AllCodes() 与 pkg/validator.RegisteredRules() 在默认 locale 都有对应翻译（fail-fast）。
+//   - 校验所有 pkg/httperr.AllStatuses() 与 pkg/validator.RegisteredRules() 在默认 locale 都有对应翻译（fail-fast）。
 func NewTranslator(i do.Injector) (Translator, error) {
 	cfg := do.MustInvoke[*config.Config](i)
 	return newTranslator(cfg.I18n)

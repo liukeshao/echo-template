@@ -63,12 +63,12 @@ type (
 		SupportedLocales []string
 	}
 
-	// HTTP stores HTTP server configuration for server.Server (*http.Server).
+	// HTTP stores HTTP server configuration for httpkit.Server (*http.Server).
 	HTTP struct {
 		Hostname string
 		Port     uint16
 
-		// GracefulTimeout controls how long server.Server.Shutdown waits for
+		// GracefulTimeout controls how long httpkit.Server.Shutdown waits for
 		// active requests to finish before closing connections.
 		GracefulTimeout time.Duration
 

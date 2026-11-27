@@ -13,7 +13,7 @@ import (
 	"github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
 var errMe = oops.In("me")
@@ -35,55 +35,14 @@ func NewMe(i do.Injector) (*Me, error) {
 
 func meInternal(err error, op string) error {
 	return errMe.
-		Code(rest.CodeInternal).
 		With("op", op).
-		Join(rest.CodeInternal, err)
-}
-
-func meUsernameTaken(userID, username string) error {
-	return errMe.
-		Code(rest.CodeConflict).
-		User(userID).
-		With(rest.MetaKey, rest.ResourceInfo{
-			ResourceType: "user",
-			ResourceName: username,
-			Field:        "username",
-		}).
-		Wrap(rest.CodeConflict)
-}
-
-func meEmailTaken(userID, email string) error {
-	return errMe.
-		Code(rest.CodeConflict).
-		User(userID).
-		With(rest.MetaKey, rest.ResourceInfo{
-			ResourceType: "user",
-			ResourceName: email,
-			Field:        "email",
-		}).
-		Wrap(rest.CodeConflict)
+		Join(httperr.Internal, err)
 }
 
 // Replace 全量替换当前用户的可写资料（username / email），Kubernetes 风格的幂等 PUT。
 func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeRequest) (*ent.User, error) {
-	usernameTaken, err := s.orm.User.Query().
-		Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).
-		Exist(ctx)
-	if err != nil {
-		return nil, meInternal(err, "checking username uniqueness")
-	}
-	if usernameTaken {
-		return nil, meUsernameTaken(userID, req.Username)
-	}
-
-	emailTaken, err := s.orm.User.Query().
-		Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).
-		Exist(ctx)
-	if err != nil {
-		return nil, meInternal(err, "checking email uniqueness")
-	}
-	if emailTaken {
-		return nil, meEmailTaken(userID, req.Email)
+	if err := checkUserUnique(ctx, s.orm, errMe, userID, req.Email, req.Username, meInternal); err != nil {
+		return nil, err
 	}
 
 	u, err := s.orm.User.UpdateOneID(userID).
@@ -92,11 +51,8 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 		Save(ctx)
 	if err != nil {
 		if ent.IsConstraintError(err) {
-			if taken, checkErr := s.orm.User.Query().Where(user.UsernameEQ(req.Username), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, meUsernameTaken(userID, req.Username)
-			}
-			if taken, checkErr := s.orm.User.Query().Where(user.EmailEQ(req.Email), user.IDNEQ(userID)).Exist(ctx); checkErr == nil && taken {
-				return nil, meEmailTaken(userID, req.Email)
+			if conflictErr := checkUserUnique(ctx, s.orm, errMe, userID, req.Email, req.Username, nil); conflictErr != nil {
+				return nil, conflictErr
 			}
 		}
 		return nil, meInternal(err, "replacing user profile")
@@ -105,7 +61,7 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 }
 
 // ChangePassword 修改已登录用户的密码（自定义子资源动作）。
-func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) (err error) {
+func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) error {
 	u, err := s.orm.User.Query().
 		Where(user.IDEQ(userID)).
 		First(ctx)
@@ -116,13 +72,12 @@ func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangeP
 	if err := verifyPassword(u.PasswordHash, req.OldPassword); err != nil {
 		slog.WarnContext(ctx, "invalid old password", "user_id", userID)
 		return errMe.
-			Code(rest.CodeBadRequest).
 			User(userID).
-			With(rest.MetaKey, rest.PreconditionInfo{
-				Type:    rest.PreconditionInvalidPassword,
+			With(httperr.MetaKey, httperr.PreconditionInfo{
+				Type:    httperr.PreconditionInvalidPassword,
 				Subject: "old_password",
 			}).
-			Wrap(rest.CodeBadRequest)
+			Wrap(httperr.BadRequest)
 	}
 
 	newHash, err := hashPassword(req.NewPassword, s.bcryptCost)
@@ -130,30 +85,16 @@ func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangeP
 		return meInternal(err, "hashing new password")
 	}
 
-	tx, err := s.orm.Tx(ctx)
-	if err != nil {
-		return meInternal(err, "beginning password change transaction")
-	}
-	defer func() {
-		if err != nil {
-			_ = tx.Rollback()
+	return withTx(ctx, s.orm, meInternal, func(tx *ent.Tx) error {
+		if err := tx.User.UpdateOneID(userID).SetPasswordHash(newHash).Exec(ctx); err != nil {
+			return meInternal(err, "updating password")
 		}
-	}()
-
-	if err = tx.User.UpdateOneID(userID).SetPasswordHash(newHash).Exec(ctx); err != nil {
-		return meInternal(err, "updating password")
-	}
-
-	if _, err = tx.Token.Update().
-		Where(token.UserID(userID), token.IsRevoked(false)).
-		SetIsRevoked(true).
-		Save(ctx); err != nil {
-		return meInternal(err, "revoking tokens after password change")
-	}
-
-	if err = tx.Commit(); err != nil {
-		return meInternal(err, "committing password change transaction")
-	}
-
-	return nil
+		if _, err := tx.Token.Update().
+			Where(token.UserID(userID), token.IsRevoked(false)).
+			SetIsRevoked(true).
+			Save(ctx); err != nil {
+			return meInternal(err, "revoking tokens after password change")
+		}
+		return nil
+	})
 }

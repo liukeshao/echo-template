@@ -24,9 +24,9 @@ export function toGoName(name) {
     .join("");
 }
 
-/** Return the semantic scalar name if `type` is (or derives from) one of our custom scalars. */
+/** Return the semantic scalar name if `type` is (or derives from) a scalar with special Go validation semantics. */
 export function semanticScalarName(type) {
-  const semantic = new Set(["UUID", "Email", "Username", "Password"]);
+  const semantic = new Set(["UUID", "Email", "Password"]);
   let cur = type;
   while (cur && cur.kind === "Scalar") {
     if (semantic.has(cur.name)) return cur.name;
@@ -221,115 +221,70 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
   for (const prop of props) {
     const goField = toGoName(prop.name);
     const jsonName = prop.name;
+    const fieldLit = JSON.stringify(jsonName);
     const semantic = semanticScalarName(prop.type);
-
-    if (semantic === "UUID") {
-      if (prop.optional) {
-        checks.push(
-          `\tif r.${goField} != "" && !validator.IsValidUUID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeUUID, nil)`,
-          `\t}`,
-        );
-      } else {
-        checks.push(
-          `\tif !validator.IsValidUUID(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeUUID, nil)`,
-          `\t}`,
-        );
-      }
-      continue;
-    }
-
-    if (semantic === "Email") {
-      if (prop.optional) {
-        checks.push(
-          `\tif r.${goField} != "" && !validator.IsValidEmail(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeEmail, nil)`,
-          `\t}`,
-        );
-      } else {
-        checks.push(
-          `\tif !validator.IsValidEmail(r.${goField}) {`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeEmail, nil)`,
-          `\t}`,
-        );
-      }
-      continue;
-    }
-
-    if (semantic === "Username") {
-      if (prop.optional) {
-        checks.push(
-          `\tif r.${goField} != "" {`,
-          `\t\tvalidator.CheckUsername(&v, ${JSON.stringify(jsonName)}, r.${goField})`,
-          `\t}`,
-        );
-      } else {
-        checks.push(`\tvalidator.CheckUsername(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
-      }
-      continue;
-    }
-
-    if (semantic === "Password") {
-      if (prop.optional) {
-        checks.push(
-          `\tif r.${goField} != "" {`,
-          `\t\tvalidator.CheckPassword(&v, ${JSON.stringify(jsonName)}, r.${goField})`,
-          `\t}`,
-        );
-      } else {
-        checks.push(`\tvalidator.CheckPassword(&v, ${JSON.stringify(jsonName)}, r.${goField})`);
-      }
-      continue;
-    }
-
-    const enumVals = stringLiteralValues(prop.type);
-    if (enumVals) {
-      const allowedStr = enumVals.join(", ");
-      const cases = enumVals.map((v) => JSON.stringify(v)).join(", ");
-      const expr = prop.type.kind === "Enum" ? `string(r.${goField})` : `r.${goField}`;
-      if (prop.optional) {
-        checks.push(
-          `\tif ${expr} != "" {`,
-          `\t\tswitch ${expr} {`,
-          `\t\tcase ${cases}:`,
-          `\t\tdefault:`,
-          `\t\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeOneOf, map[string]string{"allowed": ${JSON.stringify(allowedStr)}})`,
-          `\t\t}`,
-          `\t}`,
-        );
-      } else {
-        checks.push(
-          `\tswitch ${expr} {`,
-          `\tcase ${cases}:`,
-          `\tdefault:`,
-          `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeOneOf, map[string]string{"allowed": ${JSON.stringify(allowedStr)}})`,
-          `\t}`,
-        );
-      }
-      continue;
-    }
-
     const minLen = getMinLength(program, prop) ?? (prop.type.kind === "Scalar" ? getMinLength(program, prop.type) : undefined);
     const maxLen = getMaxLength(program, prop) ?? (prop.type.kind === "Scalar" ? getMaxLength(program, prop.type) : undefined);
     const pattern = getPattern(program, prop) ?? (prop.type.kind === "Scalar" ? getPattern(program, prop.type) : undefined);
     const minVal = getMinValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMinValue(program, prop.type) : undefined);
     const maxVal = getMaxValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMaxValue(program, prop.type) : undefined);
+    const optionalStrGuard = prop.optional ? `r.${goField} != ""` : "";
+
+    if (semantic === "UUID") {
+      emitCheckChain(checks, [`v.UUID(${fieldLit}, r.${goField})`], optionalStrGuard);
+      continue;
+    }
+
+    if (semantic === "Email") {
+      const preds = [`v.Email(${fieldLit}, r.${goField})`];
+      if (maxLen !== undefined) {
+        preds.push(`v.MaxLength(${fieldLit}, r.${goField}, ${maxLen})`);
+      }
+      emitCheckChain(checks, preds, optionalStrGuard);
+      continue;
+    }
+
+    if (semantic === "Password") {
+      const preds = [];
+      if (!prop.optional) {
+        preds.push(`v.Required(${fieldLit}, r.${goField})`);
+      }
+      if (minLen !== undefined && (prop.optional ? minLen >= 1 : minLen > 1)) {
+        preds.push(`v.MinLength(${fieldLit}, r.${goField}, ${minLen})`);
+      }
+      if (maxLen !== undefined) {
+        // bcrypt enforces a strict UTF-8 byte ceiling (72 bytes).
+        preds.push(`v.MaxBytes(${fieldLit}, r.${goField}, ${maxLen})`);
+      }
+      preds.push(`v.PasswordComplexity(${fieldLit}, r.${goField})`);
+      emitCheckChain(checks, preds, optionalStrGuard);
+      continue;
+    }
+
+    const enumVals = stringLiteralValues(prop.type);
+    if (enumVals) {
+      const expr = prop.type.kind === "Enum" ? `string(r.${goField})` : `r.${goField}`;
+      const allowedArgs = enumVals.map((v) => JSON.stringify(v)).join(", ");
+      const guard = prop.optional ? `${expr} != ""` : "";
+      emitCheckChain(checks, [`validator.CheckOneOf(&v, ${fieldLit}, ${expr}, ${allowedArgs})`], guard);
+      continue;
+    }
+
     const base = prop.type.kind === "Scalar" ? baseScalarName(prop.type) : "";
 
     if (base === "string") {
-      emitStringChecks(checks, { structName, goField, jsonName, optional: prop.optional, minLen, maxLen, pattern, imports, extraDecls });
+      emitStringChecks(checks, { structName, goField, fieldLit, optional: prop.optional, minLen, maxLen, pattern, imports, extraDecls });
     }
 
     if (base === "float64" || base === "int32" || base === "int64") {
       const isPtr = base === "float64" && prop.optional;
-      emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal });
+      emitNumericChecks(checks, { goField, fieldLit, isPtr, minVal, maxVal });
     }
   }
 
   imports.add("validator");
   return [
-    `// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。`,
+    `// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。`,
     `// 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。`,
     `func (r *${structName}) Validate() error {`,
     `\tvar v validator.FieldViolations`,
@@ -342,84 +297,62 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
   ].join("\n");
 }
 
-function emitStringChecks(checks, { structName, goField, jsonName, optional, minLen, maxLen, pattern, imports, extraDecls }) {
-  const branches = [];
+function emitCheckChain(checks, preds, optionalGuard = "") {
+  if (preds.length === 0) return;
+  if (optionalGuard) {
+    if (preds.length === 1) {
+      checks.push(`\tif ${optionalGuard} {`, `\t\t${preds[0]}`, `\t}`);
+      return;
+    }
+    const cond = [optionalGuard, ...preds.slice(0, -1)].join(" && ");
+    checks.push(`\tif ${cond} {`, `\t\t${preds[preds.length - 1]}`, `\t}`);
+    return;
+  }
+  if (preds.length === 1) {
+    checks.push(`\t${preds[0]}`);
+    return;
+  }
+  const cond = preds.slice(0, -1).join(" && ");
+  checks.push(`\tif ${cond} {`, `\t\t${preds[preds.length - 1]}`, `\t}`);
+}
+
+function emitStringChecks(checks, { structName, goField, fieldLit, optional, minLen, maxLen, pattern, imports, extraDecls }) {
+  const preds = [];
 
   if (!optional && minLen !== undefined && minLen >= 1) {
-    imports.add("strings");
-    branches.push({
-      cond: `strings.TrimSpace(r.${goField}) == ""`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeRequired, nil)`,
-    });
+    preds.push(`v.Required(${fieldLit}, r.${goField})`);
     if (minLen > 1) {
-      imports.add("unicode/utf8");
-      branches.push({
-        cond: `utf8.RuneCountInString(r.${goField}) < ${minLen}`,
-        body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMinLength, map[string]string{"min": ${JSON.stringify(String(minLen))}})`,
-      });
+      preds.push(`v.MinLength(${fieldLit}, r.${goField}, ${minLen})`);
     }
   } else if (optional && minLen !== undefined && minLen >= 1) {
-    imports.add("unicode/utf8");
-    branches.push({
-      cond: `r.${goField} != "" && utf8.RuneCountInString(r.${goField}) < ${minLen}`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMinLength, map[string]string{"min": ${JSON.stringify(String(minLen))}})`,
-    });
+    preds.push(`v.MinLength(${fieldLit}, r.${goField}, ${minLen})`);
   }
 
   if (maxLen !== undefined) {
-    imports.add("unicode/utf8");
-    branches.push({
-      cond: `utf8.RuneCountInString(r.${goField}) > ${maxLen}`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodeMaxLength, map[string]string{"max": ${JSON.stringify(String(maxLen))}})`,
-    });
+    preds.push(`v.MaxLength(${fieldLit}, r.${goField}, ${maxLen})`);
   }
 
   if (pattern !== undefined) {
     imports.add("regexp");
     const varName = `pattern${structName}${goField}`;
     extraDecls.push(`var ${varName} = regexp.MustCompile(${JSON.stringify(pattern)})`);
-    const guard = optional ? `r.${goField} != "" && ` : "";
-    branches.push({
-      cond: `${guard}!${varName}.MatchString(r.${goField})`,
-      body: `v.Add(${JSON.stringify(jsonName)}, validator.CodePattern, map[string]string{"pattern": ${JSON.stringify(pattern)}})`,
-    });
+    preds.push(`v.Pattern(${fieldLit}, r.${goField}, ${varName})`);
   }
 
-  if (branches.length === 0) return;
-
-  branches.forEach((b, idx) => {
-    const prefix = idx === 0 ? "\tif " : "\t} else if ";
-    checks.push(`${prefix}${b.cond} {`);
-    checks.push(`\t\t${b.body}`);
-  });
-  checks.push("\t}");
+  emitCheckChain(checks, preds, optional ? `r.${goField} != ""` : "");
 }
 
-function emitNumericChecks(checks, { goField, jsonName, isPtr, minVal, maxVal }) {
+function emitNumericChecks(checks, { goField, fieldLit, isPtr, minVal, maxVal }) {
   const valExpr = isPtr ? `*r.${goField}` : `r.${goField}`;
-  const guard = isPtr ? `r.${goField} != nil && ` : "";
+  const guard = isPtr ? `r.${goField} != nil` : "";
+  const preds = [];
 
   if (minVal !== undefined) {
-    if (minVal === 0) {
-      checks.push(
-        `\tif ${guard}${valExpr} < 0 {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeNonNegative, map[string]string{"min": "0"})`,
-        `\t}`,
-      );
-    } else {
-      checks.push(
-        `\tif ${guard}${valExpr} < ${minVal} {`,
-        `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeMinValue, map[string]string{"min": ${JSON.stringify(String(minVal))}})`,
-        `\t}`,
-      );
-    }
+    preds.push(`validator.CheckMin(&v, ${fieldLit}, ${valExpr}, ${minVal})`);
+  }
+  if (maxVal !== undefined) {
+    preds.push(`validator.CheckMax(&v, ${fieldLit}, ${valExpr}, ${maxVal})`);
   }
 
-  if (maxVal !== undefined) {
-    checks.push(
-      `\tif ${guard}${valExpr} > ${maxVal} {`,
-      `\t\tv.Add(${JSON.stringify(jsonName)}, validator.CodeMaxValue, map[string]string{"max": ${JSON.stringify(String(maxVal))}})`,
-      `\t}`,
-    );
-  }
+  emitCheckChain(checks, preds, guard);
 }

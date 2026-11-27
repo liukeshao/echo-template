@@ -8,7 +8,8 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/static"
 )
 
@@ -26,12 +27,12 @@ func NewDocs(_ do.Injector) (*Docs, error) {
 	}, nil
 }
 
-// Handler 返回可挂载到 rest.Router 的文档端点处理器。
-func (h *Docs) Handler(encodeErr rest.ErrorEncoder) rest.Handler {
+// Handler 返回可挂载到 httpkit.Router 的文档端点处理器。
+func (h *Docs) Handler(encodeErr httperr.Encoder) httpkit.Handler {
 	if encodeErr == nil {
-		encodeErr = rest.DefaultErrorEncoder
+		encodeErr = httperr.DefaultEncoder
 	}
-	return rest.NewHandler(func(mux *http.ServeMux) {
+	return httpkit.NewHandler(func(mux *http.ServeMux) {
 		mux.HandleFunc("GET /docs", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusOK)
@@ -46,10 +47,9 @@ func (h *Docs) Handler(encodeErr rest.ErrorEncoder) rest.Handler {
 			name := strings.TrimPrefix(path.Clean(r.URL.Path), "/static/")
 			info, err := fs.Stat(static.AssetsFS, name)
 			if err != nil || info.IsDir() {
-				encodeErr(w, r, rest.Problem{
+				encodeErr(w, r, httperr.Problem{
 					Status: http.StatusNotFound,
-					Code:   rest.CodeNotFound,
-					Metadata: rest.ResourceInfo{
+					Metadata: httperr.ResourceInfo{
 						ResourceType: "static_asset",
 						ResourceName: r.URL.Path,
 					},

@@ -666,25 +666,9 @@ components:
       description: Metadata for JSON request body decoding errors.
     Email:
       type: string
+      maxLength: 255
       format: email
       description: RFC 5322 email address
-    ErrorCode:
-      type: string
-      enum:
-        - BAD_REQUEST
-        - UNAUTHORIZED
-        - FORBIDDEN
-        - NOT_FOUND
-        - METHOD_NOT_ALLOWED
-        - CONFLICT
-        - CONTENT_TOO_LARGE
-        - UNSUPPORTED_MEDIA_TYPE
-        - TOO_MANY_REQUESTS
-        - CLIENT_CLOSED_REQUEST
-        - INTERNAL_ERROR
-        - SERVICE_UNAVAILABLE
-        - GATEWAY_TIMEOUT
-      description: Finite canonical HTTP error codes (analogous to gRPC status codes).
     FieldError:
       type: object
       required:
@@ -804,7 +788,6 @@ components:
         - title
         - status
         - detail
-        - code
       properties:
         type:
           type: string
@@ -818,8 +801,6 @@ components:
           type: string
         instance:
           type: string
-        code:
-          $ref: '#/components/schemas/ErrorCode'
         request_id:
           type: string
         metadata:

@@ -2,7 +2,7 @@
 //
 // To add a new external API integration:
 //  1. Create internal/client/<apiname>/ with interface.go, client.go, errors.go, package.go.
-//  2. Optionally add fine-grained i18n overrides in internal/i18n/messages/*.toml (e.g. [details.TOO_MANY_REQUESTS]).
+//  2. Optionally add fine-grained i18n overrides in internal/i18n/messages/*.toml (e.g. [details.429]).
 //  3. Add a field to config.Clients in config/config.go.
 //  4. Append <apiname>.Package to the do.Package call below.
 package client

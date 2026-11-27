@@ -11,7 +11,7 @@ import (
 	"golang.org/x/text/language"
 
 	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
 
@@ -55,17 +55,17 @@ func TestTranslator_T_HierarchicalDetailsAndMetadata(t *testing.T) {
 	tr := newTestTranslator(t)
 
 	zh := language.SimplifiedChinese
-	text, used, ok := tr.T(zh, "details.NOT_FOUND.book", map[string]string{"resource_name": "01ABC"})
+	text, used, ok := tr.T(zh, "details.404.book", map[string]string{"resource_name": "01ABC"})
 	require.True(t, ok)
 	assert.Equal(t, "未找到 ID 为 01ABC 的书籍。", text)
 	assert.Equal(t, "zh-CN", used.String())
 
-	text, _, ok = tr.T(language.English, "details.NOT_FOUND.book", map[string]string{"resource_name": "01ABC"})
+	text, _, ok = tr.T(language.English, "details.404.book", map[string]string{"resource_name": "01ABC"})
 	require.True(t, ok)
 	assert.Equal(t, "Book 01ABC was not found.", text)
 
-	// Nested dotted key flattened cleanly: details.CONFLICT.user.email
-	text, _, ok = tr.T(zh, "details.CONFLICT.user.email", map[string]string{"resource_name": "a@b.com"})
+	// Nested dotted key flattened cleanly: details.409.user.email
+	text, _, ok = tr.T(zh, "details.409.user.email", map[string]string{"resource_name": "a@b.com"})
 	require.True(t, ok)
 	assert.Equal(t, "邮箱 a@b.com 已被使用。", text)
 }
@@ -74,7 +74,7 @@ func TestTranslator_T_FallbackToDefault(t *testing.T) {
 	tr := newTestTranslator(t)
 
 	jp := language.Japanese
-	text, used, ok := tr.T(jp, "details.BAD_REQUEST.validation", nil)
+	text, used, ok := tr.T(jp, "details.400.validation", nil)
 	require.True(t, ok)
 	assert.Equal(t, "Request validation failed.", text)
 	assert.Equal(t, language.English, used)
@@ -83,14 +83,14 @@ func TestTranslator_T_FallbackToDefault(t *testing.T) {
 func TestTranslator_T_UnknownKey(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	_, _, ok := tr.T(language.English, "errors.DEFINITELY_NOT_REGISTERED", nil)
+	_, _, ok := tr.T(language.English, "errors.999", nil)
 	assert.False(t, ok)
 }
 
 func TestTranslator_T_MissingVarKeepsPlaceholder(t *testing.T) {
 	tr := newTestTranslator(t)
 
-	text, _, ok := tr.T(language.English, "details.NOT_FOUND.book", nil)
+	text, _, ok := tr.T(language.English, "details.404.book", nil)
 	require.True(t, ok)
 	assert.Contains(t, text, "{resource_name}")
 }
@@ -134,7 +134,7 @@ func TestTranslator_MatchAndTranslate_RegionalVariants(t *testing.T) {
 
 	for _, header := range []string{"zh-Hans", "zh-SG", "zh-CN,zh;q=0.9"} {
 		loc := tr.Match(header, "")
-		text, used, ok := tr.T(loc, "details.NOT_FOUND.book", map[string]string{"resource_name": "01XYZ"})
+		text, used, ok := tr.T(loc, "details.404.book", map[string]string{"resource_name": "01XYZ"})
 		require.True(t, ok, "header=%s", header)
 		assert.Equal(t, "zh-CN", used.String(), "header=%s", header)
 		assert.Equal(t, "未找到 ID 为 01XYZ 的书籍。", text, "header=%s", header)
@@ -142,7 +142,7 @@ func TestTranslator_MatchAndTranslate_RegionalVariants(t *testing.T) {
 
 	loc := tr.Match("en-US,en;q=0.9", "")
 	assert.Equal(t, "en", loc.String())
-	text, used, ok := tr.T(loc, "details.BAD_REQUEST.validation", nil)
+	text, used, ok := tr.T(loc, "details.400.validation", nil)
 	require.True(t, ok)
 	assert.Equal(t, "en", used.String())
 	assert.Equal(t, "Request validation failed.", text)
@@ -173,7 +173,7 @@ func extractPlaceholders(tmpl string) []string {
 }
 
 // TestMessages_LocaleKeyAndPlaceholderParity is a template invariant gate:
-//   - every canonical HTTP error code and validation rule must exist in BOTH en.toml and zh-CN.toml;
+//   - every canonical HTTP error status and validation rule must exist in BOTH en.toml and zh-CN.toml;
 //   - both locale files must define the exact same set of keys (including [details.*]);
 //   - every key must reference the exact same {placeholder} set across locales.
 func TestMessages_LocaleKeyAndPlaceholderParity(t *testing.T) {
@@ -193,24 +193,26 @@ func TestMessages_LocaleKeyAndPlaceholderParity(t *testing.T) {
 		assert.Contains(t, enTable, k, "en.toml missing key %q present in zh-CN.toml", k)
 	}
 
-	for _, c := range rest.AllCodes() {
-		key := "errors." + c.String()
+	for _, s := range httperr.AllStatuses() {
+		key := "errors." + s.Key()
 		assert.Contains(t, enTable, key)
 		assert.Contains(t, zhTable, key)
+		assert.Empty(t, extractPlaceholders(enTable[key]),
+			"generic status fallback %s must not contain placeholders", key)
 	}
 
 	for _, rule := range validator.RegisteredRules() {
-		key := "validation." + rule
+		key := "validation." + rule.Key()
 		assert.Contains(t, enTable, key)
 		assert.Contains(t, zhTable, key)
 	}
 }
 
-func TestAssertCoverage_DetectsMissingCodeAndRule(t *testing.T) {
+func TestAssertCoverage_DetectsMissingStatusAndRule(t *testing.T) {
 	err := assertCoverage(map[string]string{}, language.English)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "missing translations")
-	assert.Contains(t, err.Error(), "errors.NOT_FOUND")
+	assert.Contains(t, err.Error(), "errors.404")
 	assert.Contains(t, err.Error(), "validation.required")
 	assert.Error(t, assertCoverage(nil, language.English))
 }

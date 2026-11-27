@@ -4,11 +4,13 @@ package api
 import (
 	"context"
 	"net/http"
-	"strings"
+	"regexp"
 
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/pkg/validator"
 )
+
+var patternRegisterRequestUsername = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
 
 type TokenPair struct {
 	AccessToken  string `json:"access_token"`
@@ -22,15 +24,19 @@ type RegisterRequest struct {
 	Password string `json:"password"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *RegisterRequest) Validate() error {
 	var v validator.FieldViolations
-	validator.CheckUsername(&v, "username", r.Username)
-	if !validator.IsValidEmail(r.Email) {
-		v.Add("email", validator.CodeEmail, nil)
+	if v.Required("username", r.Username) && v.MinLength("username", r.Username, 3) && v.MaxLength("username", r.Username, 50) {
+		v.Pattern("username", r.Username, patternRegisterRequestUsername)
 	}
-	validator.CheckPassword(&v, "password", r.Password)
+	if v.Email("email", r.Email) {
+		v.MaxLength("email", r.Email, 255)
+	}
+	if v.Required("password", r.Password) && v.MinLength("password", r.Password, 8) && v.MaxBytes("password", r.Password, 72) {
+		v.PasswordComplexity("password", r.Password)
+	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -44,16 +50,14 @@ type LoginRequest struct {
 	Password string `json:"password"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *LoginRequest) Validate() error {
 	var v validator.FieldViolations
-	if !validator.IsValidEmail(r.Email) {
-		v.Add("email", validator.CodeEmail, nil)
+	if v.Email("email", r.Email) {
+		v.MaxLength("email", r.Email, 255)
 	}
-	if strings.TrimSpace(r.Password) == "" {
-		v.Add("password", validator.CodeRequired, nil)
-	}
+	v.Required("password", r.Password)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -66,13 +70,11 @@ type RefreshTokenRequest struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// Validate 根据 TypeSpec 约束自动生成字段级校验，返回本地化 *validator.FieldViolations。
+// Validate 根据 TypeSpec 约束自动生成字段级校验，返回结构化 *validator.FieldViolations（由出口 ErrorEncoder 统一本地化）。
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *RefreshTokenRequest) Validate() error {
 	var v validator.FieldViolations
-	if strings.TrimSpace(r.RefreshToken) == "" {
-		v.Add("refresh_token", validator.CodeRequired, nil)
-	}
+	v.Required("refresh_token", r.RefreshToken)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -94,15 +96,15 @@ type AuthHandler interface {
 	Logout(ctx context.Context) error
 }
 
-// NewAuthHandler 构造符合 Connect-Go 风格的 rest.Handler（同时实现标准 http.Handler）。
-// 可直接挂载到 rest.Router（router.Mount(api.NewAuthHandler(impl, ...))），也可独立用于 httptest。
-func NewAuthHandler(impl AuthHandler, opts ...rest.HandlerOption) rest.Handler {
-	cfg := rest.ApplyHandlerOptions(opts...)
-	return rest.NewHandler(func(mux *http.ServeMux) {
-		mux.Handle("POST /api/v1/auth/register", cfg.Wrap(rest.Operation{ID: "register", Method: http.MethodPost, Pattern: "/api/v1/auth/register"}, func(w http.ResponseWriter, r *http.Request) {
+// NewAuthHandler 构造符合 Connect-Go 风格的 httpkit.Handler（同时实现标准 http.Handler）。
+// 可直接挂载到 httpkit.Router（router.Mount(api.NewAuthHandler(impl, ...))），也可独立用于 httptest。
+func NewAuthHandler(impl AuthHandler, opts ...httpkit.HandlerOption) httpkit.Handler {
+	cfg := httpkit.ApplyHandlerOptions(opts...)
+	return httpkit.NewHandler(func(mux *http.ServeMux) {
+		mux.Handle("POST /api/v1/auth/register", cfg.Wrap(httpkit.Operation{ID: "register", Method: http.MethodPost, Pattern: "/api/v1/auth/register"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req RegisterRequest
-			if err := rest.DecodeJSON(r, &req); err != nil {
+			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -115,13 +117,13 @@ func NewAuthHandler(impl AuthHandler, opts ...rest.HandlerOption) rest.Handler {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusCreated, res)
+			httpkit.WriteJSON(w, r, http.StatusCreated, res)
 		}))
 
-		mux.Handle("POST /api/v1/auth/login", cfg.Wrap(rest.Operation{ID: "login", Method: http.MethodPost, Pattern: "/api/v1/auth/login"}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("POST /api/v1/auth/login", cfg.Wrap(httpkit.Operation{ID: "login", Method: http.MethodPost, Pattern: "/api/v1/auth/login"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req LoginRequest
-			if err := rest.DecodeJSON(r, &req); err != nil {
+			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -134,13 +136,13 @@ func NewAuthHandler(impl AuthHandler, opts ...rest.HandlerOption) rest.Handler {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("POST /api/v1/auth/refresh", cfg.Wrap(rest.Operation{ID: "refreshToken", Method: http.MethodPost, Pattern: "/api/v1/auth/refresh"}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("POST /api/v1/auth/refresh", cfg.Wrap(httpkit.Operation{ID: "refreshToken", Method: http.MethodPost, Pattern: "/api/v1/auth/refresh"}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req RefreshTokenRequest
-			if err := rest.DecodeJSON(r, &req); err != nil {
+			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
@@ -153,16 +155,16 @@ func NewAuthHandler(impl AuthHandler, opts ...rest.HandlerOption) rest.Handler {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteJSON(w, r, http.StatusOK, res)
+			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("POST /api/v1/auth/logout", cfg.Wrap(rest.Operation{ID: "logout", Method: http.MethodPost, Pattern: "/api/v1/auth/logout", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("POST /api/v1/auth/logout", cfg.Wrap(httpkit.Operation{ID: "logout", Method: http.MethodPost, Pattern: "/api/v1/auth/logout", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			if err := impl.Logout(ctx); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			rest.WriteNoContent(w)
+			httpkit.WriteNoContent(w)
 		}))
 
 	})

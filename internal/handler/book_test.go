@@ -9,7 +9,8 @@ import (
 
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/rest"
+	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
 
 func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
@@ -24,25 +25,25 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createRec.Code)
 	created := testutil.DecodeJSON[api.Book](t, createRec)
 
-	// Wrong type for price -> 400 BAD_REQUEST with MediaTypeInfo (not 500).
+	// Wrong type for price -> 400 with MediaTypeInfo (not 500).
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
-		testutil.WithBody(rest.ContentTypeMergePatch, `{"price":"not-a-number"}`),
+		testutil.WithBody(httpkit.ContentTypeMergePatch, `{"price":"not-a-number"}`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
-	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest, rest.CodeBadRequest)
-	mt := testutil.DecodeProblemMeta[rest.MediaTypeInfo](t, p)
-	assert.Equal(t, rest.PatchReasonSchemaMismatch, mt.Reason)
+	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest)
+	mt := testutil.DecodeProblemMeta[httperr.MediaTypeInfo](t, p)
+	assert.Equal(t, httperr.PatchReasonSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
-	// Unsupported PATCH Content-Type -> 415 UNSUPPORTED_MEDIA_TYPE with MediaTypeInfo.
+	// Unsupported PATCH Content-Type -> 415 with MediaTypeInfo.
 	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody("text/plain", `title=foo`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
-	p = testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType, rest.CodeUnsupportedMediaType)
-	mt = testutil.DecodeProblemMeta[rest.MediaTypeInfo](t, p)
+	p = testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType)
+	mt = testutil.DecodeProblemMeta[httperr.MediaTypeInfo](t, p)
 	assert.Equal(t, "text/plain", mt.ContentType)
-	assert.Equal(t, rest.SupportedPatchMediaTypes, mt.Supported)
+	assert.Equal(t, httpkit.SupportedPatchMediaTypes, mt.Supported)
 }
 
 func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
@@ -64,26 +65,26 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Go", testutil.DecodeJSON[api.Book](t, rec).Title)
 
-	// Get invalid UUID -> 400 BAD_REQUEST + ValidationInfo
+	// Get invalid UUID -> 400 + ValidationInfo
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books/not-a-uuid", auth)
-	testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
+	testutil.AssertProblem(t, rec, http.StatusBadRequest)
 
-	// List invalid integer query -> 400 BAD_REQUEST + FieldError
+	// List invalid integer query -> 400 + FieldError
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=abc", auth)
-	p := testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
+	p := testutil.AssertProblem(t, rec, http.StatusBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Contains(t, p.Errors[0].Message, "valid integer")
 
-	// List invalid float query -> 400 BAD_REQUEST + FieldError
+	// List invalid float query -> 400 + FieldError
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=not-a-number", auth)
-	p = testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
+	p = testutil.AssertProblem(t, rec, http.StatusBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Equal(t, "min_price", p.Errors[0].Field)
 	assert.Contains(t, p.Errors[0].Message, "valid number")
 
-	// List negative min_price -> 400 BAD_REQUEST
+	// List negative min_price -> 400
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=-1", auth)
-	testutil.AssertProblem(t, rec, http.StatusBadRequest, rest.CodeBadRequest)
+	testutil.AssertProblem(t, rec, http.StatusBadRequest)
 
 	// List with explicit typed query fields
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&title=go&min_price=10&max_price=30", auth)
@@ -105,7 +106,7 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 
 	// PATCH RFC 7386 Merge Patch + attempt to mutate read-only id (must be ignored)
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
-		testutil.WithBody(rest.ContentTypeMergePatch, `{"id":"FAKE","title":"Merged","price":null}`),
+		testutil.WithBody(httpkit.ContentTypeMergePatch, `{"id":"FAKE","title":"Merged","price":null}`),
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)
@@ -116,7 +117,7 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 
 	// PATCH with application/json compatibility
 	rec = env.DoRequest(http.MethodPatch, "/api/v1/books/"+b.ID,
-		testutil.WithBody(rest.ContentTypeJSON, `{"title":"JSONCompat","price":15.5}`),
+		testutil.WithBody(httpkit.ContentTypeJSON, `{"title":"JSONCompat","price":15.5}`),
 		auth,
 	)
 	require.Equal(t, http.StatusOK, rec.Code)

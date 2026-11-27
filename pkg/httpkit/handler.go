@@ -1,15 +1,17 @@
-package rest
+package httpkit
 
 import (
 	"net/http"
 	"slices"
 	"sync"
+
+	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
 // Middleware 是标准 Go HTTP 中间件签名。
 type Middleware = func(http.Handler) http.Handler
 
-// Handler 表示一组由 TypeSpec 生成（或手写）的 REST 端点（Connect-Go 风格）：
+// Handler 表示一组由 TypeSpec 生成（或手写）的 HTTP 端点（Connect-Go 风格）：
 //   - 本身直接实现标准 http.Handler，可独立运行于 httptest 或嵌入任意 HTTP 服务；
 //   - 同时实现 Mount(*http.ServeMux)，可由 Router 展平挂载到共享 ServeMux，
 //     完整保留 Go 1.22+ 精确路由匹配、冲突检测与 404/405 语义。
@@ -25,7 +27,7 @@ type mountableHandler struct {
 	mux  *http.ServeMux
 }
 
-// NewHandler 将路由注册函数包装为同时支持独立 ServeHTTP 与 Mount 的 rest.Handler。
+// NewHandler 将路由注册函数包装为同时支持独立 ServeHTTP 与 Mount 的 httpkit.Handler。
 func NewHandler(register func(mux *http.ServeMux)) Handler {
 	return &mountableHandler{register: register}
 }
@@ -69,14 +71,14 @@ type HandlerOption func(*HandlerConfig)
 
 // HandlerConfig 保存生成 Handler 运行所需的错误编码器与路由级中间件链。
 type HandlerConfig struct {
-	ErrorEncoder ErrorEncoder
+	ErrorEncoder httperr.Encoder
 	Middlewares  []RouteMiddleware
 
 	authSchemes map[string]Authenticator
 }
 
-// WithErrorEncoder 指定自定义错误编码器（例如接入业务错误码与 i18n 的 RFC 9457 编码器）。
-func WithErrorEncoder(enc ErrorEncoder) HandlerOption {
+// WithErrorEncoder 指定自定义错误编码器（例如接入业务错误与 i18n 的 RFC 9457 编码器）。
+func WithErrorEncoder(enc httperr.Encoder) HandlerOption {
 	return func(c *HandlerConfig) {
 		if enc != nil {
 			c.ErrorEncoder = enc
@@ -111,7 +113,7 @@ func WithMiddleware(mws ...RouteMiddleware) HandlerOption {
 	}
 }
 
-// ApplyHandlerOptions 应用所有 HandlerOption 并补全默认 ErrorEncoder（零配置也能安全运行）。
+// ApplyHandlerOptions 应用所有 HandlerOption 并补全默认 httperr.DefaultEncoder（零配置也能安全运行）。
 func ApplyHandlerOptions(opts ...HandlerOption) HandlerConfig {
 	var cfg HandlerConfig
 	for _, opt := range opts {
@@ -120,7 +122,7 @@ func ApplyHandlerOptions(opts ...HandlerOption) HandlerConfig {
 		}
 	}
 	if cfg.ErrorEncoder == nil {
-		cfg.ErrorEncoder = DefaultErrorEncoder
+		cfg.ErrorEncoder = httperr.DefaultEncoder
 	}
 	if len(cfg.authSchemes) > 0 {
 		// 内置命名方案鉴权置于用户 WithMiddleware 外层，便于后续 RBAC/审计中间件读取已认证身份。
@@ -141,11 +143,11 @@ func (c HandlerConfig) Wrap(op Operation, fn http.HandlerFunc) http.Handler {
 	return h
 }
 
-// WriteError 使用已配置的 ErrorEncoder 写出错误响应（未配置时回落到 DefaultErrorEncoder）。
+// WriteError 使用已配置的 ErrorEncoder 写出错误响应（未配置时回落到 httperr.DefaultEncoder）。
 func (c HandlerConfig) WriteError(w http.ResponseWriter, r *http.Request, err error) {
 	if c.ErrorEncoder != nil {
 		c.ErrorEncoder(w, r, err)
 		return
 	}
-	DefaultErrorEncoder(w, r, err)
+	httperr.DefaultEncoder(w, r, err)
 }

@@ -7,7 +7,7 @@
 //	env := testutil.New(t)
 //	bookSvc := do.MustInvoke[*service.Book](env.Injector)
 //
-//	// 2. Handler 层测试（完整 rest.Router 路由 + 中间件 + RFC 9457 错误处理）
+//	// 2. Handler 层测试（完整 httpkit.Router 路由 + 中间件 + RFC 9457 错误处理）
 //	env := testutil.New(t)
 //	tok := env.MustAuthUser("alice", "alice@example.com", "password123")
 //	rec := env.DoRequest(http.MethodGet, "/api/v1/books", testutil.WithBearer(tok.AccessToken))
