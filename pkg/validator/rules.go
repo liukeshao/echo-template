@@ -194,8 +194,8 @@ func (v *FieldViolations) MustDiffer(field, val, otherField, otherVal string) bo
 
 // --- 泛型边界与枚举检查函数 ---
 
-// CheckMin 校验 val >= min；当 min == 0 时使用语义更精准的 RuleNonNegative。
-func CheckMin[T Number](v *FieldViolations, field string, val, min T) bool {
+// Min 校验 val >= min；当 min == 0 时使用语义更精准的 RuleNonNegative。
+func Min[T Number](v *FieldViolations, field string, val, min T) bool {
 	if val < min {
 		if min == 0 {
 			v.Add(field, RuleNonNegative, P("min", "0"))
@@ -207,8 +207,8 @@ func CheckMin[T Number](v *FieldViolations, field string, val, min T) bool {
 	return true
 }
 
-// CheckMax 校验 val <= max。
-func CheckMax[T Number](v *FieldViolations, field string, val, max T) bool {
+// Max 校验 val <= max。
+func Max[T Number](v *FieldViolations, field string, val, max T) bool {
 	if val > max {
 		v.Add(field, RuleMaxValue, P("max", fmt.Sprint(max)))
 		return false
@@ -216,8 +216,8 @@ func CheckMax[T Number](v *FieldViolations, field string, val, max T) bool {
 	return true
 }
 
-// CheckOneOf 校验枚举或字符串字面量值是否位于 allowed 集合中。
-func CheckOneOf[T ~string](v *FieldViolations, field string, val T, allowed ...T) bool {
+// OneOf 校验枚举或字符串字面量值是否位于 allowed 集合中。
+func OneOf[T ~string](v *FieldViolations, field string, val T, allowed ...T) bool {
 	if slices.Contains(allowed, val) {
 		return true
 	}

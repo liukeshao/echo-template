@@ -25,23 +25,23 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	require.Equal(t, http.StatusCreated, createRec.Code)
 	created := testutil.DecodeJSON[api.Book](t, createRec)
 
-	// Wrong type for price -> 400 with MediaTypeInfo (not 500).
+	// Wrong type for price -> 400 with PatchInfo (not 500).
 	patchRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody(httpkit.ContentTypeMergePatch, `{"price":"not-a-number"}`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
 	p := testutil.AssertProblem(t, patchRec, http.StatusBadRequest)
-	mt := testutil.DecodeProblemMeta[httperr.MediaTypeInfo](t, p)
+	mt := testutil.DecodeProblemMeta[httperr.PatchInfo](t, p)
 	assert.Equal(t, httperr.PatchReasonSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
-	// Unsupported PATCH Content-Type -> 415 with MediaTypeInfo.
+	// Unsupported PATCH Content-Type -> 415 with PatchInfo.
 	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
 		testutil.WithBody("text/plain", `title=foo`),
 		testutil.WithBearer(authResp.AccessToken),
 	)
 	p = testutil.AssertProblem(t, unsupportedRec, http.StatusUnsupportedMediaType)
-	mt = testutil.DecodeProblemMeta[httperr.MediaTypeInfo](t, p)
+	mt = testutil.DecodeProblemMeta[httperr.PatchInfo](t, p)
 	assert.Equal(t, "text/plain", mt.ContentType)
 	assert.Equal(t, httpkit.SupportedPatchMediaTypes, mt.Supported)
 }

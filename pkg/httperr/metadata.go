@@ -7,9 +7,9 @@ import (
 	"strings"
 )
 
-// MetaKey 是在 oops.With(httperr.MetaKey, ...) 中存放对外公开 AIP-193 Metadata Struct 的标准键名。
-// 仅该键下实现 Metadata 接口的值会被提取到 Problem.Metadata 并供给最终层 i18n 插值；
-// 其他 oops.With(...) 键仅用于服务端 slog 结构化日志，天然物理隔离。
+// MetaKey 是结构化错误上下文中存放对外公开 AIP-193 Metadata 的标准键名（例如供 oops.With 挂载）。
+// 仅该键下实现 Metadata 接口的值会被提取到 Problem.Metadata 并供给终端 i18n 插值；
+// 其他上下文键仅用于服务端 slog 结构化日志，天然物理隔离。
 const MetaKey = "metadata"
 
 // DecodeInfo.Reason 常量。
@@ -19,7 +19,7 @@ const (
 	DecodeReasonTrailingData = "trailing_data"
 )
 
-// MediaTypeInfo.Reason 常量。
+// PatchInfo.Reason 常量。
 const (
 	PatchReasonInvalidOriginal = "invalid_original"
 	PatchReasonInvalidJSON     = "invalid_json"
@@ -163,15 +163,15 @@ func (DecodeInfo) I18nSubkeys() []string {
 	return []string{"decode"}
 }
 
-// MediaTypeInfo 描述 PATCH 文档非法或媒体类型不支持（400 Bad Request / 415 Unsupported Media Type）。
-type MediaTypeInfo struct {
+// PatchInfo 描述 PATCH 文档非法或 PATCH 媒体类型不支持（400 Bad Request / 415 Unsupported Media Type）。
+type PatchInfo struct {
 	ContentType string   `json:"content_type"`
 	Supported   []string `json:"supported,omitempty"`
 	Reason      string   `json:"reason,omitempty"`
 	Field       string   `json:"field,omitempty"`
 }
 
-func (m MediaTypeInfo) I18nVars() map[string]string {
+func (m PatchInfo) I18nVars() map[string]string {
 	vars := map[string]string{
 		"content_type": m.ContentType,
 	}
@@ -187,7 +187,7 @@ func (m MediaTypeInfo) I18nVars() map[string]string {
 	return vars
 }
 
-func (MediaTypeInfo) I18nSubkeys() []string {
+func (PatchInfo) I18nSubkeys() []string {
 	return []string{"patch"}
 }
 

@@ -15,9 +15,8 @@ import (
 
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
-
-const mimeApplicationJSON = "application/json"
 
 type reqConfig struct {
 	body        io.Reader
@@ -37,7 +36,7 @@ func WithJSON(v any) ReqOption {
 			t.Fatalf("testutil.WithJSON marshal failed: %v", err)
 		}
 		cfg.body = bytes.NewReader(b)
-		cfg.contentType = mimeApplicationJSON
+		cfg.contentType = httpkit.ContentTypeJSON
 	}
 }
 

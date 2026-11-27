@@ -49,7 +49,7 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 
 	// 生产环境不暴露 API 文档与静态资源。
 	if cfg.App.Environment != config.EnvProduction {
-		router.Mount(do.MustInvoke[*Docs](i).Handler(encodeErr))
+		router.Mount(DocsHandler(encodeErr))
 	}
 
 	return router, nil

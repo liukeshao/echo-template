@@ -42,7 +42,7 @@ model DecodeInfo {
 }
 
 @doc("Metadata for PATCH document or media type errors.")
-model MediaTypeInfo {
+model PatchInfo {
   content_type: string;
   supported?: string[];
   reason?: string;
@@ -67,7 +67,7 @@ alias ErrorMetadata =
   | RetryInfo
   | ValidationInfo
   | DecodeInfo
-  | MediaTypeInfo
+  | PatchInfo
   | MethodInfo
   | RequestLimitInfo
   | Record<unknown>;

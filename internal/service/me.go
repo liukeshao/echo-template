@@ -10,7 +10,7 @@ import (
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
-	"github.com/liukeshao/echo-template/ent/user"
+	entuser "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
@@ -63,7 +63,7 @@ func (s *Me) Replace(ctx context.Context, userID string, req *api.ReplaceMeReque
 // ChangePassword 修改已登录用户的密码（自定义子资源动作）。
 func (s *Me) ChangePassword(ctx context.Context, userID string, req *api.ChangePasswordRequest) error {
 	u, err := s.orm.User.Query().
-		Where(user.IDEQ(userID)).
+		Where(entuser.IDEQ(userID)).
 		First(ctx)
 	if err != nil {
 		return meInternal(err, "fetching user for password change")

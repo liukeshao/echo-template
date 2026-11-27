@@ -103,7 +103,7 @@ errDomain.
 
 ## Validation
 
-- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@pattern`, `@minValue`, `@maxValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` calling declarative `pkg/validator` checks (`Required`, `MinLength`, `MaxLength`, `MaxBytes`, `Pattern`, `UUID`, `Email`, `PasswordComplexity`, `CheckMin`, `CheckMax`, `CheckOneOf`) and returning `*validator.FieldViolations` with strongly-typed `validator.Rule` codes.
+- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@pattern`, `@minValue`, `@maxValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` calling declarative `pkg/validator` checks (`Required`, `MinLength`, `MaxLength`, `MaxBytes`, `Pattern`, `UUID`, `Email`, `PasswordComplexity`, `Min`, `Max`, `OneOf`) and returning `*validator.FieldViolations` with strongly-typed `validator.Rule` codes.
 - Cross-field rules live in hand-written `pkg/api/<domain>_validate.go` via `validateExtra(*validator.FieldViolations)` (e.g. `v.MustDiffer(...)`).
 - List sorting (`order_by`) uses `validator.ParseOrderBy("order_by", req.OrderBy, allowedFields...)` to validate and parse `"field"` / `"field desc"` expressions into `[]validator.OrderTerm`.
 - Generated `api.NewXxxHandler` runs `Validate()` automatically before invoking the handler method.

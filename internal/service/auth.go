@@ -14,7 +14,7 @@ import (
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/ent/token"
-	userEnt "github.com/liukeshao/echo-template/ent/user"
+	entuser "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/internal/database"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
@@ -152,7 +152,7 @@ func (s *Auth) generateToken(userID string, tokenType token.Type) (string, time.
 }
 
 func (s *Auth) validateUser(user *ent.User) error {
-	if user.Status != userEnt.StatusActive {
+	if user.Status != entuser.StatusActive {
 		return errAuth.
 			User(user.ID).
 			With(httperr.MetaKey, httperr.PreconditionInfo{
@@ -167,7 +167,7 @@ func (s *Auth) validateUser(user *ent.User) error {
 
 func (s *Auth) findUserByEmail(ctx context.Context, email string) (*ent.User, error) {
 	user, err := s.orm.User.Query().
-		Where(userEnt.Email(email)).
+		Where(entuser.Email(email)).
 		Only(ctx)
 	switch {
 	case err == nil:
@@ -244,7 +244,7 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 			SetUsername(req.Username).
 			SetEmail(req.Email).
 			SetPasswordHash(hashedPassword).
-			SetStatus(userEnt.StatusActive).
+			SetStatus(entuser.StatusActive).
 			SetLastLoginAt(time.Now()).
 			Save(ctx)
 		if err != nil {
@@ -330,7 +330,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 		}
 
 		user, err := tx.User.Query().
-			Where(userEnt.ID(claims.UserID)).
+			Where(entuser.ID(claims.UserID)).
 			Only(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {

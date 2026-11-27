@@ -48,7 +48,7 @@ func (r *CreateBookRequest) Validate() error {
 		v.MaxLength("description", r.Description, 1000)
 	}
 	if r.Price != nil {
-		validator.CheckMin(&v, "price", *r.Price, 0)
+		validator.Min(&v, "price", *r.Price, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -79,13 +79,13 @@ type ListBooksRequest struct {
 // 若同包手写文件实现了 validateExtra(*validator.FieldViolations)，会自动追加跨字段校验。
 func (r *ListBooksRequest) Validate() error {
 	var v validator.FieldViolations
-	validator.CheckMin(&v, "page", r.Page, 0)
-	validator.CheckMin(&v, "page_size", r.PageSize, 0)
+	validator.Min(&v, "page", r.Page, 0)
+	validator.Min(&v, "page_size", r.PageSize, 0)
 	if r.MinPrice != nil {
-		validator.CheckMin(&v, "min_price", *r.MinPrice, 0)
+		validator.Min(&v, "min_price", *r.MinPrice, 0)
 	}
 	if r.MaxPrice != nil {
-		validator.CheckMin(&v, "max_price", *r.MaxPrice, 0)
+		validator.Min(&v, "max_price", *r.MaxPrice, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
@@ -136,7 +136,7 @@ func (r *ReplaceBookRequest) Validate() error {
 		v.MaxLength("description", r.Description, 1000)
 	}
 	if r.Price != nil {
-		validator.CheckMin(&v, "price", *r.Price, 0)
+		validator.Min(&v, "price", *r.Price, 0)
 	}
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)

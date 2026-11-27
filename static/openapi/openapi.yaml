@@ -697,22 +697,6 @@ components:
         password:
           type: string
           minLength: 1
-    MediaTypeInfo:
-      type: object
-      required:
-        - content_type
-      properties:
-        content_type:
-          type: string
-        supported:
-          type: array
-          items:
-            type: string
-        reason:
-          type: string
-        field:
-          type: string
-      description: Metadata for PATCH document or media type errors.
     MethodInfo:
       type: object
       required:
@@ -761,6 +745,22 @@ components:
               format: date-time
             - type: 'null'
       description: RFC 7386 JSON Merge Patch for Book (omit field to keep, set null to clear optional fields).
+    PatchInfo:
+      type: object
+      required:
+        - content_type
+      properties:
+        content_type:
+          type: string
+        supported:
+          type: array
+          items:
+            type: string
+        reason:
+          type: string
+        field:
+          type: string
+      description: Metadata for PATCH document or media type errors.
     PatchMeRequest:
       type: object
       properties:
@@ -810,7 +810,7 @@ components:
             - $ref: '#/components/schemas/RetryInfo'
             - $ref: '#/components/schemas/ValidationInfo'
             - $ref: '#/components/schemas/DecodeInfo'
-            - $ref: '#/components/schemas/MediaTypeInfo'
+            - $ref: '#/components/schemas/PatchInfo'
             - $ref: '#/components/schemas/MethodInfo'
             - $ref: '#/components/schemas/RequestLimitInfo'
             - type: object

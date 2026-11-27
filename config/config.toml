@@ -1,10 +1,10 @@
 [http]
 hostname = ""
 port = 8000
-gracefulTimeout = "10s"
-readTimeout = "5s"
-writeTimeout = "10s"
-idleTimeout = "2m"
+graceful_timeout = "10s"
+read_timeout = "5s"
+write_timeout = "10s"
+idle_timeout = "2m"
 
 [app]
 name = "echo-template"
@@ -15,31 +15,31 @@ environment = "local"
 
 [auth]
 # bcrypt 哈希成本（4-31）；设为 0 时使用默认值 12
-bcryptCost = 12
+bcrypt_cost = 12
 
 # JWT配置
 [jwt]
 secret = "your-super-secret-jwt-key-change-this-in-production"
-accessTokenExpiry = "24h"   # Access token 过期时间
-refreshTokenExpiry = "168h" # Refresh token 过期时间 (7天)
-issuer = "echo-template"    # Token发行者
+access_token_expiry = "24h"   # Access token 过期时间
+refresh_token_expiry = "168h" # Refresh token 过期时间 (7天)
+issuer = "echo-template"      # Token发行者
 
 [database]
 driver = "sqlite"
 connection = "dbs/main.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)&_pragma=journal_mode(WAL)"
 # 开发环境自动建表/同步 schema；生产环境建议设为 false 并使用显式迁移（如 Atlas）。
-autoMigrate = true
+auto_migrate = true
 
 # Third-party API clients.
 # Each sub-table corresponds to a field in config.Clients.
 [clients.weather]
-baseURL = "https://api.weather.com/v1"
-apiKey  = "change-me"
-timeout = "5s"
-retry   = 2
+base_url = "https://api.weather.com/v1"
+api_key  = "change-me"
+timeout  = "5s"
+retry    = 2
 
 # 国际化配置。翻译文件通过 embed.FS 打包进二进制（internal/i18n/messages/*.toml）。
-# defaultLocale 必须同时出现在 supportedLocales 中。
+# default_locale 必须同时出现在 supported_locales 中。
 [i18n]
-defaultLocale    = "en"
-supportedLocales = ["en", "zh-CN"]
+default_locale    = "en"
+supported_locales = ["en", "zh-CN"]

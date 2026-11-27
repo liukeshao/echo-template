@@ -266,7 +266,7 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
       const expr = prop.type.kind === "Enum" ? `string(r.${goField})` : `r.${goField}`;
       const allowedArgs = enumVals.map((v) => JSON.stringify(v)).join(", ");
       const guard = prop.optional ? `${expr} != ""` : "";
-      emitCheckChain(checks, [`validator.CheckOneOf(&v, ${fieldLit}, ${expr}, ${allowedArgs})`], guard);
+      emitCheckChain(checks, [`validator.OneOf(&v, ${fieldLit}, ${expr}, ${allowedArgs})`], guard);
       continue;
     }
 
@@ -348,10 +348,10 @@ function emitNumericChecks(checks, { goField, fieldLit, isPtr, minVal, maxVal })
   const preds = [];
 
   if (minVal !== undefined) {
-    preds.push(`validator.CheckMin(&v, ${fieldLit}, ${valExpr}, ${minVal})`);
+    preds.push(`validator.Min(&v, ${fieldLit}, ${valExpr}, ${minVal})`);
   }
   if (maxVal !== undefined) {
-    preds.push(`validator.CheckMax(&v, ${fieldLit}, ${valExpr}, ${maxVal})`);
+    preds.push(`validator.Max(&v, ${fieldLit}, ${valExpr}, ${maxVal})`);
   }
 
   emitCheckChain(checks, preds, guard);

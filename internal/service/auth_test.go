@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/liukeshao/echo-template/config"
-	userEnt "github.com/liukeshao/echo-template/ent/user"
+	entuser "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/internal/service"
 	"github.com/liukeshao/echo-template/internal/testutil"
 	"github.com/liukeshao/echo-template/pkg/api"
@@ -96,7 +96,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 
 	// Disabled account: wrong password must still return invalid credentials (no account enumeration),
 	// while right password returns httperr.Forbidden + ACCOUNT_DISABLED.
-	require.NoError(t, env.ORM().User.UpdateOneID(u.ID).SetStatus(userEnt.StatusSuspended).Exec(ctx))
+	require.NoError(t, env.ORM().User.UpdateOneID(u.ID).SetStatus(entuser.StatusSuspended).Exec(ctx))
 	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "wrongpassword1",
@@ -109,7 +109,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		Password: "password123",
 	})
 	oe = testutil.AssertOopsStatus(t, err, httperr.Forbidden)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionAccountDisabled, Subject: "account", Detail: string(userEnt.StatusSuspended)}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionAccountDisabled, Subject: "account", Detail: string(entuser.StatusSuspended)}, oe.Context()[httperr.MetaKey])
 }
 
 func TestAuth_TokenTypeMismatchAndErrors(t *testing.T) {

@@ -42,10 +42,15 @@ func TestSetup_LogLevels(t *testing.T) {
 
 func TestRequestIDContext(t *testing.T) {
 	ctx := WithRequestID(context.Background(), "req-123-456")
-
-	got, ok := LookupRequestID(ctx)
-	assert.True(t, ok)
-	assert.Equal(t, "req-123-456", got)
 	assert.Equal(t, "req-123-456", RequestID(ctx))
 	assert.Empty(t, RequestID(context.Background()))
+
+	// Empty request ID must not emit a blank request_id log attribute.
+	var buf bytes.Buffer
+	logger := slog.New(NewContextHandler(slog.NewJSONHandler(&buf, nil)))
+	logger.InfoContext(WithRequestID(context.Background(), ""), "empty rid")
+	var entry map[string]any
+	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	_, hasRID := entry["request_id"]
+	assert.False(t, hasRID)
 }

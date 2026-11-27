@@ -78,7 +78,7 @@ func TestClient_GetCurrent_RateLimited(t *testing.T) {
 	})
 
 	env := testutil.New(t, testutil.WithHTTPTransport(rt))
-	c := do.MustInvoke[*weather.Client](env.Injector)
+	c := do.MustInvoke[weather.API](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "Tokyo")
 	oe := testutil.AssertOopsStatus(t, err, httperr.TooManyRequests)
 	assert.Equal(t, httperr.RetryInfo{Service: "weather", RetryAfter: "30"}, oe.Context()[httperr.MetaKey])
@@ -101,7 +101,7 @@ func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {
 		testutil.WithHTTPTransport(rt),
 	)
 
-	c := do.MustInvoke[*weather.Client](env.Injector)
+	c := do.MustInvoke[weather.API](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "bad")
 	assert.Equal(t, 1, calls, "4xx permanent errors must not be retried")
 	testutil.AssertOopsStatus(t, err, httperr.Internal)
@@ -131,7 +131,7 @@ func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {
 		testutil.WithHTTPTransport(rt),
 	)
 
-	c := do.MustInvoke[*weather.Client](env.Injector)
+	c := do.MustInvoke[weather.API](env.Injector)
 	res, err := c.GetCurrent(context.Background(), "Tokyo")
 	require.NoError(t, err)
 	assert.Equal(t, 2, calls)

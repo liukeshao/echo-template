@@ -6,32 +6,20 @@ import (
 	"path"
 	"strings"
 
-	"github.com/samber/do/v2"
-
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
 	"github.com/liukeshao/echo-template/static"
 )
 
-// Docs 提供 API 文档 UI（Stoplight Elements）及相关静态资源（纯标准库 net/http）。
-type Docs struct {
-	staticServer http.Handler
-}
-
-// NewDocs 构造 Docs 并初始化静态文件服务器。
-func NewDocs(_ do.Injector) (*Docs, error) {
-	return &Docs{
-		// /static/* 请求去掉 /static 前缀后仅暴露 js/ 与 css/ 目录
-		// 例如 /static/js/web-components.min.js → js/web-components.min.js
-		staticServer: http.StripPrefix("/static", http.FileServerFS(static.AssetsFS)),
-	}, nil
-}
-
-// Handler 返回可挂载到 httpkit.Router 的文档端点处理器。
-func (h *Docs) Handler(encodeErr httperr.Encoder) httpkit.Handler {
+// DocsHandler 返回可挂载到 httpkit.Router 的 API 文档与静态资源处理器（Stoplight Elements）。
+func DocsHandler(encodeErr httperr.Encoder) httpkit.Handler {
 	if encodeErr == nil {
 		encodeErr = httperr.DefaultEncoder
 	}
+	// /static/* 请求去掉 /static 前缀后仅暴露 js/ 与 css/ 目录
+	// 例如 /static/js/web-components.min.js → js/web-components.min.js
+	staticServer := http.StripPrefix("/static", http.FileServerFS(static.AssetsFS))
+
 	return httpkit.NewHandler(func(mux *http.ServeMux) {
 		mux.HandleFunc("GET /docs", func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -56,7 +44,7 @@ func (h *Docs) Handler(encodeErr httperr.Encoder) httpkit.Handler {
 				})
 				return
 			}
-			h.staticServer.ServeHTTP(w, r)
+			staticServer.ServeHTTP(w, r)
 		})
 	})
 }

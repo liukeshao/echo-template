@@ -48,7 +48,7 @@ func TestProblemEncoder_AllClassificationPaths(t *testing.T) {
 	router.HandleFunc("GET /test/problem-localized", func(w http.ResponseWriter, r *http.Request) {
 		encodeErr(w, r, httperr.Problem{
 			Status: http.StatusBadRequest,
-			Metadata: httperr.MediaTypeInfo{
+			Metadata: httperr.PatchInfo{
 				ContentType: httpkit.ContentTypeMergePatch,
 				Reason:      httperr.PatchReasonInvalidJSON,
 			},
@@ -161,13 +161,13 @@ func TestProblemEncoder_AllClassificationPaths(t *testing.T) {
 	precond := testutil.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
 	assert.Equal(t, "POLICY", precond.Type)
 
-	// 1b. Problem with MediaTypeInfo hits details.400.patch
+	// 1b. Problem with PatchInfo hits details.400.patch
 	rec = call(http.MethodGet, "/test/problem-localized", "zh-CN")
 	p = testutil.AssertProblem(t, rec, http.StatusBadRequest)
 	assert.Equal(t, "zh-CN", rec.Header().Get("Content-Language"))
 	assert.Contains(t, p.Detail, "PATCH 主体")
 	assert.Contains(t, p.Detail, httpkit.ContentTypeMergePatch)
-	mt := testutil.DecodeProblemMeta[httperr.MediaTypeInfo](t, p)
+	mt := testutil.DecodeProblemMeta[httperr.PatchInfo](t, p)
 	assert.Equal(t, httperr.PatchReasonInvalidJSON, mt.Reason)
 
 	// 1c. Pre-filled Problem.Detail does not bypass terminal i18n

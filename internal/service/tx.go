@@ -6,7 +6,8 @@ import (
 	"github.com/samber/oops"
 
 	"github.com/liukeshao/echo-template/ent"
-	userEnt "github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/echo-template/ent/predicate"
+	entuser "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
@@ -63,33 +64,29 @@ func checkUserUnique(
 	excludeUserID, email, username string,
 	wrapErr func(error, string) error,
 ) error {
-	if email != "" {
-		q := orm.User.Query().Where(userEnt.EmailEQ(email))
+	checkField := func(field, value string, pred predicate.User) error {
+		if value == "" {
+			return nil
+		}
+		q := orm.User.Query().Where(pred)
 		if excludeUserID != "" {
-			q = q.Where(userEnt.IDNEQ(excludeUserID))
+			q = q.Where(entuser.IDNEQ(excludeUserID))
 		}
 		exists, err := q.Exist(ctx)
 		if err != nil {
 			if wrapErr != nil {
-				return wrapErr(err, "checking email uniqueness")
+				return wrapErr(err, "checking "+field+" uniqueness")
 			}
-		} else if exists {
-			return userFieldTaken(domain, excludeUserID, "email", email)
+			return nil
 		}
+		if exists {
+			return userFieldTaken(domain, excludeUserID, field, value)
+		}
+		return nil
 	}
-	if username != "" {
-		q := orm.User.Query().Where(userEnt.UsernameEQ(username))
-		if excludeUserID != "" {
-			q = q.Where(userEnt.IDNEQ(excludeUserID))
-		}
-		exists, err := q.Exist(ctx)
-		if err != nil {
-			if wrapErr != nil {
-				return wrapErr(err, "checking username uniqueness")
-			}
-		} else if exists {
-			return userFieldTaken(domain, excludeUserID, "username", username)
-		}
+
+	if err := checkField("email", email, entuser.EmailEQ(email)); err != nil {
+		return err
 	}
-	return nil
+	return checkField("username", username, entuser.UsernameEQ(username))
 }

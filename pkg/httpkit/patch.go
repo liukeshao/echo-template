@@ -20,14 +20,14 @@ const (
 	ContentTypeJSON       = "application/json"             // 兼容写法，按 Merge Patch 处理
 )
 
-// SupportedPatchMediaTypes 列出 ApplyMergePatch 支持的 Content-Type，用于 415 MediaTypeInfo 与 Accept-Patch 回显。
+// SupportedPatchMediaTypes 列出 ApplyMergePatch 支持的 Content-Type，用于 415 PatchInfo 与 Accept-Patch 回显。
 var SupportedPatchMediaTypes = []string{
 	ContentTypeMergePatch,
 	ContentTypeJSON,
 }
 
 // ApplyMergePatch 按 RFC 7386 JSON Merge Patch 将 body 合并到 original 上。
-// 返回错误为 400 或 415 Problem（无硬编码 Detail，附带 MediaTypeInfo）。
+// 返回错误为 400 或 415 Problem（无硬编码 Detail，附带 PatchInfo）。
 func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) {
 	mediaType := parseMediaType(contentType)
 
@@ -44,7 +44,7 @@ func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) 
 }
 
 // ApplyMergePatchInto 执行 ApplyMergePatch 并将结果反序列化到 dst（通常为 *api.ReplaceXxxRequest）。
-// 反序列化失败包装为 400 Problem 并附带 MediaTypeInfo，不泄漏内部 Go 类型名。
+// 反序列化失败包装为 400 Problem 并附带 PatchInfo，不泄漏内部 Go 类型名。
 func ApplyMergePatchInto(original, body []byte, contentType string, dst any) error {
 	patched, err := ApplyMergePatch(original, body, contentType)
 	if err != nil {
@@ -55,7 +55,7 @@ func ApplyMergePatchInto(original, body []byte, contentType string, dst any) err
 		if effectiveType == "" {
 			effectiveType = ContentTypeMergePatch
 		}
-		info := httperr.MediaTypeInfo{
+		info := httperr.PatchInfo{
 			ContentType: effectiveType,
 			Reason:      httperr.PatchReasonSchemaMismatch,
 		}
@@ -135,7 +135,7 @@ func mergeValue(target, patchVal any) any {
 func invalidPatch(mediaType, reason string) error {
 	return httperr.Problem{
 		Status: http.StatusBadRequest,
-		Metadata: httperr.MediaTypeInfo{
+		Metadata: httperr.PatchInfo{
 			ContentType: mediaType,
 			Reason:      reason,
 		},
@@ -145,7 +145,7 @@ func invalidPatch(mediaType, reason string) error {
 func unsupportedPatchMediaType(actual string) error {
 	return httperr.Problem{
 		Status: http.StatusUnsupportedMediaType,
-		Metadata: httperr.MediaTypeInfo{
+		Metadata: httperr.PatchInfo{
 			ContentType: actual,
 			Supported:   slices.Clone(SupportedPatchMediaTypes),
 		},

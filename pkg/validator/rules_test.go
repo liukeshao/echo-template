@@ -86,13 +86,13 @@ func TestGenericNumericAndEnumChecks(t *testing.T) {
 	type status string
 
 	var v validator.FieldViolations
-	assert.True(t, validator.CheckMin(&v, "page", int32(0), 0))
-	assert.False(t, validator.CheckMin(&v, "page", int32(-1), 0))
-	assert.False(t, validator.CheckMin(&v, "age", 15, 18))
-	assert.True(t, validator.CheckMax(&v, "price", 99.5, 100.0))
-	assert.False(t, validator.CheckMax(&v, "price", 101.5, 100.0))
-	assert.True(t, validator.CheckOneOf(&v, "status", status("active"), "active", "inactive"))
-	assert.False(t, validator.CheckOneOf(&v, "status", status("deleted"), "active", "inactive"))
+	assert.True(t, validator.Min(&v, "page", int32(0), 0))
+	assert.False(t, validator.Min(&v, "page", int32(-1), 0))
+	assert.False(t, validator.Min(&v, "age", 15, 18))
+	assert.True(t, validator.Max(&v, "price", 99.5, 100.0))
+	assert.False(t, validator.Max(&v, "price", 101.5, 100.0))
+	assert.True(t, validator.OneOf(&v, "status", status("active"), "active", "inactive"))
+	assert.False(t, validator.OneOf(&v, "status", status("deleted"), "active", "inactive"))
 
 	items := v.Items()
 	require.Len(t, items, 4)

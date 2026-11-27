@@ -14,7 +14,7 @@ type ContextHandler struct {
 }
 
 func (h *ContextHandler) Handle(ctx context.Context, r slog.Record) error {
-	if requestID, ok := LookupRequestID(ctx); ok {
+	if requestID := RequestID(ctx); requestID != "" {
 		r = r.Clone()
 		r.AddAttrs(slog.String("request_id", requestID))
 	}

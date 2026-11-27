@@ -81,38 +81,44 @@ func TestLoad_LoadsTOMLAndEnvOverrides(t *testing.T) {
 	tomlContent := `
 [http]
 port = 9000
+graceful_timeout = "15s"
 
 [app]
 name = "custom-app"
 environment = "local"
 
 [auth]
-bcryptCost = 10
+bcrypt_cost = 10
 
 [database]
 driver = "sqlite"
 connection = ":memory:"
-autoMigrate = true
+auto_migrate = true
 
 [jwt]
 secret = "local-secret"
-accessTokenExpiry = "1h"
-refreshTokenExpiry = "24h"
+access_token_expiry = "1h"
+refresh_token_expiry = "24h"
 issuer = "custom-issuer"
 
 [i18n]
-defaultLocale = "en"
-supportedLocales = ["en", "zh-CN"]
+default_locale = "en"
+supported_locales = ["en", "zh-CN"]
 `
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0644))
 	t.Chdir(dir)
 	t.Setenv("ECHO_TEMPLATE_JWT_SECRET", "env-overridden-secret")
+	t.Setenv("ECHO_TEMPLATE_JWT_ACCESS_TOKEN_EXPIRY", "2h")
+	t.Setenv("ECHO_TEMPLATE_I18N_DEFAULT_LOCALE", "zh-CN")
 
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, uint16(9000), cfg.HTTP.Port)
+	assert.Equal(t, 15*time.Second, cfg.HTTP.GracefulTimeout)
 	assert.Equal(t, "custom-app", cfg.App.Name)
 	assert.Equal(t, 10, cfg.Auth.BcryptCost)
 	assert.Equal(t, "env-overridden-secret", cfg.JWT.Secret)
+	assert.Equal(t, 2*time.Hour, cfg.JWT.AccessTokenExpiry)
+	assert.Equal(t, "zh-CN", cfg.I18n.DefaultLocale)
 	assert.True(t, cfg.Database.AutoMigrate)
 }

@@ -103,21 +103,11 @@ func (t *translator) T(loc language.Tag, key string, vars map[string]string) (st
 		}
 	}
 	if loc != t.defaultTag {
-		if text, ok := t.lookup(t.defaultTag, key); ok {
+		if text, ok := t.messages[t.defaultTag][key]; ok {
 			return render(text, vars), t.defaultTag, true
 		}
 	}
 	return "", language.Und, false
-}
-
-// lookup 在给定 locale 的翻译表中查找 key，未命中返回 ok=false。
-func (t *translator) lookup(loc language.Tag, key string) (string, bool) {
-	table, ok := t.messages[loc]
-	if !ok {
-		return "", false
-	}
-	text, ok := table[key]
-	return text, ok
 }
 
 // render 用 vars 替换模板中的 {name} 占位符。
