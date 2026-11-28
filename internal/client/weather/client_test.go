@@ -13,7 +13,7 @@ import (
 
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/internal/client/weather"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
@@ -34,12 +34,12 @@ func TestClient_GetCurrent_EscapesCityAndParsesResponse(t *testing.T) {
 		}, nil
 	})
 
-	env := testutil.New(t,
-		testutil.WithConfig(func(cfg *config.Config) {
+	env := testkit.New(t,
+		testkit.WithConfig(func(cfg *config.Config) {
 			cfg.Clients.Weather.BaseURL = "https://weather.example.com/v1/"
 			cfg.Clients.Weather.APIKey = "secret-key"
 		}),
-		testutil.WithHTTPTransport(rt),
+		testkit.WithHTTPTransport(rt),
 	)
 
 	c := do.MustInvoke[weather.API](env.Injector)
@@ -59,7 +59,7 @@ func TestClient_GetCurrent_CallerContextCanceledPropagatesDirectly(t *testing.T)
 		return nil, r.Context().Err()
 	})
 
-	env := testutil.New(t, testutil.WithHTTPTransport(rt))
+	env := testkit.New(t, testkit.WithHTTPTransport(rt))
 	c := do.MustInvoke[weather.API](env.Injector)
 	_, err := c.GetCurrent(ctx, "Tokyo")
 	assert.ErrorIs(t, err, context.Canceled)
@@ -77,10 +77,10 @@ func TestClient_GetCurrent_RateLimited(t *testing.T) {
 		}, nil
 	})
 
-	env := testutil.New(t, testutil.WithHTTPTransport(rt))
+	env := testkit.New(t, testkit.WithHTTPTransport(rt))
 	c := do.MustInvoke[weather.API](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "Tokyo")
-	oe := testutil.AssertOopsStatus(t, err, httperr.TooManyRequests)
+	oe := testkit.AssertOopsStatus(t, err, httperr.TooManyRequests)
 	assert.Equal(t, httperr.RetryInfo{Service: "weather", RetryAfter: "30"}, oe.Context()[httperr.MetaKey])
 }
 
@@ -96,15 +96,15 @@ func TestClient_GetCurrent_DoesNotRetryPermanent4xx(t *testing.T) {
 		}, nil
 	})
 
-	env := testutil.New(t,
-		testutil.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 3 }),
-		testutil.WithHTTPTransport(rt),
+	env := testkit.New(t,
+		testkit.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 3 }),
+		testkit.WithHTTPTransport(rt),
 	)
 
 	c := do.MustInvoke[weather.API](env.Injector)
 	_, err := c.GetCurrent(context.Background(), "bad")
 	assert.Equal(t, 1, calls, "4xx permanent errors must not be retried")
-	testutil.AssertOopsStatus(t, err, httperr.Internal)
+	testkit.AssertOopsStatus(t, err, httperr.Internal)
 }
 
 func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {
@@ -126,9 +126,9 @@ func TestClient_GetCurrent_RetriesTransient503(t *testing.T) {
 		}, nil
 	})
 
-	env := testutil.New(t,
-		testutil.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 2 }),
-		testutil.WithHTTPTransport(rt),
+	env := testkit.New(t,
+		testkit.WithConfig(func(cfg *config.Config) { cfg.Clients.Weather.Retry = 2 }),
+		testkit.WithHTTPTransport(rt),
 	)
 
 	c := do.MustInvoke[weather.API](env.Injector)

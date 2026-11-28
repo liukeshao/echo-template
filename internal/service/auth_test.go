@@ -15,7 +15,7 @@ import (
 	entuser "github.com/liukeshao/echo-template/ent/user"
 	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
@@ -23,7 +23,7 @@ import (
 func TestAuth_FullLifecycle(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	authSvc := do.MustInvoke[*service.Auth](env.Injector)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 
@@ -55,7 +55,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		Email:    "alice@example.com",
 		Password: "password123",
 	})
-	oe := testutil.AssertOopsStatus(t, err, httperr.Conflict)
+	oe := testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "alice@example.com", Field: "email"}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.Register(ctx, &api.RegisterRequest{
@@ -63,7 +63,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		Email:    "alice2@example.com",
 		Password: "password123",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Conflict)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "alice", Field: "username"}, oe.Context()[httperr.MetaKey])
 
 	// Two logins within the same second must not collide (unique jti & unique refresh token/family).
@@ -93,13 +93,13 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login1.RefreshToken,
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: refreshed.RefreshToken,
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 
 	login2Refreshed, err := authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
@@ -112,7 +112,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login2Refreshed.RefreshToken,
 	})
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// ChangePassword rejects wrong old password (400) and revokes active refresh tokens on success.
 	login3, err := authSvc.Login(ctx, &api.LoginRequest{
@@ -125,7 +125,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		OldPassword: "wrongpassword1",
 		NewPassword: "newpassword123",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.BadRequest)
+	oe = testkit.AssertOopsStatus(t, err, httperr.BadRequest)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidPassword, Subject: "old_password"}, oe.Context()[httperr.MetaKey])
 
 	require.NoError(t, authSvc.ChangePassword(ctx, principal.UserID, &api.ChangePasswordRequest{
@@ -135,7 +135,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login3.RefreshToken,
 	})
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// Disabled account: wrong password must still return invalid credentials (no account enumeration),
 	// while right password returns httperr.Forbidden + ACCOUNT_DISABLED.
@@ -144,43 +144,43 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		Email:    "alice@example.com",
 		Password: "wrongpassword1",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidCredentials}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "newpassword123",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Forbidden)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Forbidden)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionAccountDisabled, Subject: "account", Detail: string(entuser.StatusSuspended)}, oe.Context()[httperr.MetaKey])
 }
 
 func TestAuth_TokenTypeMismatchAndErrors(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	authSvc := do.MustInvoke[*service.Auth](env.Injector)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 	tok := env.MustAuthUser("tokuser", "tokuser@example.com", "password123")
 
 	// Passing opaque refresh token as Bearer Access JWT must be rejected.
 	_, err := jwtMgr.ParseAccessToken(tok.RefreshToken)
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// Passing Access JWT to RefreshToken must be rejected.
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{RefreshToken: tok.AccessToken})
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// Unknown email login returns httperr.Unauthorized + INVALID_CREDENTIALS.
 	_, err = authSvc.Login(ctx, &api.LoginRequest{Email: "nobody@example.com", Password: "password123"})
-	oe := testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidCredentials}, oe.Context()[httperr.MetaKey])
 }
 
 func TestAuth_ExpiredTokensReportTokenExpiredMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t, testutil.WithConfig(func(cfg *config.Config) {
+	env := testkit.New(t, testkit.WithConfig(func(cfg *config.Config) {
 		cfg.JWT.AccessTokenExpiry = -time.Second
 		cfg.JWT.RefreshTokenExpiry = -time.Second
 	}))
@@ -189,11 +189,11 @@ func TestAuth_ExpiredTokensReportTokenExpiredMetadata(t *testing.T) {
 	tok := env.MustAuthUser("expuser", "exp@example.com", "password123")
 
 	_, err := jwtMgr.ParseAccessToken(tok.AccessToken)
-	oe := testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.ErrorIs(t, err, jwt.ErrTokenExpired, "underlying JWT expiration cause must stay in errors.Is chain")
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenExpired, Subject: "authorization", Detail: "Bearer"}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{RefreshToken: tok.RefreshToken})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenExpired, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 }

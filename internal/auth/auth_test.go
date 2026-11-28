@@ -14,7 +14,7 @@ import (
 	"github.com/liukeshao/echo-template/config"
 	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
@@ -74,7 +74,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 		Issuer:            cfg.Issuer,
 	})
 	_, err = otherSecret.ParseAccessToken(tok)
-	oe := testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{
 		Type:    httperr.PreconditionTokenInvalid,
 		Subject: "authorization",
@@ -88,7 +88,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 		Issuer:            "other-issuer",
 	})
 	_, err = otherIssuer.ParseAccessToken(tok)
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// Expired token preserves jwt.ErrTokenExpired and sets TOKEN_EXPIRED metadata.
 	expMgr := auth.NewJWT(config.JWT{
@@ -99,7 +99,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	expiredTok, _, err := expMgr.SignAccessToken("user-1")
 	require.NoError(t, err)
 	_, err = mgr.ParseAccessToken(expiredTok)
-	oe = testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.ErrorIs(t, err, jwt.ErrTokenExpired)
 	assert.Equal(t, httperr.PreconditionInfo{
 		Type:    httperr.PreconditionTokenExpired,
@@ -114,7 +114,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	}).SignedString([]byte(cfg.Secret))
 	require.NoError(t, err)
 	_, err = mgr.ParseAccessToken(noSub)
-	testutil.AssertOopsStatus(t, err, httperr.Unauthorized)
+	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 }
 
 func TestBearerAuthenticator(t *testing.T) {

@@ -52,7 +52,7 @@ internal/               应用私有实现
   i18n/                 国际化翻译器（embed.FS TOML + Accept-Language 协商 + locale context）
   server/               极薄的 3 文件 HTTP 装配层（package.go 装配 httpkit.Server、router.go 路由与文档装配、problem.go 胶水）
   service/              领域服务（Auth 凭证与哈希刷新令牌轮换、User 资料、Book 业务、分页规范化与 bcrypt 密码策略）
-  testutil/             统一测试环境（DI 容器 + 独立内存 SQLite + HTTP 请求/断言辅助）
+  testkit/              统一测试环境（DI 容器 + 独立内存 SQLite/配置文件初始化 + HTTP 请求/断言辅助）
 static/                 Stoplight Elements + OpenAPI 3.1 YAML（embed.FS）
 .apitest/               IDE HTTP Client 测试文件
 ```

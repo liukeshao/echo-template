@@ -132,11 +132,11 @@ errDomain.
 
 ## Testing
 
-- Use `internal/testutil` in external test packages (`package service_test`, `package handler_test`, `package <api>_test`) instead of re-creating SQLite/Ent/DI setup manually:
-  - `env := testutil.New(t, ...)` builds the full lazy DI container with an isolated in-memory SQLite DB and automatic `t.Cleanup` shutdown (safe for `t.Parallel()`).
-  - Use `testutil.WithConfig(...)`, `testutil.WithOverride[T](mock)`, or `testutil.WithHTTPTransport(rt)` to customize config or inject mocks.
-  - Handler tests use `env.MustAuthUser(...)`, `env.DoRequest(...)`, `testutil.DecodeJSON[T](t, rec)`, and `testutil.AssertProblem(...)`.
-  - Service/client tests use `testutil.AssertOopsStatus(t, err, httperr.NotFound)` (which asserts `oops.AsOops`, `errors.Is`, and the primary wrapped `httperr.Status` sentinel).
+- Use `internal/testkit` in external test packages (`package service_test`, `package handler_test`, `package <api>_test`) instead of re-creating SQLite/Ent/DI setup manually:
+  - `env := testkit.New(t, ...)` builds the full lazy DI container with an isolated in-memory SQLite DB and automatic `t.Cleanup` shutdown (safe for `t.Parallel()`).
+  - Use `testkit.WithConfigFile(path)` (or `""` for default `config.Load()`), `testkit.WithConfig(...)`, `testkit.WithOverride[T](mock)`, or `testkit.WithHTTPTransport(rt)` to initialize from a config file, customize config, or inject mocks.
+  - Handler tests use `env.MustAuthUser(...)`, `env.DoRequest(...)`, `testkit.DecodeJSON[T](t, rec)`, and `testkit.AssertProblem(...)`.
+  - Service/client tests use `testkit.AssertOopsStatus(t, err, httperr.NotFound)` (which asserts `oops.AsOops`, `errors.Is`, and the primary wrapped `httperr.Status` sentinel).
 
 ---
 

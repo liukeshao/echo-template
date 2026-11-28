@@ -82,22 +82,39 @@ type (
 	}
 )
 
-// Load 加载 config.toml、合并 ECHO_TEMPLATE_ 前缀环境变量并执行校验。
+// Load 加载默认搜索路径下的 config.toml、合并 ECHO_TEMPLATE_ 前缀环境变量并执行校验。
 func Load() (Config, error) {
-	var c Config
-	v := viper.New()
-
+	v := newViper()
 	v.SetConfigName("config")
 	v.SetConfigType("toml")
 	v.AddConfigPath(".")
 	v.AddConfigPath("config")
 	v.AddConfigPath("../config")
 	v.AddConfigPath("../../config")
+	v.AddConfigPath("../../../config")
+	return loadFromViper(v)
+}
 
+// LoadFile 从指定配置文件路径加载配置、合并 ECHO_TEMPLATE_ 前缀环境变量并执行校验。
+func LoadFile(path string) (Config, error) {
+	if strings.TrimSpace(path) == "" {
+		return Config{}, fmt.Errorf("config: file path is required")
+	}
+	v := newViper()
+	v.SetConfigFile(path)
+	return loadFromViper(v)
+}
+
+func newViper() *viper.Viper {
+	v := viper.New()
 	v.SetEnvPrefix("ECHO_TEMPLATE")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	return v
+}
 
+func loadFromViper(v *viper.Viper) (Config, error) {
+	var c Config
 	if err := v.ReadInConfig(); err != nil {
 		return c, err
 	}

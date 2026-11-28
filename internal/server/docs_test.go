@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
 
 func TestDocs_StaticIsolatesAssets(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 
 	// /docs, /openapi.yaml, and embedded JS/CSS assets are served with expected Content-Type.
 	cases := []struct {
@@ -41,7 +41,7 @@ func TestDocs_StaticIsolatesAssets(t *testing.T) {
 
 func TestDocs_DisabledInProduction(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t, testutil.WithConfig(func(cfg *config.Config) {
+	env := testkit.New(t, testkit.WithConfig(func(cfg *config.Config) {
 		cfg.App.Environment = config.EnvProduction
 	}))
 

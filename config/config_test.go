@@ -122,3 +122,51 @@ supported_locales = ["en", "zh-CN"]
 	assert.Equal(t, "zh-CN", cfg.I18n.DefaultLocale)
 	assert.True(t, cfg.Database.AutoMigrate)
 }
+
+func TestLoadFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "custom.toml")
+	tomlContent := `
+[http]
+port = 8088
+
+[app]
+name = "file-app"
+environment = "test"
+
+[auth]
+bcrypt_cost = 4
+
+[database]
+driver = "sqlite"
+connection = ":memory:"
+auto_migrate = true
+
+[jwt]
+secret = "file-secret"
+access_token_expiry = "30m"
+refresh_token_expiry = "12h"
+issuer = "file-issuer"
+
+[i18n]
+default_locale = "en"
+supported_locales = ["en", "zh-CN"]
+`
+	require.NoError(t, os.WriteFile(path, []byte(tomlContent), 0644))
+	t.Setenv("ECHO_TEMPLATE_APP_NAME", "env-file-app")
+
+	cfg, err := LoadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, uint16(8088), cfg.HTTP.Port)
+	assert.Equal(t, "env-file-app", cfg.App.Name)
+	assert.Equal(t, EnvTest, cfg.App.Environment)
+	assert.Equal(t, 4, cfg.Auth.BcryptCost)
+	assert.Equal(t, "file-secret", cfg.JWT.Secret)
+	assert.Equal(t, 30*time.Minute, cfg.JWT.AccessTokenExpiry)
+
+	_, err = LoadFile("")
+	assert.Error(t, err)
+
+	_, err = LoadFile(filepath.Join(dir, "missing.toml"))
+	assert.Error(t, err)
+}

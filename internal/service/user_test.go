@@ -10,7 +10,7 @@ import (
 
 	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 )
@@ -18,7 +18,7 @@ import (
 func TestUser_GetAndReplace(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	userSvc := do.MustInvoke[*service.User](env.Injector)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 
@@ -39,7 +39,7 @@ func TestUser_GetAndReplace(t *testing.T) {
 
 	// Unknown user ID returns 404 NotFound with ResourceInfo(user).
 	_, err = userSvc.Get(ctx, "01900000-0000-7000-8000-000000000000")
-	oe := testutil.AssertOopsStatus(t, err, httperr.NotFound)
+	oe := testkit.AssertOopsStatus(t, err, httperr.NotFound)
 	assert.Equal(t, httperr.ResourceInfo{
 		ResourceType: "user",
 		ResourceName: "01900000-0000-7000-8000-000000000000",
@@ -59,13 +59,13 @@ func TestUser_GetAndReplace(t *testing.T) {
 		Username: "bob_new",
 		Email:    "carol@example.com",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Conflict)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "carol@example.com", Field: "email"}, oe.Context()[httperr.MetaKey])
 
 	_, err = userSvc.Replace(ctx, p.UserID, &api.ReplaceMeRequest{
 		Username: "carol",
 		Email:    "bob_new@example.com",
 	})
-	oe = testutil.AssertOopsStatus(t, err, httperr.Conflict)
+	oe = testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "carol", Field: "username"}, oe.Context()[httperr.MetaKey])
 }

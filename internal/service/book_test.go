@@ -11,7 +11,7 @@ import (
 
 	"github.com/liukeshao/echo-template/ent"
 	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/api"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/validator"
@@ -20,7 +20,7 @@ import (
 func TestBook_CRUDAndSoftDelete(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	bookSvc := do.MustInvoke[*service.Book](env.Injector)
 
 	// Empty list short-circuits cleanly (nil request uses defaults).
@@ -62,7 +62,7 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 		Title:  "Duplicate",
 		Author: "Someone",
 	})
-	testutil.AssertOopsStatus(t, err, httperr.Conflict)
+	testkit.AssertOopsStatus(t, err, httperr.Conflict)
 
 	// Invalid order_by returns *validator.FieldViolations with rule codes & metadata.
 	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "unknown_col"})
@@ -94,17 +94,17 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 
 	// Soft-deleted book is hidden from Get, Replace, and Delete.
 	_, err = bookSvc.Get(ctx, customID)
-	testutil.AssertOopsStatus(t, err, httperr.NotFound)
+	testkit.AssertOopsStatus(t, err, httperr.NotFound)
 
 	_, err = bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
 		Book:   customID,
 		Title:  "Ghost",
 		Author: "Ghost",
 	})
-	testutil.AssertOopsStatus(t, err, httperr.NotFound)
+	testkit.AssertOopsStatus(t, err, httperr.NotFound)
 
 	err = bookSvc.Delete(ctx, customID)
-	testutil.AssertOopsStatus(t, err, httperr.NotFound)
+	testkit.AssertOopsStatus(t, err, httperr.NotFound)
 
 	// Even a direct Ent UpdateOneID must refuse to modify a soft-deleted row.
 	err = env.ORM().Book.UpdateOneID(customID).SetTitle("Mutated").Exec(ctx)
@@ -114,7 +114,7 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 func TestBook_ListQueryFieldsAndOrderBy(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	bookSvc := do.MustInvoke[*service.Book](env.Injector)
 
 	p1, p2 := 10.0, 50.0

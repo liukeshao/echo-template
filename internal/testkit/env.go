@@ -1,5 +1,6 @@
-// Package testutil 提供带独立内存 SQLite 与自动清理的测试 DI 环境，安全支持 t.Parallel()。
-package testutil
+// Package testkit 提供带独立内存 SQLite 与自动清理的测试 DI 环境，安全支持 t.Parallel()，
+// 同时支持从配置文件初始化测试环境。
+package testkit
 
 import (
 	"fmt"
@@ -36,14 +37,27 @@ type Env struct {
 }
 
 type options struct {
-	configFns []func(*config.Config)
-	overrides []func(do.Injector)
+	useConfigFile bool
+	configFile    string
+	configFns     []func(*config.Config)
+	overrides     []func(do.Injector)
 }
 
 // Option 自定义测试环境的配置或 DI 覆盖项。
 type Option func(*options)
 
-// WithConfig 在容器解析任何依赖前修改默认测试配置。
+// WithConfigFile 使用配置文件初始化基础配置（经由 config.LoadFile / config.Load 合并
+// ECHO_TEMPLATE_ 环境变量并执行校验），替代 DefaultConfig。
+// 传入空字符串时按 config.Load 默认路径查找 config.toml。
+// 可与 WithConfig 组合使用：WithConfig 回调始终在配置文件加载完成后执行。
+func WithConfigFile(path string) Option {
+	return func(o *options) {
+		o.useConfigFile = true
+		o.configFile = path
+	}
+}
+
+// WithConfig 在容器解析任何依赖前修改测试配置（无论基于 DefaultConfig 还是 WithConfigFile）。
 func WithConfig(fn func(*config.Config)) Option {
 	return func(o *options) {
 		o.configFns = append(o.configFns, fn)
@@ -130,7 +144,18 @@ func New(t testing.TB, opts ...Option) *Env {
 		opt(&o)
 	}
 
-	cfg := DefaultConfig()
+	var cfg config.Config
+	if o.useConfigFile {
+		var err error
+		if o.configFile == "" {
+			cfg, err = config.Load()
+		} else {
+			cfg, err = config.LoadFile(o.configFile)
+		}
+		require.NoError(t, err)
+	} else {
+		cfg = DefaultConfig()
+	}
 	for _, fn := range o.configFns {
 		fn(&cfg)
 	}

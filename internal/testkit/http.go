@@ -1,4 +1,4 @@
-package testutil
+package testkit
 
 import (
 	"bytes"
@@ -31,7 +31,7 @@ func WithJSON(v any) ReqOption {
 		t.Helper()
 		b, err := json.Marshal(v)
 		if err != nil {
-			t.Fatalf("testutil.WithJSON marshal failed: %v", err)
+			t.Fatalf("testkit.WithJSON marshal failed: %v", err)
 		}
 		cfg.body = bytes.NewReader(b)
 		cfg.contentType = httpkit.ContentTypeJSON

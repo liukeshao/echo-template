@@ -15,14 +15,14 @@ import (
 	"github.com/liukeshao/echo-template/internal/auth"
 	"github.com/liukeshao/echo-template/internal/i18n"
 	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/testutil"
+	"github.com/liukeshao/echo-template/internal/testkit"
 	"github.com/liukeshao/echo-template/pkg/httperr"
 	"github.com/liukeshao/echo-template/pkg/httpkit"
 )
 
 func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	srv := do.MustInvoke[*httpkit.Server](env.Injector)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
@@ -32,7 +32,7 @@ func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 
 func TestBearerAuth(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 	tr := do.MustInvoke[i18n.Translator](env.Injector)
 	tok := env.MustAuthUser("mwuser", "mw@example.com", "password123")
@@ -75,8 +75,8 @@ func TestBearerAuth(t *testing.T) {
 
 			assert.False(t, called)
 			assert.Equal(t, "Bearer", rec.Header().Get("WWW-Authenticate"))
-			p := testutil.AssertProblem(t, rec, http.StatusUnauthorized)
-			meta := testutil.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
+			p := testkit.AssertProblem(t, rec, http.StatusUnauthorized)
+			meta := testkit.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
 			assert.Equal(t, tc.wantType, meta.Type)
 			assert.Equal(t, "authorization", meta.Subject)
 		})
@@ -99,20 +99,20 @@ func TestBearerAuth(t *testing.T) {
 
 func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 
 	rec := env.DoRequest(http.MethodGet, "/api/v1/does-not-exist",
-		testutil.WithHeader("Accept-Language", "zh-CN"),
+		testkit.WithHeader("Accept-Language", "zh-CN"),
 	)
 	assert.NotEmpty(t, rec.Header().Get(httpkit.HeaderRequestID), "404 should still run RequestID middleware")
-	p := testutil.AssertProblem(t, rec, http.StatusNotFound)
+	p := testkit.AssertProblem(t, rec, http.StatusNotFound)
 	assert.Equal(t, "/api/v1/does-not-exist", p.Instance)
-	nfMeta := testutil.DecodeProblemMeta[httperr.ResourceInfo](t, p)
+	nfMeta := testkit.DecodeProblemMeta[httperr.ResourceInfo](t, p)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "route", ResourceName: "/api/v1/does-not-exist"}, nfMeta)
 
 	rec = env.DoRequest(http.MethodPut, "/api/v1/books")
-	p = testutil.AssertProblem(t, rec, http.StatusMethodNotAllowed)
-	methodMeta := testutil.DecodeProblemMeta[httperr.MethodInfo](t, p)
+	p = testkit.AssertProblem(t, rec, http.StatusMethodNotAllowed)
+	methodMeta := testkit.DecodeProblemMeta[httperr.MethodInfo](t, p)
 	assert.Equal(t, http.MethodPut, methodMeta.Method)
 	assert.Equal(t, "/api/v1/books", methodMeta.Path)
 	assert.NotEmpty(t, methodMeta.Allowed)
@@ -120,24 +120,24 @@ func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
 
 func TestRouter_BodyLimitReturns413(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 
 	oversized := bytes.Repeat([]byte("a"), (2<<20)+1024)
 	rec := env.DoRequest(http.MethodPost, "/api/v1/auth/login",
-		testutil.WithRawBody("application/json", bytes.NewReader(oversized)),
+		testkit.WithRawBody("application/json", bytes.NewReader(oversized)),
 	)
-	p := testutil.AssertProblem(t, rec, http.StatusRequestEntityTooLarge)
-	limitMeta := testutil.DecodeProblemMeta[httperr.RequestLimitInfo](t, p)
+	p := testkit.AssertProblem(t, rec, http.StatusRequestEntityTooLarge)
+	limitMeta := testkit.DecodeProblemMeta[httperr.RequestLimitInfo](t, p)
 	assert.Equal(t, int64(2<<20), limitMeta.MaxBytes)
 }
 
 func TestRouter_AuthBoundary(t *testing.T) {
 	t.Parallel()
-	env := testutil.New(t)
+	env := testkit.New(t)
 
 	// Public auth routes must NOT be blocked by RequireAuth (bad payload -> 400 validation, not 401).
 	for _, p := range []string{"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/refresh"} {
-		rec := env.DoRequest(http.MethodPost, p, testutil.WithBody("application/json", `{}`))
+		rec := env.DoRequest(http.MethodPost, p, testkit.WithBody("application/json", `{}`))
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "public route %s should reach validation without auth", p)
 	}
 

@@ -1,4 +1,4 @@
-package testutil
+package testkit
 
 import (
 	"encoding/json"
