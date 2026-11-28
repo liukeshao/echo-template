@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 // AssertOopsStatus 断言 err 为 oops.OopsError 且主哨兵状态码等于 want。

@@ -8,11 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 func TestUser_GetAndReplace(t *testing.T) {
@@ -45,24 +44,24 @@ func TestUser_GetAndReplace(t *testing.T) {
 		ResourceName: "01900000-0000-7000-8000-000000000000",
 	}, oe.Context()[httperr.MetaKey])
 
-	// Replace updates username and email.
-	updated, err := userSvc.Replace(ctx, p.UserID, &api.ReplaceMeRequest{
+	// Replace normalizes email and updates username.
+	updated, err := userSvc.Replace(ctx, p.UserID, service.ReplaceUserInput{
 		Username: "bob_new",
-		Email:    "bob_new@example.com",
+		Email:    "Bob_New@Example.com",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, "bob_new", updated.Username)
 	assert.Equal(t, "bob_new@example.com", updated.Email)
 
-	// Conflicting email or username returns 409 Conflict.
-	_, err = userSvc.Replace(ctx, p.UserID, &api.ReplaceMeRequest{
+	// Conflicting email (case-insensitive) or username returns 409 Conflict.
+	_, err = userSvc.Replace(ctx, p.UserID, service.ReplaceUserInput{
 		Username: "bob_new",
-		Email:    "carol@example.com",
+		Email:    "CAROL@example.com",
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "carol@example.com", Field: "email"}, oe.Context()[httperr.MetaKey])
 
-	_, err = userSvc.Replace(ctx, p.UserID, &api.ReplaceMeRequest{
+	_, err = userSvc.Replace(ctx, p.UserID, service.ReplaceUserInput{
 		Username: "carol",
 		Email:    "bob_new@example.com",
 	})

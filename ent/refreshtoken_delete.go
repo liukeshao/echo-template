@@ -8,8 +8,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/predicate"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
 )
 
 // RefreshTokenDelete is the builder for deleting a RefreshToken entity.

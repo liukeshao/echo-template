@@ -1,4 +1,4 @@
-import { createTypeSpecLibrary } from "@typespec/compiler";
+import { createTypeSpecLibrary, paramMessage } from "@typespec/compiler";
 
 const EmitterOptionsSchema = {
   type: "object",
@@ -13,7 +13,20 @@ const EmitterOptionsSchema = {
 
 export const $lib = createTypeSpecLibrary({
   name: "tsp-emitter-go-rest",
-  diagnostics: {},
+  diagnostics: {
+    "invalid-auto-patch": {
+      severity: "error",
+      messages: {
+        default: paramMessage`@autoPatch on ${"op"} must reference getOp and replaceOp defined within the same interface.`,
+      },
+    },
+    "unsupported-query-type": {
+      severity: "error",
+      messages: {
+        default: paramMessage`Query parameter "${"param"}" on operation "${"op"}" uses unsupported type "${"type"}".`,
+      },
+    },
+  },
   emitter: {
     options: EmitterOptionsSchema,
   },
@@ -23,6 +36,10 @@ export const $lib = createTypeSpecLibrary({
 });
 
 export const StateKeys = $lib.stateKeys;
+
+export function reportDiagnostic(program, diagnostic) {
+  $lib.reportDiagnostic(program, diagnostic);
+}
 
 export function $autoPatch(context, target, getOp, replaceOp) {
   context.program.stateMap(StateKeys.autoPatch).set(target, { getOp, replaceOp });

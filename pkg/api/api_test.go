@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func TestValidate_AuthRequests(t *testing.T) {
@@ -100,15 +100,15 @@ func TestValidate_BookAndListRequests(t *testing.T) {
 		Price:       &neg,
 	}).Validate())
 
-	assert.NoError(t, (&api.ReplaceBookRequest{Book: validID, Title: "Go", Author: "Alan"}).Validate())
-	assert.Error(t, (&api.ReplaceBookRequest{Book: "bad-id", Title: "Go", Author: "Alan"}).Validate())
-	assert.Error(t, (&api.ReplaceBookRequest{Book: validID}).Validate())
+	assert.NoError(t, (&api.ReplaceBookRequest{BookID: validID, Title: "Go", Author: "Alan"}).Validate())
+	assert.Error(t, (&api.ReplaceBookRequest{BookID: "bad-id", Title: "Go", Author: "Alan"}).Validate())
+	assert.Error(t, (&api.ReplaceBookRequest{BookID: validID}).Validate())
 
-	assert.NoError(t, (&api.GetBookRequest{Book: validID}).Validate())
-	assert.Error(t, (&api.GetBookRequest{Book: "bad-id"}).Validate())
+	assert.NoError(t, (&api.GetBookRequest{BookID: validID}).Validate())
+	assert.Error(t, (&api.GetBookRequest{BookID: "bad-id"}).Validate())
 
-	assert.NoError(t, (&api.DeleteBookRequest{Book: validID}).Validate())
-	assert.Error(t, (&api.DeleteBookRequest{Book: "bad-id"}).Validate())
+	assert.NoError(t, (&api.DeleteBookRequest{BookID: validID}).Validate())
+	assert.Error(t, (&api.DeleteBookRequest{BookID: "bad-id"}).Validate())
 
 	assert.NoError(t, (&api.ListBooksRequest{Page: 1, PageSize: 20}).Validate())
 	assert.Error(t, (&api.ListBooksRequest{Page: -1, PageSize: -5}).Validate())

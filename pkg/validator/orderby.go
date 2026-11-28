@@ -10,7 +10,7 @@ type OrderTerm struct {
 	Desc  bool
 }
 
-// ParseOrderBy 解析逗号分隔的排序表达式（"<field>" 或 "<field> desc"），并按 allowed 白名单校验。
+// ParseOrderBy 解析逗号分隔的排序表达式（"<field>"、"<field> asc" 或 "<field> desc"），并按 allowed 白名单校验。
 func ParseOrderBy(field, raw string, allowed ...string) ([]OrderTerm, error) {
 	if strings.TrimSpace(raw) == "" {
 		return nil, nil
@@ -38,13 +38,20 @@ func ParseOrderBy(field, raw string, allowed ...string) ([]OrderTerm, error) {
 		}
 
 		name := strings.ToLower(tokens[0])
-		desc := len(tokens) == 2 && strings.ToLower(tokens[1]) == "desc"
-		if len(tokens) == 2 && !desc {
-			v.Add(field, RuleInvalidOrderByDirection,
-				P("direction", tokens[1]),
-				P("clause", part),
-			)
-			continue
+		var desc bool
+		if len(tokens) == 2 {
+			switch strings.ToLower(tokens[1]) {
+			case "asc":
+				desc = false
+			case "desc":
+				desc = true
+			default:
+				v.Add(field, RuleInvalidOrderByDirection,
+					P("direction", tokens[1]),
+					P("clause", part),
+				)
+				continue
+			}
 		}
 
 		if !slices.Contains(allowedLower, name) {

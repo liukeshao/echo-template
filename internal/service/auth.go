@@ -13,14 +13,20 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/samber/oops"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	entuser "github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/database"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	entuser "github.com/liukeshao/go-rest-template/ent/user"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/database"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+)
+
+const (
+	ReasonInvalidCredentials = "invalid_credentials"
+	ReasonAccountDisabled    = "account_disabled"
+	ReasonInvalidPassword    = "invalid_password"
 )
 
 var errAuth = oops.In("auth")
@@ -53,7 +59,7 @@ func NewAuth(i do.Injector) (*Auth, error) {
 	return &Auth{
 		orm:                orm.Client,
 		jwt:                jwtMgr,
-		refreshTokenExpiry: cfg.JWT.RefreshTokenExpiry,
+		refreshTokenExpiry: cfg.Auth.JWT.RefreshTokenExpiry,
 		bcryptCost:         cost,
 		dummyPasswordHash:  dummyHash,
 	}, nil
@@ -80,7 +86,7 @@ func refreshTokenError(reason string, cause error) error {
 func authInvalidCredentials() error {
 	return errAuth.
 		With(httperr.MetaKey, httperr.PreconditionInfo{
-			Type: httperr.PreconditionInvalidCredentials,
+			Type: ReasonInvalidCredentials,
 		}).
 		Wrap(httperr.Unauthorized)
 }
@@ -104,7 +110,7 @@ func (s *Auth) validateUser(user *ent.User) error {
 		return errAuth.
 			User(user.ID).
 			With(httperr.MetaKey, httperr.PreconditionInfo{
-				Type:    httperr.PreconditionAccountDisabled,
+				Type:    ReasonAccountDisabled,
 				Subject: "account",
 				Detail:  string(user.Status),
 			}).
@@ -148,7 +154,8 @@ func (s *Auth) issueTokenPairTx(ctx context.Context, tx *ent.Tx, userID, familyI
 }
 
 func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPair, error) {
-	if err := checkUserUnique(ctx, s.orm, errAuth, "", req.Email, req.Username, authInternal); err != nil {
+	email := normalizeEmail(req.Email)
+	if err := checkUserUnique(ctx, s.orm, errAuth, "", email, req.Username, authInternal); err != nil {
 		return nil, err
 	}
 
@@ -165,7 +172,7 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 		user, err := tx.User.Create().
 			SetID(uuid.NewV7().String()).
 			SetUsername(req.Username).
-			SetEmail(req.Email).
+			SetEmail(email).
 			SetPasswordHash(hashedPassword).
 			SetStatus(entuser.StatusActive).
 			SetLastLoginAt(time.Now()).
@@ -181,7 +188,7 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 	})
 	if err != nil {
 		if constraint {
-			if conflictErr := checkUserUnique(ctx, s.orm, errAuth, "", req.Email, req.Username, nil); conflictErr != nil {
+			if conflictErr := checkUserUnique(ctx, s.orm, errAuth, "", email, req.Username, nil); conflictErr != nil {
 				return nil, conflictErr
 			}
 		}
@@ -192,15 +199,16 @@ func (s *Auth) Register(ctx context.Context, req *api.RegisterRequest) (*TokenPa
 }
 
 func (s *Auth) Login(ctx context.Context, req *api.LoginRequest) (*TokenPair, error) {
+	email := normalizeEmail(req.Email)
 	user, err := s.orm.User.Query().
-		Where(entuser.Email(req.Email)).
+		Where(entuser.Email(email)).
 		Only(ctx)
 	switch {
 	case err == nil:
 	case ent.IsNotFound(err):
 		// 对虚拟哈希执行一次 bcrypt 校验，消除查无邮箱与密码错误之间的耗时侧信道。
 		_ = verifyPassword(s.dummyPasswordHash, req.Password)
-		slog.WarnContext(ctx, "login attempt with unknown email", "email", req.Email)
+		slog.WarnContext(ctx, "login attempt with unknown email", "email", email)
 		return nil, authInvalidCredentials()
 	default:
 		return nil, authInternal(err, "querying user by email")
@@ -250,7 +258,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 			Only(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
-				return refreshTokenError(httperr.PreconditionTokenInvalid, err)
+				return refreshTokenError(auth.ReasonTokenInvalid, err)
 			}
 			return authInternal(err, "querying refresh token")
 		}
@@ -258,11 +266,11 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 		if rt.IsRevoked {
 			reusedFamilyID = rt.FamilyID
 			reusedUserID = rt.UserID
-			return refreshTokenError(httperr.PreconditionTokenRevoked, nil)
+			return refreshTokenError(auth.ReasonTokenRevoked, nil)
 		}
 
 		if !rt.ExpiresAt.After(time.Now()) {
-			return refreshTokenError(httperr.PreconditionTokenExpired, nil)
+			return refreshTokenError(auth.ReasonTokenExpired, nil)
 		}
 
 		revoked, err := tx.RefreshToken.Update().
@@ -278,7 +286,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 		if revoked == 0 {
 			reusedFamilyID = rt.FamilyID
 			reusedUserID = rt.UserID
-			return refreshTokenError(httperr.PreconditionTokenRevoked, nil)
+			return refreshTokenError(auth.ReasonTokenRevoked, nil)
 		}
 
 		user, err := tx.User.Query().
@@ -286,7 +294,7 @@ func (s *Auth) RefreshToken(ctx context.Context, req *api.RefreshTokenRequest) (
 			Only(ctx)
 		if err != nil {
 			if ent.IsNotFound(err) {
-				return refreshTokenError(httperr.PreconditionTokenInvalid, err)
+				return refreshTokenError(auth.ReasonTokenInvalid, err)
 			}
 			return authInternal(err, "querying user for refresh")
 		}
@@ -353,7 +361,7 @@ func (s *Auth) ChangePassword(ctx context.Context, userID string, req *api.Chang
 		return errAuth.
 			User(userID).
 			With(httperr.MetaKey, httperr.PreconditionInfo{
-				Type:    httperr.PreconditionInvalidPassword,
+				Type:    ReasonInvalidPassword,
 				Subject: "old_password",
 			}).
 			Wrap(httperr.BadRequest)

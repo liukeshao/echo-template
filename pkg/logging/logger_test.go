@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestContextHandler_PreservesRequestIDAcrossWithAttrsAndWithGroup(t *testing.T) {
+func TestContextHandler_KeepsRequestIDTopLevelAcrossWithAttrsAndWithGroup(t *testing.T) {
 	var buf bytes.Buffer
 	base := slog.NewJSONHandler(&buf, nil)
 	logger := slog.New(NewContextHandler(base)).With("component", "test").WithGroup("sub")
@@ -21,22 +21,24 @@ func TestContextHandler_PreservesRequestIDAcrossWithAttrsAndWithGroup(t *testing
 
 	var entry map[string]any
 	require.NoError(t, json.Unmarshal(buf.Bytes(), &entry))
+	assert.Equal(t, "req-abc-123", entry["request_id"], "request_id must stay at top level even after WithGroup")
 	assert.Equal(t, "test", entry["component"])
 	sub, ok := entry["sub"].(map[string]any)
 	require.True(t, ok)
-	assert.Equal(t, "req-abc-123", sub["request_id"])
+	_, nested := sub["request_id"]
+	assert.False(t, nested, "request_id must not be nested inside sub group")
 	assert.Equal(t, "v", sub["k"])
 }
 
-func TestSetup_LogLevels(t *testing.T) {
+func TestSetup_LogLevelsAndFormats(t *testing.T) {
 	orig := slog.Default()
 	t.Cleanup(func() { slog.SetDefault(orig) })
 
-	Setup(slog.LevelInfo)
+	Setup(slog.LevelInfo, FormatJSON)
 	assert.False(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
 	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelInfo))
 
-	Setup(slog.LevelDebug)
+	Setup(slog.LevelDebug, FormatText)
 	assert.True(t, slog.Default().Enabled(context.Background(), slog.LevelDebug))
 }
 

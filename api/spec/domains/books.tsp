@@ -9,7 +9,7 @@ using TypeSpec.Http;
 using TypeSpec.OpenAPI;
 using GoRest;
 
-namespace EchoTemplate;
+namespace GoRestTemplate;
 
 model Book {
   id: UUID;
@@ -81,8 +81,8 @@ interface Books {
   @doc("获取书籍详情")
   @operationId("getBook")
   @get
-  @route("/{book}")
-  getBook(@path book: UUID):
+  @route("/{book_id}")
+  getBook(@path book_id: UUID):
     | Book
     | UnauthorizedProblem
     | NotFoundProblem;
@@ -90,8 +90,8 @@ interface Books {
   @doc("全量替换书籍（幂等 PUT）")
   @operationId("replaceBook")
   @put
-  @route("/{book}")
-  replaceBook(@path book: UUID, @body body: ReplaceBookRequest):
+  @route("/{book_id}")
+  replaceBook(@path book_id: UUID, @body body: ReplaceBookRequest):
     | Book
     | BadRequestProblem
     | UnauthorizedProblem
@@ -101,9 +101,9 @@ interface Books {
   @operationId("patchBook")
   @autoPatch(Books.getBook, Books.replaceBook)
   @patch
-  @route("/{book}")
+  @route("/{book_id}")
   patchBook(
-    @path book: UUID,
+    @path book_id: UUID,
     @header contentType: "application/merge-patch+json" | "application/json",
     @body body: PatchBookRequest,
   ):
@@ -116,8 +116,8 @@ interface Books {
   @doc("删除书籍")
   @operationId("deleteBook")
   @delete
-  @route("/{book}")
-  deleteBook(@path book: UUID):
+  @route("/{book_id}")
+  deleteBook(@path book_id: UUID):
     | { @statusCode statusCode: 204 }
     | UnauthorizedProblem
     | NotFoundProblem;

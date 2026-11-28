@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
 )
 
 func TestNew_WithConfigFile(t *testing.T) {
@@ -36,16 +36,16 @@ environment = "test"
 [auth]
 bcrypt_cost = 4
 
-[database]
-driver = "sqlite"
-connection = "` + filepath.ToSlash(dbPath) + `?_pragma=foreign_keys(1)"
-auto_migrate = true
-
-[jwt]
+[auth.jwt]
 secret = "file-secret-key-at-least-32-bytes-long"
 access_token_expiry = "30m"
 refresh_token_expiry = "48h"
 issuer = "file-issuer"
+
+[database]
+driver = "sqlite"
+connection = "` + filepath.ToSlash(dbPath) + `?_pragma=foreign_keys(1)"
+auto_migrate = true
 
 [clients.weather]
 base_url = "https://weather.test.local/v1"
@@ -58,13 +58,13 @@ default_locale = "zh-CN"
 supported_locales = ["en", "zh-CN"]
 `
 	require.NoError(t, os.WriteFile(cfgPath, []byte(tomlContent), 0644))
-	t.Setenv("ECHO_TEMPLATE_CLIENTS_WEATHER_API_KEY", "env-api-key")
+	t.Setenv("GO_REST_TEMPLATE_CLIENTS_WEATHER_API_KEY", "env-api-key")
 
 	env := testkit.New(t, testkit.WithConfigFile(cfgPath))
 
 	assert.Equal(t, "from-file", env.Config.App.Name)
 	assert.Equal(t, uint16(9090), env.Config.HTTP.Port)
-	assert.Equal(t, 30*time.Minute, env.Config.JWT.AccessTokenExpiry)
+	assert.Equal(t, 30*time.Minute, env.Config.Auth.JWT.AccessTokenExpiry)
 	assert.Equal(t, "env-api-key", env.Config.Clients.Weather.APIKey)
 	assert.Equal(t, "zh-CN", env.Config.I18n.DefaultLocale)
 
@@ -87,16 +87,16 @@ environment = "test"
 [auth]
 bcrypt_cost = 4
 
-[database]
-driver = "sqlite"
-connection = ":memory:"
-auto_migrate = true
-
-[jwt]
+[auth.jwt]
 secret = "file-secret-key-at-least-32-bytes-long"
 access_token_expiry = "15m"
 refresh_token_expiry = "24h"
 issuer = "file-issuer"
+
+[database]
+driver = "sqlite"
+connection = ":memory:"
+auto_migrate = true
 
 [i18n]
 default_locale = "en"
@@ -113,7 +113,7 @@ supported_locales = ["en", "zh-CN"]
 	)
 
 	assert.Equal(t, "overridden-name", env.Config.App.Name)
-	assert.Equal(t, "file-issuer", env.Config.JWT.Issuer)
+	assert.Equal(t, "file-issuer", env.Config.Auth.JWT.Issuer)
 }
 
 func TestNew_WithConfigFileDefaultSearch(t *testing.T) {
@@ -129,7 +129,7 @@ func TestNew_WithConfigFileDefaultSearch(t *testing.T) {
 		}),
 	)
 
-	assert.Equal(t, "echo-template", env.Config.App.Name)
+	assert.Equal(t, "go-rest-template", env.Config.App.Name)
 	assert.Equal(t, config.EnvLocal, env.Config.App.Environment)
-	assert.Equal(t, "echo-template", env.Config.JWT.Issuer)
+	assert.Equal(t, "go-rest-template", env.Config.Auth.JWT.Issuer)
 }

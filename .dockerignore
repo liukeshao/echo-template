@@ -1,0 +1,10 @@
+.git
+.idea
+.apitest
+dbs
+output
+coverage.out
+api/node_modules
+*.db
+README.md
+AGENTS.md

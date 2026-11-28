@@ -23,18 +23,6 @@ const (
 	PatchSchemaMismatch  = "schema_mismatch"
 )
 
-const (
-	PreconditionInvalidCredentials = "INVALID_CREDENTIALS"
-	PreconditionMissingHeader      = "MISSING_HEADER"
-	PreconditionMalformedHeader    = "MALFORMED_HEADER"
-	PreconditionEmptyToken         = "EMPTY_TOKEN"
-	PreconditionTokenExpired       = "TOKEN_EXPIRED"
-	PreconditionTokenInvalid       = "TOKEN_INVALID"
-	PreconditionTokenRevoked       = "TOKEN_REVOKED"
-	PreconditionAccountDisabled    = "ACCOUNT_DISABLED"
-	PreconditionInvalidPassword    = "INVALID_PASSWORD"
-)
-
 // Metadata 定义强类型错误元数据契约；实现方须使用值接收者（oops.Context() 会解引用指针）。
 type Metadata interface {
 	I18nVars() map[string]string
@@ -69,10 +57,12 @@ func (m ResourceInfo) I18nSubkeys() []string {
 }
 
 // PreconditionInfo（对标 Google AIP-193 PreconditionFailure）：描述前置状态、凭证或策略不满足（400 / 401 / 403）。
+// Challenge 仅用于写出 HTTP WWW-Authenticate 响应头，不序列化到 JSON metadata 中。
 type PreconditionInfo struct {
-	Type    string `json:"type"`
-	Subject string `json:"subject,omitempty"`
-	Detail  string `json:"detail,omitempty"`
+	Type      string `json:"type"`
+	Subject   string `json:"subject,omitempty"`
+	Detail    string `json:"detail,omitempty"`
+	Challenge string `json:"-"`
 }
 
 func (m PreconditionInfo) I18nVars() map[string]string {

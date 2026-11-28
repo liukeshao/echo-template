@@ -11,9 +11,9 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/go-rest-template/ent/predicate"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/user"
 )
 
 // RefreshTokenUpdate is the builder for updating RefreshToken entities.

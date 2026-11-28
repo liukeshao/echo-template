@@ -8,8 +8,8 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 //go:embed messages/*.toml

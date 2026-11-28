@@ -14,8 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 // DecodeJSON 从请求体解码单个 JSON 值，区分 MaxBytesError、字段类型不匹配与 JSON 语法错误。
@@ -100,29 +100,44 @@ func jsonValueKind(t reflect.Type) string {
 }
 
 func ParseInt32Query(q url.Values, name string, v *validator.FieldViolations) int32 {
+	if n := ParseOptionalInt32Query(q, name, v); n != nil {
+		return *n
+	}
+	return 0
+}
+
+func ParseOptionalInt32Query(q url.Values, name string, v *validator.FieldViolations) *int32 {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
-		return 0
+		return nil
 	}
 	n, err := strconv.ParseInt(raw, 10, 32)
 	if err != nil {
 		v.Add(name, validator.RuleInteger, validator.P("expected", "int32"))
-		return 0
+		return nil
 	}
-	return int32(n)
+	val := int32(n)
+	return &val
 }
 
 func ParseInt64Query(q url.Values, name string, v *validator.FieldViolations) int64 {
+	if n := ParseOptionalInt64Query(q, name, v); n != nil {
+		return *n
+	}
+	return 0
+}
+
+func ParseOptionalInt64Query(q url.Values, name string, v *validator.FieldViolations) *int64 {
 	raw := strings.TrimSpace(q.Get(name))
 	if raw == "" {
-		return 0
+		return nil
 	}
 	n, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		v.Add(name, validator.RuleInteger, validator.P("expected", "int64"))
-		return 0
+		return nil
 	}
-	return n
+	return &n
 }
 
 func ParseFloat64Query(q url.Values, name string, v *validator.FieldViolations) float64 {
@@ -165,20 +180,50 @@ func ParseOptionalBoolQuery(q url.Values, name string, v *validator.FieldViolati
 	return &b
 }
 
+func ParseTimeQuery(q url.Values, name string, v *validator.FieldViolations) time.Time {
+	if ts := ParseOptionalTimeQuery(q, name, v); ts != nil {
+		return *ts
+	}
+	return time.Time{}
+}
+
+func ParseOptionalTimeQuery(q url.Values, name string, v *validator.FieldViolations) *time.Time {
+	raw := strings.TrimSpace(q.Get(name))
+	if raw == "" {
+		return nil
+	}
+	ts, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		v.Add(name, validator.RuleDateTime, validator.P("expected", "RFC3339"))
+		return nil
+	}
+	return &ts
+}
+
+// ParseStringSliceQuery 解析重复参数（?tag=a&tag=b）或逗号分隔参数（?tag=a,b）。
+func ParseStringSliceQuery(q url.Values, name string) []string {
+	rawVals, ok := q[name]
+	if !ok {
+		return nil
+	}
+	var out []string
+	for _, raw := range rawVals {
+		for part := range strings.SplitSeq(raw, ",") {
+			if s := strings.TrimSpace(part); s != "" {
+				out = append(out, s)
+			}
+		}
+	}
+	return out
+}
+
 // ApplyPatch 将 current 序列化后按 RFC 7386 Merge Patch 合并请求体并反序列化到 dst。
 func ApplyPatch(r *http.Request, current any, dst any) error {
-	currentJSON, err := json.Marshal(current)
+	doc, err := ParsePatchRequest(r)
 	if err != nil {
 		return err
 	}
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
-			return maxErr
-		}
-		return err
-	}
-	return ApplyMergePatchInto(currentJSON, body, r.Header.Get("Content-Type"), dst)
+	return doc.Apply(current, dst)
 }
 
 func WriteJSON(w http.ResponseWriter, r *http.Request, status int, v any) {

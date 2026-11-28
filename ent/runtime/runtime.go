@@ -5,10 +5,10 @@ package runtime
 import (
 	"time"
 
-	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	"github.com/liukeshao/echo-template/ent/schema"
-	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/go-rest-template/ent/book"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/schema"
+	"github.com/liukeshao/go-rest-template/ent/user"
 )
 
 // The init function reads all schema descriptors with runtime code

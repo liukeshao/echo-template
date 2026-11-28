@@ -1,7 +1,7 @@
 import "@typespec/http";
 using TypeSpec.Http;
 
-namespace EchoTemplate;
+namespace GoRestTemplate;
 
 model FieldError {
   field: string;

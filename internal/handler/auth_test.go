@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 func TestAuthHandler_HTTPMethods(t *testing.T) {

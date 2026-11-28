@@ -1,20 +1,30 @@
 package server
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/samber/do/v2"
+	"github.com/samber/oops"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/handler"
-	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/static"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/database"
+	"github.com/liukeshao/go-rest-template/internal/handler"
+	"github.com/liukeshao/go-rest-template/internal/i18n"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/static"
 )
 
-const defaultMaxBodyBytes = 2 << 20
+const (
+	defaultMaxBodyBytes = 2 << 20
+	readinessTimeout    = 2 * time.Second
+)
+
+var errHealth = oops.In("health").Tags("database")
 
 func BuildRouter(i do.Injector) (http.Handler, error) {
 	cfg := do.MustInvoke[*config.Config](i)
@@ -22,6 +32,11 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 	jwtMgr := do.MustInvoke[*auth.JWT](i)
 
 	encodeErr := NewProblemEncoder(tr)
+
+	maxBodyBytes := cfg.HTTP.MaxBodyBytes
+	if maxBodyBytes <= 0 {
+		maxBodyBytes = defaultMaxBodyBytes
+	}
 
 	opts := []httpkit.HandlerOption{
 		httpkit.WithErrorEncoder(encodeErr),
@@ -33,13 +48,40 @@ func BuildRouter(i do.Injector) (http.Handler, error) {
 	router.Use(
 		httpkit.RequestID(),
 		Locale(tr),
-		httpkit.AccessLog(),
+		httpkit.CORS(httpkit.CORSConfig{
+			AllowedOrigins:   cfg.HTTP.CORS.AllowedOrigins,
+			AllowedMethods:   cfg.HTTP.CORS.AllowedMethods,
+			AllowedHeaders:   cfg.HTTP.CORS.AllowedHeaders,
+			ExposedHeaders:   cfg.HTTP.CORS.ExposedHeaders,
+			AllowCredentials: cfg.HTTP.CORS.AllowCredentials,
+			MaxAge:           cfg.HTTP.CORS.MaxAge,
+		}),
+		httpkit.AccessLog("/healthz", "/readyz"),
 		httpkit.Recover(encodeErr),
-		httpkit.BodyLimit(defaultMaxBodyBytes),
+		httpkit.BodyLimit(maxBodyBytes),
 	)
+
+	router.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
+		httpkit.WriteJSON(w, r, http.StatusOK, map[string]string{"status": "ok"})
+	})
+	router.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		db, err := do.Invoke[*database.DB](i)
+		if err != nil {
+			encodeErr(w, r, errHealth.With("op", "invoking database").Join(httperr.ServiceUnavailable, err))
+			return
+		}
+		pingCtx, cancel := context.WithTimeout(r.Context(), readinessTimeout)
+		defer cancel()
+		if err := db.PingContext(pingCtx); err != nil {
+			encodeErr(w, r, errHealth.With("op", "pinging database").Join(httperr.ServiceUnavailable, err))
+			return
+		}
+		httpkit.WriteJSON(w, r, http.StatusOK, map[string]string{"status": "ok"})
+	})
+
 	router.Mount(
 		api.NewAuthHandler(do.MustInvoke[*handler.Auth](i), opts...),
-		api.NewBooksHandler(do.MustInvoke[*handler.Book](i), opts...),
+		api.NewBooksHandler(do.MustInvoke[*handler.Books](i), opts...),
 		api.NewMeHandler(do.MustInvoke[*handler.Me](i), opts...),
 	)
 

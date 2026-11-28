@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httpclient"
+	"github.com/liukeshao/go-rest-template/pkg/httpclient"
 )
 
 type roundTripFunc func(*http.Request) (*http.Response, error)
@@ -224,4 +224,59 @@ func TestRetryTransport_RetriesNetworkErrorAndRespectsContextCancel(t *testing.T
 	_, err = c.Do(req)
 	require.Error(t, err)
 	assert.Equal(t, 1, calls, "cancelled caller context must stop retries immediately")
+}
+
+func TestRetryTransport_RespectsRetryAfterHeader(t *testing.T) {
+	t.Parallel()
+	var calls int
+
+	c := newTestClient(roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		calls++
+		if calls == 1 {
+			h := make(http.Header)
+			h.Set("Retry-After", "0")
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Body:       io.NopCloser(strings.NewReader("limited")),
+				Header:     h,
+			}, nil
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body:       io.NopCloser(strings.NewReader("ok")),
+			Header:     make(http.Header),
+		}, nil
+	}), httpclient.Options{Retry: 1})
+
+	start := time.Now()
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://example.com", nil)
+	require.NoError(t, err)
+	resp, err := c.Do(req)
+	require.NoError(t, err)
+	_ = resp.Body.Close()
+
+	assert.Equal(t, 2, calls)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Less(t, time.Since(start), 100*time.Millisecond, "Retry-After: 0 should retry immediately without exponential backoff")
+
+	// HTTP-date Retry-After in the future respects context cancellation promptly.
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+	calls = 0
+	dateClient := newTestClient(roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+		calls++
+		h := make(http.Header)
+		h.Set("Retry-After", time.Now().Add(10*time.Second).UTC().Format(http.TimeFormat))
+		return &http.Response{
+			StatusCode: http.StatusServiceUnavailable,
+			Body:       io.NopCloser(strings.NewReader("busy")),
+			Header:     h,
+		}, nil
+	}), httpclient.Options{Retry: 2})
+
+	req, err = http.NewRequestWithContext(ctx, http.MethodGet, "https://example.com", nil)
+	require.NoError(t, err)
+	_, err = dateClient.Do(req)
+	require.ErrorIs(t, err, context.DeadlineExceeded)
+	assert.Equal(t, 1, calls)
 }

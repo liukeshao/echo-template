@@ -9,7 +9,7 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/liukeshao/echo-template/ent/book"
+	"github.com/liukeshao/go-rest-template/ent/book"
 )
 
 // Book is the model entity for the Book schema.

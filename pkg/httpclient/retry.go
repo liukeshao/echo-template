@@ -3,12 +3,15 @@ package httpclient
 import (
 	"math/rand/v2"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 )
 
 const (
 	retryBaseDelay = 200 * time.Millisecond
 	retryMaxDelay  = 5 * time.Second
+	maxRetryAfter  = 30 * time.Second
 )
 
 type retryTransport struct {
@@ -28,12 +31,19 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 
 	var (
-		resp *http.Response
-		err  error
+		resp      *http.Response
+		err       error
+		nextDelay time.Duration
+		hasDelay  bool
 	)
 	for attempt := 0; attempt <= t.maxRetries; attempt++ {
 		if attempt > 0 {
-			if err := sleepContext(req, backoffFn(attempt)); err != nil {
+			delay := backoffFn(attempt)
+			if hasDelay {
+				delay = nextDelay
+				hasDelay = false
+			}
+			if err := sleepContext(req, delay); err != nil {
 				return nil, err
 			}
 		}
@@ -53,6 +63,11 @@ func (t *retryTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 
 		if !isRetryableStatus(resp.StatusCode) || attempt == t.maxRetries {
 			return resp, nil
+		}
+
+		if d, ok := parseRetryAfter(resp.Header.Get("Retry-After"), time.Now()); ok {
+			nextDelay = min(max(d, 0), maxRetryAfter)
+			hasDelay = true
 		}
 
 		DrainAndClose(resp.Body)
@@ -90,6 +105,24 @@ func isRetryableStatus(status int) bool {
 	default:
 		return false
 	}
+}
+
+// parseRetryAfter 解析标准 HTTP Retry-After 响应头（支持非负整数秒与 RFC 9110 HTTP-date 两种格式）。
+func parseRetryAfter(raw string, now time.Time) (time.Duration, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return 0, false
+	}
+	if secs, err := strconv.ParseInt(raw, 10, 64); err == nil {
+		if secs < 0 {
+			return 0, false
+		}
+		return time.Duration(secs) * time.Second, true
+	}
+	if t, err := http.ParseTime(raw); err == nil {
+		return t.Sub(now), true
+	}
+	return 0, false
 }
 
 func prepareAttemptRequest(req *http.Request, attempt int) (*http.Request, error) {

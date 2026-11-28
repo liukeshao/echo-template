@@ -1,5 +1,5 @@
 {
-  "name": "echo-template-api",
+  "name": "go-rest-template-api",
   "private": true,
   "type": "module",
   "scripts": {

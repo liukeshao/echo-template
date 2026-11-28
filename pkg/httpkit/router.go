@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 // Router 封装 *http.ServeMux、全局中间件链及 404/405 RFC 9457 兜底。

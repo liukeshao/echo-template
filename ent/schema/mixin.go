@@ -12,8 +12,8 @@ import (
 	"entgo.io/ent/schema/index"
 	"entgo.io/ent/schema/mixin"
 
-	gen "github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/ent/intercept"
+	gen "github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/ent/intercept"
 )
 
 type BaseMixin struct {

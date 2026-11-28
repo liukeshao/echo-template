@@ -1,4 +1,4 @@
-.PHONY: api ent build test cover
+.PHONY: api ent build test cover lint
 
 api: ## 编译 TypeSpec 生成 OpenAPI 3.1 (static/openapi/openapi.yaml) 与 Go 协议代码 (pkg/api/*.gen.go)
 	rm -f pkg/api/*.gen.go
@@ -18,3 +18,6 @@ cover: ## 统计业务包单元测试覆盖率（排除 ent 生成代码与 test
 	go test -race -coverprofile=coverage.out $$(go list ./config/... ./pkg/... ./internal/... | grep -v '/internal/testkit$$')
 	go tool cover -func=coverage.out | tail -n 1
 	rm -f coverage.out
+
+lint: ## 静态代码检查
+	golangci-lint run ./...

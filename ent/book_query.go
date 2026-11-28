@@ -11,8 +11,8 @@ import (
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/predicate"
+	"github.com/liukeshao/go-rest-template/ent/book"
+	"github.com/liukeshao/go-rest-template/ent/predicate"
 )
 
 // BookQuery is the builder for querying Book entities.

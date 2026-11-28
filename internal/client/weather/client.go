@@ -4,15 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/pkg/httpclient"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/pkg/httpclient"
 )
+
+const maxResponseBytes = 1 << 20 // 1 MiB
 
 type Client struct {
 	cfg  config.ExternalClient
@@ -79,7 +82,7 @@ func (c *Client) GetCurrent(ctx context.Context, city string) (*CurrentWeather, 
 	}
 
 	var raw currentWeatherResponse
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxResponseBytes)).Decode(&raw); err != nil {
 		return nil, weatherInternal(err, op)
 	}
 

@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/database"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/internal/database"
 )
 
 func TestNewDBAndORM_FileSQLiteAndAutoMigrate(t *testing.T) {

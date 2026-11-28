@@ -3,7 +3,7 @@ package auth
 import (
 	"context"
 
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 // BearerAuthenticator 返回无状态 JWT 认证器，零 DB 查询并将 Principal 写入 context。

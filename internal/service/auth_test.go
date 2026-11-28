@@ -10,14 +10,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	entuser "github.com/liukeshao/echo-template/ent/user"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	entuser "github.com/liukeshao/go-rest-template/ent/user"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 func TestAuth_FullLifecycle(t *testing.T) {
@@ -27,10 +27,10 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	authSvc := do.MustInvoke[*service.Auth](env.Injector)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
 
-	// Register creates user, returns stateless Access JWT, and stores only 1 hashed RefreshToken row.
+	// Register normalizes email case, creates user, returns stateless Access JWT, and stores 1 hashed RefreshToken.
 	regResp, err := authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice",
-		Email:    "alice@example.com",
+		Email:    "Alice@Example.com",
 		Password: "password123",
 	})
 	require.NoError(t, err)
@@ -49,7 +49,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	assert.Len(t, storedTokens[0].TokenHash, 64, "refresh token must be stored as SHA-256 hex digest")
 	assert.NotEqual(t, regResp.RefreshToken, storedTokens[0].TokenHash, "plaintext refresh token must never be stored")
 
-	// Duplicate email / username rejected with httperr.Conflict + ResourceInfo.
+	// Duplicate email (case-insensitive) / username rejected with httperr.Conflict + ResourceInfo.
 	_, err = authSvc.Register(ctx, &api.RegisterRequest{
 		Username: "alice2",
 		Email:    "alice@example.com",
@@ -66,9 +66,9 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	oe = testkit.AssertOopsStatus(t, err, httperr.Conflict)
 	assert.Equal(t, httperr.ResourceInfo{ResourceType: "user", ResourceName: "alice", Field: "username"}, oe.Context()[httperr.MetaKey])
 
-	// Two logins within the same second must not collide (unique jti & unique refresh token/family).
+	// Two logins within the same second (including mixed email case) must succeed and not collide.
 	login1, err := authSvc.Login(ctx, &api.LoginRequest{
-		Email:    "alice@example.com",
+		Email:    "ALICE@EXAMPLE.COM",
 		Password: "password123",
 	})
 	require.NoError(t, err)
@@ -88,19 +88,19 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	assert.NotEqual(t, login1.RefreshToken, refreshed.RefreshToken)
 
 	// Replaying the already-rotated refresh token triggers reuse detection:
-	// returns TOKEN_REVOKED and revokes the entire login1 family (including refreshed.RefreshToken),
+	// returns token_revoked and revokes the entire login1 family (including refreshed.RefreshToken),
 	// while keeping the independent login2 family intact.
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login1.RefreshToken,
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: auth.ReasonTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: refreshed.RefreshToken,
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: auth.ReasonTokenRevoked, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 
 	login2Refreshed, err := authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{
 		RefreshToken: login2.RefreshToken,
@@ -126,7 +126,7 @@ func TestAuth_FullLifecycle(t *testing.T) {
 		NewPassword: "newpassword123",
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.BadRequest)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidPassword, Subject: "old_password"}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: service.ReasonInvalidPassword, Subject: "old_password"}, oe.Context()[httperr.MetaKey])
 
 	require.NoError(t, authSvc.ChangePassword(ctx, principal.UserID, &api.ChangePasswordRequest{
 		OldPassword: "password123",
@@ -138,21 +138,21 @@ func TestAuth_FullLifecycle(t *testing.T) {
 	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
 	// Disabled account: wrong password must still return invalid credentials (no account enumeration),
-	// while right password returns httperr.Forbidden + ACCOUNT_DISABLED.
+	// while right password returns httperr.Forbidden + account_disabled.
 	require.NoError(t, env.ORM().User.UpdateOneID(principal.UserID).SetStatus(entuser.StatusSuspended).Exec(ctx))
 	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "wrongpassword1",
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidCredentials}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: service.ReasonInvalidCredentials}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.Login(ctx, &api.LoginRequest{
 		Email:    "alice@example.com",
 		Password: "newpassword123",
 	})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Forbidden)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionAccountDisabled, Subject: "account", Detail: string(entuser.StatusSuspended)}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: service.ReasonAccountDisabled, Subject: "account", Detail: string(entuser.StatusSuspended)}, oe.Context()[httperr.MetaKey])
 }
 
 func TestAuth_TokenTypeMismatchAndErrors(t *testing.T) {
@@ -171,18 +171,18 @@ func TestAuth_TokenTypeMismatchAndErrors(t *testing.T) {
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{RefreshToken: tok.AccessToken})
 	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
-	// Unknown email login returns httperr.Unauthorized + INVALID_CREDENTIALS.
+	// Unknown email login returns httperr.Unauthorized + invalid_credentials.
 	_, err = authSvc.Login(ctx, &api.LoginRequest{Email: "nobody@example.com", Password: "password123"})
 	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionInvalidCredentials}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: service.ReasonInvalidCredentials}, oe.Context()[httperr.MetaKey])
 }
 
 func TestAuth_ExpiredTokensReportTokenExpiredMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	env := testkit.New(t, testkit.WithConfig(func(cfg *config.Config) {
-		cfg.JWT.AccessTokenExpiry = -time.Second
-		cfg.JWT.RefreshTokenExpiry = -time.Second
+		cfg.Auth.JWT.AccessTokenExpiry = -time.Second
+		cfg.Auth.JWT.RefreshTokenExpiry = -time.Second
 	}))
 	authSvc := do.MustInvoke[*service.Auth](env.Injector)
 	jwtMgr := do.MustInvoke[*auth.JWT](env.Injector)
@@ -191,9 +191,9 @@ func TestAuth_ExpiredTokensReportTokenExpiredMetadata(t *testing.T) {
 	_, err := jwtMgr.ParseAccessToken(tok.AccessToken)
 	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.ErrorIs(t, err, jwt.ErrTokenExpired, "underlying JWT expiration cause must stay in errors.Is chain")
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenExpired, Subject: "authorization", Detail: "Bearer"}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: auth.ReasonTokenExpired, Subject: "authorization", Challenge: "Bearer"}, oe.Context()[httperr.MetaKey])
 
 	_, err = authSvc.RefreshToken(ctx, &api.RefreshTokenRequest{RefreshToken: tok.RefreshToken})
 	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
-	assert.Equal(t, httperr.PreconditionInfo{Type: httperr.PreconditionTokenExpired, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
+	assert.Equal(t, httperr.PreconditionInfo{Type: auth.ReasonTokenExpired, Subject: "refresh_token"}, oe.Context()[httperr.MetaKey])
 }

@@ -6,7 +6,7 @@ import (
 	"github.com/samber/do/v2"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/go-rest-template/config"
 )
 
 // Translator 提供 locale 协商与消息模板渲染（只读无锁并发安全）。

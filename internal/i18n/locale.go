@@ -5,7 +5,7 @@ import (
 
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/config"
+	"github.com/liukeshao/go-rest-template/config"
 )
 
 // parseSupported 解析支持的 BCP-47 locale，并将 defaultLocale 置于首位作为 language.Matcher 兜底。

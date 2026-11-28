@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 const samplePatchDoc = `{"id":"0195a3b0-7c4e-7000-8000-000000000001","title":"Old","author":"A","price":10,"meta":{"lang":"en","pages":100}}`

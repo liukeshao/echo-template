@@ -5,12 +5,12 @@ package enttest
 import (
 	"context"
 
-	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/go-rest-template/ent"
 	// required by schema hooks.
-	_ "github.com/liukeshao/echo-template/ent/runtime"
+	_ "github.com/liukeshao/go-rest-template/ent/runtime"
 
 	"entgo.io/ent/dialect/sql/schema"
-	"github.com/liukeshao/echo-template/ent/migrate"
+	"github.com/liukeshao/go-rest-template/ent/migrate"
 )
 
 type (

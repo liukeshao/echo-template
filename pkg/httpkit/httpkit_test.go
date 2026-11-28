@@ -12,9 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/pkg/logging"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/logging"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func decodeProblem(t *testing.T, rec *httptest.ResponseRecorder) httperr.Problem {
@@ -57,7 +58,7 @@ func TestRouter_MiddlewareDecodeAndFallbacks(t *testing.T) {
 		return rec
 	}
 
-	// RequestID generates UUID v7 when absent and preserves incoming X-Request-ID header.
+	// RequestID generates UUID v7 when absent, preserves valid incoming X-Request-ID, and replaces invalid ones.
 	rec := call(http.MethodGet, "/ok", "")
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.NotEmpty(t, rec.Header().Get(httpkit.HeaderRequestID))
@@ -67,6 +68,19 @@ func TestRouter_MiddlewareDecodeAndFallbacks(t *testing.T) {
 	router.ServeHTTP(recWithID, reqWithID)
 	assert.Equal(t, "rid-123", recWithID.Header().Get(httpkit.HeaderRequestID))
 	assert.Contains(t, recWithID.Body.String(), `"request_id":"rid-123"`)
+
+	reqBadID := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	reqBadID.Header.Set(httpkit.HeaderRequestID, "bad id\twith spaces")
+	recBadID := httptest.NewRecorder()
+	router.ServeHTTP(recBadID, reqBadID)
+	assert.NotEqual(t, "bad id\twith spaces", recBadID.Header().Get(httpkit.HeaderRequestID))
+	assert.Len(t, recBadID.Header().Get(httpkit.HeaderRequestID), 36)
+
+	reqHugeID := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	reqHugeID.Header.Set(httpkit.HeaderRequestID, strings.Repeat("a", 200))
+	recHugeID := httptest.NewRecorder()
+	router.ServeHTTP(recHugeID, reqHugeID)
+	assert.Len(t, recHugeID.Header().Get(httpkit.HeaderRequestID), 36)
 
 	// Panic recovered -> 500 RFC 9457 Problem.
 	rec = call(http.MethodGet, "/panic", "")
@@ -233,8 +247,19 @@ func TestHandlerConfig_AuthSchemesAndRouteMiddleware(t *testing.T) {
 		})
 	})
 
-	// 5. Third-party net/http auth middleware works directly via WithMiddleware without WithAuthScheme.
+	// 5. Omitting WithAuthScheme on an authenticated operation fails closed (panics) unless WithExternalAuth is explicit.
+	assert.Panics(t, func() {
+		httpkit.ApplyHandlerOptions().Wrap(httpkit.Operation{
+			ID:   "forgotAuth",
+			Auth: [][]string{{"BearerAuth"}},
+		}, func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})
+	})
+
+	// 6. Third-party net/http auth middleware works explicitly via WithExternalAuth + WithMiddleware.
 	customCfg := httpkit.ApplyHandlerOptions(
+		httpkit.WithExternalAuth(),
 		httpkit.WithMiddleware(func(op httpkit.Operation) httpkit.Middleware {
 			if !op.HasAuth() {
 				return nil
@@ -291,9 +316,9 @@ func TestBearerAuth_ExtractAndWWWAuthenticate(t *testing.T) {
 		header   string
 		wantType string
 	}{
-		{"", httperr.PreconditionMissingHeader},
-		{"Basic dXNlcjpwYXNz", httperr.PreconditionMalformedHeader},
-		{"Bearer   ", httperr.PreconditionEmptyToken},
+		{"", httpkit.AuthMissingHeader},
+		{"Basic dXNlcjpwYXNz", httpkit.AuthMalformedHeader},
+		{"Bearer   ", httpkit.AuthEmptyToken},
 	} {
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		if tc.header != "" {
@@ -314,4 +339,55 @@ func TestBearerAuth_ExtractAndWWWAuthenticate(t *testing.T) {
 	h.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "my-token", gotTok)
+}
+
+func TestRecover_AbortHandlerAndCommittedHeaders(t *testing.T) {
+	t.Parallel()
+
+	// http.ErrAbortHandler must be re-panicked per net/http contract.
+	abortHandler := httpkit.Recover(nil)(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
+		panic(http.ErrAbortHandler)
+	}))
+	assert.PanicsWithValue(t, http.ErrAbortHandler, func() {
+		abortHandler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, "/", nil))
+	})
+
+	// Panic after response headers are already committed must not append Problem JSON to body.
+	committedHandler := httpkit.Recover(nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("partial"))
+		panic("late boom")
+	}))
+	rec := httptest.NewRecorder()
+	committedHandler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "partial", rec.Body.String())
+}
+
+func TestQueryParsers_OptionalIntTimeAndSlice(t *testing.T) {
+	t.Parallel()
+	req := httptest.NewRequest(http.MethodGet, "/?rating=5&big=9999999999&since=2026-01-02T03:04:05Z&tag=go,rest&tag=api", nil)
+	q := req.URL.Query()
+	var v validator.FieldViolations
+
+	rating := httpkit.ParseOptionalInt32Query(q, "rating", &v)
+	require.NotNil(t, rating)
+	assert.Equal(t, int32(5), *rating)
+	assert.Nil(t, httpkit.ParseOptionalInt32Query(q, "missing_int", &v))
+
+	big := httpkit.ParseOptionalInt64Query(q, "big", &v)
+	require.NotNil(t, big)
+	assert.Equal(t, int64(9999999999), *big)
+
+	since := httpkit.ParseOptionalTimeQuery(q, "since", &v)
+	require.NotNil(t, since)
+	assert.Equal(t, 2026, since.Year())
+
+	assert.Equal(t, []string{"go", "rest", "api"}, httpkit.ParseStringSliceQuery(q, "tag"))
+	assert.NoError(t, v.Err())
+
+	badReq := httptest.NewRequest(http.MethodGet, "/?since=not-a-time", nil)
+	httpkit.ParseOptionalTimeQuery(badReq.URL.Query(), "since", &v)
+	require.Error(t, v.Err())
+	assert.Equal(t, validator.RuleDateTime, v.Items()[0].Code)
 }

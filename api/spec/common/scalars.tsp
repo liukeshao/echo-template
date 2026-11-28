@@ -1,4 +1,4 @@
-namespace EchoTemplate;
+namespace GoRestTemplate;
 
 @doc("RFC 9562 UUID identifier")
 @format("uuid")

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func TestIsValidUUID(t *testing.T) {
@@ -118,15 +118,16 @@ func TestParseOrderBy(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, terms)
 
-	terms, err = validator.ParseOrderBy("order_by", "PRICE DESC, title", allowed...)
+	terms, err = validator.ParseOrderBy("order_by", "PRICE DESC, title ASC, created_at", allowed...)
 	require.NoError(t, err)
 	assert.Equal(t, []validator.OrderTerm{
 		{Field: "price", Desc: true},
 		{Field: "title", Desc: false},
+		{Field: "created_at", Desc: false},
 	}, terms)
 
 	// Collects all errors in a single pass.
-	_, err = validator.ParseOrderBy("order_by", "title asc extra, title asc, unknown", allowed...)
+	_, err = validator.ParseOrderBy("order_by", "title asc extra, title side, unknown", allowed...)
 	fv, ok := errors.AsType[*validator.FieldViolations](err)
 	require.True(t, ok)
 	items := fv.Items()
@@ -134,10 +135,33 @@ func TestParseOrderBy(t *testing.T) {
 	assert.Equal(t, validator.RuleInvalidOrderByClause, items[0].Code)
 	assert.Equal(t, "title asc extra", items[0].Metadata["clause"])
 	assert.Equal(t, validator.RuleInvalidOrderByDirection, items[1].Code)
-	assert.Equal(t, "asc", items[1].Metadata["direction"])
+	assert.Equal(t, "side", items[1].Metadata["direction"])
 	assert.Equal(t, validator.RuleUnknownOrderByField, items[2].Code)
 	assert.Equal(t, "unknown", items[2].Metadata["value"])
 	assert.Equal(t, "title, price, created_at", items[2].Metadata["allowed"])
+}
+
+func TestFieldViolations_ItemsBoundsAndMerge(t *testing.T) {
+	t.Parallel()
+	var child validator.FieldViolations
+	child.Required("city", "")
+	child.Add("", validator.RuleUUID)
+
+	var parent validator.FieldViolations
+	assert.False(t, parent.MinItems("tags", 0, 1))
+	assert.False(t, parent.MaxItems("tags", 5, 3))
+	parent.Merge("address", child.Err())
+
+	items := parent.Items()
+	require.Len(t, items, 4)
+	assert.Equal(t, validator.RuleMinItems, items[0].Code)
+	assert.Equal(t, "1", items[0].Metadata["min"])
+	assert.Equal(t, validator.RuleMaxItems, items[1].Code)
+	assert.Equal(t, "3", items[1].Metadata["max"])
+	assert.Equal(t, "address.city", items[2].Field)
+	assert.Equal(t, validator.RuleRequired, items[2].Code)
+	assert.Equal(t, "address", items[3].Field)
+	assert.Equal(t, validator.RuleUUID, items[3].Code)
 }
 
 func TestFieldViolations_ErrorFormattingAndImmutability(t *testing.T) {

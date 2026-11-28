@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func TestBook_CRUDAndSoftDelete(t *testing.T) {
@@ -31,7 +31,7 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 	assert.Equal(t, int32(1), res.Page)
 	assert.Equal(t, int32(50), res.PageSize)
 
-	// Create with custom UUID and verify duplicate returns BOOK_ALREADY_EXISTS.
+	// Create with custom UUID and verify duplicate returns Conflict.
 	customID := uuid.NewV7().String()
 	initialPrice := 49.99
 	created, err := bookSvc.Create(ctx, &api.CreateBookRequest{
@@ -78,9 +78,9 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 	assert.Equal(t, int32(2), res.TotalSize)
 	assert.Len(t, res.Items, 2)
 
-	// Replace clears omitted optional fields (including nullable price → nil).
-	replaced, err := bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
-		Book:   customID,
+	// Replace clears omitted optional fields (including nullable price -> nil).
+	replaced, err := bookSvc.Replace(ctx, &api.ReplaceBookRequest{
+		BookID: customID,
 		Title:  "Go Programming 2nd",
 		Author: "Alan Donovan",
 	})
@@ -89,15 +89,15 @@ func TestBook_CRUDAndSoftDelete(t *testing.T) {
 	assert.Empty(t, replaced.Description)
 	assert.Nil(t, replaced.Price)
 
-	// Soft delete must succeed (regression test for SetDeleteTime → SetDeletedAt).
+	// Soft delete must succeed.
 	require.NoError(t, bookSvc.Delete(ctx, customID))
 
 	// Soft-deleted book is hidden from Get, Replace, and Delete.
 	_, err = bookSvc.Get(ctx, customID)
 	testkit.AssertOopsStatus(t, err, httperr.NotFound)
 
-	_, err = bookSvc.Replace(ctx, customID, &api.ReplaceBookRequest{
-		Book:   customID,
+	_, err = bookSvc.Replace(ctx, &api.ReplaceBookRequest{
+		BookID: customID,
 		Title:  "Ghost",
 		Author: "Ghost",
 	})
@@ -138,8 +138,8 @@ func TestBook_ListQueryFieldsAndOrderBy(t *testing.T) {
 	require.Len(t, res.Items, 1)
 	assert.Equal(t, "Alpha Go", res.Items[0].Title)
 
-	// All supported order_by fields.
-	for _, ob := range []string{"title", "author desc", "price desc, title", "created_at", "updated_at desc", "published_at"} {
+	// All supported order_by fields including explicit asc.
+	for _, ob := range []string{"title", "title asc", "author desc", "price desc, title asc", "created_at", "updated_at desc", "published_at"} {
 		_, err := bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: ob})
 		require.NoError(t, err, "order_by=%s", ob)
 	}
@@ -150,7 +150,7 @@ func TestBook_ListQueryFieldsAndOrderBy(t *testing.T) {
 	require.ErrorAs(t, err, &fv)
 	assert.Equal(t, validator.RuleInvalidOrderByClause, fv.Items()[0].Code)
 
-	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title asc"})
+	_, err = bookSvc.List(ctx, &api.ListBooksRequest{PageSize: 10, OrderBy: "title sideways"})
 	require.ErrorAs(t, err, &fv)
 	assert.Equal(t, validator.RuleInvalidOrderByDirection, fv.Items()[0].Code)
 }

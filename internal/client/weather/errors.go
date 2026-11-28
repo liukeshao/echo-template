@@ -3,7 +3,7 @@ package weather
 import (
 	"github.com/samber/oops"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 var errWeather = oops.In("weather").Tags("external_api")

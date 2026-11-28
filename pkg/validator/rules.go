@@ -17,11 +17,14 @@ const (
 	RuleMinLength               Rule = "min_length"
 	RuleMaxLength               Rule = "max_length"
 	RuleMaxBytes                Rule = "max_bytes"
+	RuleMinItems                Rule = "min_items"
+	RuleMaxItems                Rule = "max_items"
 	RuleEmail                   Rule = "email"
 	RulePasswordWeak            Rule = "password_weak"
 	RuleInteger                 Rule = "integer"
 	RuleNumber                  Rule = "number"
 	RuleBoolean                 Rule = "boolean"
+	RuleDateTime                Rule = "datetime"
 	RuleNonNegative             Rule = "non_negative"
 	RuleMinValue                Rule = "min_value"
 	RuleMaxValue                Rule = "max_value"
@@ -40,11 +43,14 @@ var registeredRules = []Rule{
 	RuleMinLength,
 	RuleMaxLength,
 	RuleMaxBytes,
+	RuleMinItems,
+	RuleMaxItems,
 	RuleEmail,
 	RulePasswordWeak,
 	RuleInteger,
 	RuleNumber,
 	RuleBoolean,
+	RuleDateTime,
 	RuleNonNegative,
 	RuleMinValue,
 	RuleMaxValue,
@@ -110,25 +116,41 @@ func (v *FieldViolations) Required(field, val string) bool {
 	return true
 }
 
-func (v *FieldViolations) MinLength(field, val string, min int) bool {
-	if utf8.RuneCountInString(val) < min {
-		v.Add(field, RuleMinLength, P("min", strconv.Itoa(min)))
+func (v *FieldViolations) MinLength(field, val string, minLen int) bool {
+	if utf8.RuneCountInString(val) < minLen {
+		v.Add(field, RuleMinLength, P("min", strconv.Itoa(minLen)))
 		return false
 	}
 	return true
 }
 
-func (v *FieldViolations) MaxLength(field, val string, max int) bool {
-	if utf8.RuneCountInString(val) > max {
-		v.Add(field, RuleMaxLength, P("max", strconv.Itoa(max)))
+func (v *FieldViolations) MaxLength(field, val string, maxLen int) bool {
+	if utf8.RuneCountInString(val) > maxLen {
+		v.Add(field, RuleMaxLength, P("max", strconv.Itoa(maxLen)))
 		return false
 	}
 	return true
 }
 
-func (v *FieldViolations) MaxBytes(field, val string, max int) bool {
-	if len(val) > max {
-		v.Add(field, RuleMaxBytes, P("max", strconv.Itoa(max)))
+func (v *FieldViolations) MaxBytes(field, val string, maxBytes int) bool {
+	if len(val) > maxBytes {
+		v.Add(field, RuleMaxBytes, P("max", strconv.Itoa(maxBytes)))
+		return false
+	}
+	return true
+}
+
+func (v *FieldViolations) MinItems(field string, count, minItems int) bool {
+	if count < minItems {
+		v.Add(field, RuleMinItems, P("min", strconv.Itoa(minItems)))
+		return false
+	}
+	return true
+}
+
+func (v *FieldViolations) MaxItems(field string, count, maxItems int) bool {
+	if count > maxItems {
+		v.Add(field, RuleMaxItems, P("max", strconv.Itoa(maxItems)))
 		return false
 	}
 	return true
@@ -174,21 +196,21 @@ func (v *FieldViolations) MustDiffer(field, val, otherField, otherVal string) bo
 	return true
 }
 
-func Min[T Number](v *FieldViolations, field string, val, min T) bool {
-	if val < min {
-		if min == 0 {
+func Min[T Number](v *FieldViolations, field string, val, minVal T) bool {
+	if val < minVal {
+		if minVal == 0 {
 			v.Add(field, RuleNonNegative, P("min", "0"))
 		} else {
-			v.Add(field, RuleMinValue, P("min", fmt.Sprint(min)))
+			v.Add(field, RuleMinValue, P("min", fmt.Sprint(minVal)))
 		}
 		return false
 	}
 	return true
 }
 
-func Max[T Number](v *FieldViolations, field string, val, max T) bool {
-	if val > max {
-		v.Add(field, RuleMaxValue, P("max", fmt.Sprint(max)))
+func Max[T Number](v *FieldViolations, field string, val, maxVal T) bool {
+	if val > maxVal {
+		v.Add(field, RuleMaxValue, P("max", fmt.Sprint(maxVal)))
 		return false
 	}
 	return true

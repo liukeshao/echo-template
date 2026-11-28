@@ -5,6 +5,6 @@ import "./domains/books.tsp";
 
 using TypeSpec.Http;
 
-@service(#{ title: "Echo Template API" })
+@service(#{ title: "Go REST Template API" })
 @server("http://localhost:8000", "Local development server")
-namespace EchoTemplate;
+namespace GoRestTemplate;

@@ -9,13 +9,13 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/samber/oops"
 
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/predicate"
-	"github.com/liukeshao/echo-template/internal/database"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/ent/book"
+	"github.com/liukeshao/go-rest-template/ent/predicate"
+	"github.com/liukeshao/go-rest-template/internal/database"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 var errBook = oops.In("book")
@@ -166,7 +166,8 @@ func buildBookPredicates(req *api.ListBooksRequest) []predicate.Book {
 	return preds
 }
 
-func (s *Book) Replace(ctx context.Context, id string, req *api.ReplaceBookRequest) (*ent.Book, error) {
+func (s *Book) Replace(ctx context.Context, req *api.ReplaceBookRequest) (*ent.Book, error) {
+	id := req.BookID
 	q := s.orm.Book.UpdateOneID(id).
 		SetTitle(req.Title).
 		SetAuthor(req.Author)

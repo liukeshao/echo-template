@@ -13,9 +13,9 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 type reqConfig struct {

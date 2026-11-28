@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"regexp"
 
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 var patternRegisterRequestUsername = regexp.MustCompile("^[a-zA-Z0-9_-]+$")

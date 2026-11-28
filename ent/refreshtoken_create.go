@@ -10,8 +10,8 @@ import (
 
 	"entgo.io/ent/dialect/sql/sqlgraph"
 	"entgo.io/ent/schema/field"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/user"
 )
 
 // RefreshTokenCreate is the builder for creating a RefreshToken entity.

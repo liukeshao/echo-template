@@ -9,7 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 const ContentTypeProblemJSON = "application/problem+json"
@@ -54,8 +54,8 @@ func Write(w http.ResponseWriter, r *http.Request, p Problem) {
 		w.Header().Set("Retry-After", ri.RetryAfter)
 	}
 	if p.Status == http.StatusUnauthorized && w.Header().Get("WWW-Authenticate") == "" {
-		if pi, ok := p.Metadata.(PreconditionInfo); ok && pi.Subject == "authorization" && pi.Detail != "" {
-			w.Header().Set("WWW-Authenticate", pi.Detail)
+		if pi, ok := p.Metadata.(PreconditionInfo); ok && pi.Challenge != "" {
+			w.Header().Set("WWW-Authenticate", pi.Challenge)
 		}
 	}
 	if p.Type == "" {

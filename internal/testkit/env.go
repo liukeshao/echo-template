@@ -13,16 +13,16 @@ import (
 	"github.com/samber/do/v2"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/client"
-	"github.com/liukeshao/echo-template/internal/database"
-	"github.com/liukeshao/echo-template/internal/handler"
-	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/pkg/httpclient"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/client"
+	"github.com/liukeshao/go-rest-template/internal/database"
+	"github.com/liukeshao/go-rest-template/internal/handler"
+	"github.com/liukeshao/go-rest-template/internal/i18n"
+	"github.com/liukeshao/go-rest-template/internal/server"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/pkg/httpclient"
 )
 
 // Env 封装单个测试专用的 DI 容器与按需初始化的运行时依赖。
@@ -47,7 +47,7 @@ type options struct {
 type Option func(*options)
 
 // WithConfigFile 使用配置文件初始化基础配置（经由 config.LoadFile / config.Load 合并
-// ECHO_TEMPLATE_ 环境变量并执行校验），替代 DefaultConfig。
+// GO_REST_TEMPLATE_ 环境变量并执行校验），替代 DefaultConfig。
 // 传入空字符串时按 config.Load 默认路径查找 config.toml。
 // 可与 WithConfig 组合使用：WithConfig 回调始终在配置文件加载完成后执行。
 func WithConfigFile(path string) Option {
@@ -93,12 +93,18 @@ func WithInjector(fn func(do.Injector)) Option {
 func DefaultConfig() config.Config {
 	return config.Config{
 		App: config.App{
-			Name:        "echo-template-test",
+			Name:        "go-rest-template-test",
 			Host:        "http://localhost:8000",
 			Environment: config.EnvTest,
 		},
 		Auth: config.Auth{
 			BcryptCost: service.MinBcryptCost,
+			JWT: config.JWT{
+				Secret:             "test-secret-key-at-least-32-bytes-long",
+				AccessTokenExpiry:  15 * time.Minute,
+				RefreshTokenExpiry: 24 * time.Hour,
+				Issuer:             "go-rest-template-test",
+			},
 		},
 		HTTP: config.HTTP{
 			Hostname:        "127.0.0.1",
@@ -112,12 +118,6 @@ func DefaultConfig() config.Config {
 			Driver:      "sqlite",
 			Connection:  fmt.Sprintf("file:test_%s?mode=memory&cache=shared&_pragma=foreign_keys(1)", uuid.NewV7().String()),
 			AutoMigrate: true,
-		},
-		JWT: config.JWT{
-			Secret:             "test-secret-key-at-least-32-bytes-long",
-			AccessTokenExpiry:  15 * time.Minute,
-			RefreshTokenExpiry: 24 * time.Hour,
-			Issuer:             "echo-template-test",
 		},
 		Clients: config.Clients{
 			Weather: config.ExternalClient{
@@ -134,7 +134,7 @@ func DefaultConfig() config.Config {
 	}
 }
 
-// New 构造与 cmd/main.go 一致的完整 DI 容器（所有组件均为 Lazy 按需初始化），
+// New 构造与 cmd/server/main.go 一致的完整 DI 容器（所有组件均为 Lazy 按需初始化），
 // 并在测试结束时自动 Shutdown 容器释放资源。
 func New(t testing.TB, opts ...Option) *Env {
 	t.Helper()

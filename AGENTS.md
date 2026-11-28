@@ -6,10 +6,10 @@ Rules and invariants for AI agents working in this repository.
 
 ## Architecture
 
-- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (thin HTTP wiring: BuildRouter, NewProblemEncoder, Locale middleware, Server lifecycle)` + `internal/auth (stateless Access JWT, Principal context, BearerAuthenticator)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic: Auth credentials/tokens, User profile, Book)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
-- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/httperr`, `pkg/httpkit`, `pkg/logging`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. All application-specific wiring, config, DI, ORM, i18n, auth, and business logic live under `internal/`.
-- **HTTP Transport & Error Split**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) is split cleanly into three `http*` packages: `pkg/httpclient` (outbound HTTP client & retry transport), `pkg/httperr` (13 finite HTTP error status sentinels, pure RFC 9457 `httperr.Problem`, AIP-193 `httperr.Metadata`, `httperr.NewEncoder` three-stage pipeline / `Classify` / `Write`), and `pkg/httpkit` (inbound `httpkit.Server` graceful shutdown, `httpkit.Router` with Echo-style `Static`/`StaticFS`/`File`/`FileFS`, `httpkit.Handler`, `@useAuth` + `BearerAuth` middleware, base middlewares including `RequestID`/`AccessLog`/`Recover`/`BodyLimit`, stateless codecs, RFC 7386 Merge Patch). `internal/server` acts solely as a thin 3-file application wiring layer (`package.go` wiring `httpkit.Server`, `router.go` with `BuildRouter`/`Locale` + docs mounting, `problem.go` wiring `httperr.NewEncoder`). Domain services, outbound clients, and `i18n` depend ONLY on `pkg/httperr`, never on `pkg/httpkit`. No third-party HTTP framework.
-- **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Book`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Generated `api.NewXxxHandler(impl, opts...) httpkit.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `httperr.Encoder`.
+- **Layers**: `api/*.tsp (TypeSpec)` → `pkg/api/*.gen.go (generated pure DTOs + net/http glue)` → `internal/server (thin HTTP wiring: BuildRouter, NewProblemEncoder, Locale middleware, /healthz & /readyz, Server lifecycle)` + `internal/auth (stateless Access JWT, Principal context, BearerAuthenticator)` → `internal/handler (implements api.XxxHandler, pure Go zero net/http, multi-service orchestration & DTO projection)` → `internal/service (domain logic: Auth credentials/tokens, User profile, Book)` → `ent ORM` / `internal/client/<api>`. Never skip layers (no DB calls or HTTP calls in handlers).
+- **Public vs Private Boundaries**: `pkg/api`, `pkg/httpclient`, `pkg/httperr`, `pkg/httpkit`, `pkg/logging`, and `pkg/validator` are pure, reusable public packages with **zero** `internal/` or third-party dependencies. Application-level `config/` (TOML + `GO_REST_TEMPLATE_` env loading), `ent/` (ORM codegen), and `static/` (embedded docs) live at the repository root; all private wiring, DI, i18n, auth, clients, handlers, and domain services live under `internal/`.
+- **HTTP Transport & Error Split**: Pure Go 1.22+ `net/http` (`*http.ServeMux`) is split cleanly into three `http*` packages: `pkg/httpclient` (outbound HTTP client & retry transport respecting `Retry-After`), `pkg/httperr` (13 finite HTTP error status sentinels, pure RFC 9457 `httperr.Problem`, AIP-193 `httperr.Metadata`, `httperr.NewEncoder` three-stage pipeline / `Classify` / `Write`), and `pkg/httpkit` (inbound `httpkit.Server` graceful shutdown, `httpkit.Router` with `Static`/`StaticFS`/`File`/`FileFS`, `httpkit.Handler`, fail-closed `@useAuth` + `BearerAuth` middleware, optional `CORS`, base middlewares including sanitized `RequestID`/`AccessLog`/`Recover`/`BodyLimit`, stateless codecs, RFC 7386 Merge Patch with fail-fast `ParsePatchRequest`). `internal/server` acts solely as a thin 3-file application wiring layer (`package.go` wiring `httpkit.Server`, `router.go` with `BuildRouter`/`Locale`/health probes/CORS/docs mounting, `problem.go` wiring `httperr.NewEncoder`). Domain services, outbound clients, and `i18n` depend ONLY on `pkg/httperr`, never on `pkg/httpkit`. No third-party HTTP framework.
+- **Connect-Go v2 Style**: Handlers (`handler.Auth`, `handler.Me`, `handler.Books`) implement pure Go interfaces (`api.AuthHandler`, `api.MeHandler`, `api.BooksHandler`) with zero `net/http` or `Mount` boilerplate. Handler struct names match their corresponding TypeSpec interface (`Books` ↔ `api.BooksHandler`, `Auth` ↔ `api.AuthHandler`, `Me` ↔ `api.MeHandler`). Generated `api.NewXxxHandler(impl, opts...) httpkit.Handler` handles routing, auth wrapping, zero-reflection decoding, `Validate()`, `@autoPatch`, JSON encoding, and RFC 9457 errors via `httperr.Encoder`.
 - **DI**: All singletons are registered via `samber/do`. Use `do.Lazy(NewFoo)` for lazy init; use `do.Provide(NewFoo)` only when eager init is necessary.
 - **Context**: Always propagate `context.Context` as the first argument. Never store it in struct fields.
 
@@ -19,6 +19,9 @@ Rules and invariants for AI agents working in this repository.
 
 - **Single Source of Truth**: `api/spec/` (`main.tsp`, `common/*.tsp`, `domains/*.tsp`) defines all routes, models, semantic scalars (`UUID`, `Email`, `Username`, `Password`), validation constraints, auth (`@useAuth(BearerAuth)`), and auto-patch (`@autoPatch(GetOp, ReplaceOp)`).
 - **Custom Emitter**: `api/emitters/go-rest/` (ESM, no build step) runs alongside `@typespec/openapi3` via a single command:
+  - Models/Enums shared across multiple interfaces are automatically emitted once into `pkg/api/types.gen.go`.
+  - Optional value scalars without default values (`int32?`, `int64?`, `float64?`, `boolean?`, `utcDateTime?`) map to Go pointers (`*int32`, `*int64`, `*float64`, `*bool`, `*time.Time`); defaulted fields (`page?: int32 = 1`) remain value types.
+  - Nested request models and slice elements recursively generate and invoke `Validate()` via `v.Merge(...)`, and `@minItems`/`@maxItems` are enforced automatically.
 
 ```bash
 # After changing api/spec/**/*.tsp or api/emitters/go-rest/**
@@ -39,9 +42,9 @@ make ent
 
 - Each third-party API lives in `internal/client/<apiname>/` with four files: `interface.go`, `client.go`, `errors.go`, `package.go`.
 - Services depend on the **interface** (`<apiname>.API`), never on `*Client` directly.
-- Config goes in `config.Clients.<ApiName>` (type `config.ExternalClient`); add a `[clients.<apiname>]` block in `config.toml`.
+- Config goes in `config.Clients.<ApiName>` (type `config.ExternalClient`); add a `[clients.<apiname>]` block in `config/config.toml`.
 - Map upstream failures to the finite HTTP error statuses in `pkg/httperr`: HTTP 429 → `httperr.TooManyRequests` (with `httperr.RetryInfo{Service, RetryAfter}`), 502/503/504 and network errors → `httperr.ServiceUnavailable`, everything else → `httperr.Internal`. Optionally add fine-grained i18n copy under `[details.429]` in `internal/i18n/messages/*.toml`.
-- Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with exponential backoff and jitter (within the total `Timeout`).
+- Derive a per-API HTTP client via `shared.WithOptions(httpclient.Options{Timeout: cfg.Timeout, Retry: cfg.Retry})`. The transport automatically retries idempotent requests on transient network errors and HTTP 429/502/503/504 with `Retry-After` support and exponential backoff with jitter (within the total `Timeout`).
 - Register the package in `internal/client/package.go` and wire `client.Package` in `cmd/server/main.go` between `database.Package` and `service.Package`.
 - **Forbidden**: raw `http.Get` / `http.Post` calls anywhere outside `internal/client/`.
 
@@ -57,7 +60,7 @@ Errors are serialized by `httperr.NewEncoder` (wired in `server.NewProblemEncode
 2. `httperr.Classify(err)` (`httperr.Problem`, `*validator.FieldViolations` → `400` + `httperr.ValidationInfo` + `errors[]`, `*http.MaxBytesError` → `413` + `httperr.RequestLimitInfo`, explicit `httperr.Status` sentinel from `.Wrap`/`.Join` ahead of bare `context.DeadlineExceeded`/`Canceled`, and default `500`)
 3. For 4xx `oops.OopsError` (`oops.AsOops`) with empty `Problem.Metadata`, extract typed `httperr.Metadata` strictly from `oopsErr.Context()[httperr.MetaKey]` (all other `oops.With` / `oops.User` / `oops.In` / `oops.Tags` stay internal to `slog` logs)
 
-Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500) are also converted to RFC 9457 `application/problem+json`. `httperr.Write` automatically sets `Retry-After` from `httperr.RetryInfo`, and `ProblemEncoder` sets `Content-Language` from the matched locale. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[details.<STATUS>]` hierarchical subkeys → placeholder-free `[errors]` status fallback + `[validation]`); `oops.Public(...)` is never read.
+Unmatched `http.ServeMux` routes (404 with `ResourceInfo` / 405 with `MethodInfo`, while preserving 301/307/308 redirects) and recovered panics (500, re-panicking `http.ErrAbortHandler` and skipping writes if headers already committed) are also converted to RFC 9457 `application/problem+json`. `httperr.Write` automatically sets `Retry-After` from `httperr.RetryInfo` and `WWW-Authenticate` from `httperr.PreconditionInfo.Challenge` (never serialized into JSON), and `ProblemEncoder` sets `Content-Language` from the matched locale. All user-facing copy (`Problem.Detail` and `FieldError.Message`) is rendered **solely** at the final `localizeProblem` stage via `internal/i18n` (`[details.<STATUS>]` lowercase `snake_case` hierarchical subkeys → placeholder-free `[errors]` status fallback + `[validation]`); `oops.Public(...)` is never read.
 
 **Service layer error pattern:**
 
@@ -79,6 +82,7 @@ errDomain.
 **Rules:**
 - Never use bare `fmt.Errorf` or `errors.New` in service layer.
 - Never call `oops.Public(...)` or hardcode user-facing English/Chinese sentences in services, clients, middleware, `pkg/httperr`, or `pkg/httpkit`.
+- Never place domain-specific auth/business precondition constants in `pkg/httperr`; keep them in their owning `internal/` packages (e.g. `internal/auth`, `internal/service`) using lowercase `snake_case`.
 - Never invent per-domain error code registries or duplicate `Code` fields alongside HTTP `status` (use the 13 finite `httperr.Status` sentinels + AIP-193 `httperr.Metadata` structs).
 - Always wrap the `httperr.Status` sentinel via `.Wrap(httperr.NotFound)` or `.Join(httperr.Internal, cause)` (no redundant `.Code(...)`) so both `errors.Is(err, httperr.NotFound)` and `httperr.Classify(err)` share one single source of truth.
 - Never return `*ent.NotFoundError` directly to handlers.
@@ -94,8 +98,9 @@ errDomain.
 - Keep DTO structs **flat** (no embedded `ObjectMeta` / `XxxSpec` wrappers).
 - Naming convention in `pkg/api`:
   - **Requests**: `*Request` (`CreateBookRequest`, `ReplaceBookRequest`, `ListBooksRequest`, `GetBookRequest`, `LoginRequest`).
+  - **Path params**: explicit `<resource>_id` (e.g. `/{book_id}` → `BookID`), matching `CreateXxxRequest.<resource>_id`.
   - **Responses**: pure domain nouns (`Book`, `BookList`, `User`, `TokenPair`, `Problem`) — no `*Response` suffix.
-  - Keep internal structs (such as `auth.Principal` or `service.TokenPair`) inside their owning internal package, never in `pkg/api`.
+  - Keep internal structs (such as `auth.Principal`, `service.TokenPair`, `service.ReplaceUserInput`) inside their owning internal package, never in `pkg/api`.
 - Resource DTOs must not expose `password_hash`, `deleted_at`, or other internal fields.
 - Mapping functions (`toXxx`) belong in `internal/handler/<domain>.go`, not in services. Use `mapSlice(items, toXxx)` instead of per-domain slice mappers.
 
@@ -103,9 +108,9 @@ errDomain.
 
 ## Validation
 
-- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@pattern`, `@minValue`, `@maxValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` calling declarative `pkg/validator` checks (`Required`, `MinLength`, `MaxLength`, `MaxBytes`, `Pattern`, `UUID`, `Email`, `PasswordComplexity`, `Min`, `Max`, `OneOf`) and returning `*validator.FieldViolations` with strongly-typed `validator.Rule` codes.
+- Single-field constraints (`UUID`, `Email`, `Username`, `Password`, `@minLength`, `@maxLength`, `@minItems`, `@maxItems`, `@pattern`, `@minValue`, `@maxValue`) are declared in TypeSpec (`api/spec/`) and compiled into `Validate() error` calling declarative `pkg/validator` checks (`Required`, `MinLength`, `MaxLength`, `MaxBytes`, `MinItems`, `MaxItems`, `Pattern`, `UUID`, `Email`, `PasswordComplexity`, `Min`, `Max`, `OneOf`, `Merge`) and returning `*validator.FieldViolations` with strongly-typed `validator.Rule` codes.
 - Cross-field rules live in hand-written `pkg/api/<domain>_validate.go` via `validateExtra(*validator.FieldViolations)` (e.g. `v.MustDiffer(...)`).
-- List sorting (`order_by`) uses `validator.ParseOrderBy("order_by", req.OrderBy, allowedFields...)` to validate and parse `"field"` / `"field desc"` expressions into `[]validator.OrderTerm`.
+- List sorting (`order_by`) uses `validator.ParseOrderBy("order_by", req.OrderBy, allowedFields...)` to validate and parse `"field"`, `"field asc"`, or `"field desc"` expressions into `[]validator.OrderTerm`.
 - Generated `api.NewXxxHandler` runs `Validate()` automatically before invoking the handler method.
 
 ---
@@ -114,10 +119,12 @@ errDomain.
 
 - `internal/auth` owns stateless Access JWT signing/parsing (`auth.JWT`), immutable request identity (`auth.Principal{UserID, TokenID}` via `auth.WithPrincipal` / `auth.MustPrincipal`), and `auth.BearerAuthenticator` (wrapping `httpkit.BearerAuth`, zero DB queries per request).
 - Route-level auth is driven declaratively by `@useAuth(...)` in TypeSpec; generated `api.NewXxxHandler` emits `httpkit.Operation{ID, Method, Pattern, Auth}` and delegates to `cfg.Wrap(op, ...)`.
-- Register named `@useAuth` schemes in `internal/server/router.go` via `httpkit.WithAuthScheme("BearerAuth", ...)` (natively supporting single, `AND`, `OR`, and `NoAuth` combinations with fail-fast checks on unregistered schemes), or plug in any third-party `net/http` middleware per-operation via `httpkit.WithMiddleware(func(op httpkit.Operation) httpkit.Middleware)`.
+- Built-in `@useAuth` enforcement is **fail-closed by default**: mounting any operation with `@useAuth` without registering all required schemes via `httpkit.WithAuthScheme(...)` panics at startup. If external middleware handles auth instead, opt in explicitly with `httpkit.WithExternalAuth()`.
+- Register named `@useAuth` schemes in `internal/server/router.go` via `httpkit.WithAuthScheme("BearerAuth", ...)` (natively supporting single, `AND`, `OR`, and `NoAuth` combinations), or plug in any third-party `net/http` middleware per-operation via `httpkit.WithMiddleware(func(op httpkit.Operation) httpkit.Middleware)`.
 - In handlers behind `@useAuth(BearerAuth)`, use `auth.MustPrincipal(ctx)` — never the non-panicking variant, and never place `*ent.User` in context.
-- Access tokens are short-lived stateless HS256 JWTs carrying only standard `jwt.RegisteredClaims` (`sub` = user ID, `jti` = UUID v7, `iss`, `iat`, `nbf`, `exp`) and are never persisted in the database. Do not add user profile fields to JWT claims.
+- Access tokens are short-lived stateless HS256 JWTs (default `15m`, configured under `[auth.jwt]`) carrying only standard `jwt.RegisteredClaims` (`sub` = user ID, `jti` = UUID v7, `iss`, `iat`, `nbf`, `exp`) and are never persisted in the database. Do not add user profile fields to JWT claims.
 - Refresh tokens are 32-byte random opaque tokens persisted in `refresh_tokens` (`ent/schema/refresh_token.go`) strictly as SHA-256 hex digests (`token_hash`) with `family_id` rotation and reuse detection.
+- Always normalize email addresses (`strings.ToLower(strings.TrimSpace(...))`) in `service.Auth` and `service.User` before lookup or persistence.
 - `service.Auth` owns all credential and token lifecycle operations (`Register`, `Login`, `RefreshToken`, `Logout`, `ChangePassword`, `bcrypt`, `refresh_tokens`); `service.User` owns pure user profile operations (`Get`, `Replace`); `handler.Me` orchestrates both for `/api/v1/me`.
 
 ---
@@ -125,7 +132,8 @@ errDomain.
 ## Logging
 
 - `log/slog` with `ContextHandler` (`pkg/logging`) — always pass `ctx` to `slog.InfoContext` / `slog.ErrorContext`.
-- `request_id` is injected into context by `httpkit.RequestID()` (via `logging.WithRequestID`) and surfaces automatically in both logs and `Problem.RequestID`.
+- `request_id` is injected into context by `httpkit.RequestID()` (sanitized to <= 128 chars `[a-zA-Z0-9._:-]`, fallback UUID v7) and surfaces automatically at the top level of logs (even across `WithGroup`) and in `Problem.RequestID`.
+- `cmd/server/main.go` uses `logging.FormatText` in `EnvLocal` and `logging.FormatJSON` in all other environments.
 - Never call `slog.Info` (without context) in request-scoped code.
 
 ---
@@ -165,18 +173,18 @@ Supported `Content-Type` values:
 | `application/merge-patch+json` | RFC 7386 JSON Merge Patch — omit to keep, `null` to clear      |
 | `application/json` / empty     | Compatibility: treated as RFC 7386 JSON Merge Patch            |
 
-Unsupported media types return `415 Unsupported Media Type`.
+Unsupported media types return `415 Unsupported Media Type` immediately (before calling `GetXxx`).
 
 Annotate the `patch` operation in TypeSpec with `@autoPatch(Domain.getXxx, Domain.replaceXxx)`:
 - OpenAPI 3.1 documents `PATCH` with the typed `PatchXxxRequest` schema and `415`.
 - The generated `api.<Domain>Handler` interface **omits** `PatchXxx` — handlers only implement `GetXxx` and `ReplaceXxx`.
-- Generated `api.New<Domain>Handler` automatically executes `GetXxx` → `httpkit.ApplyPatch` → restore path param → `Validate()` → `ReplaceXxx`.
+- Generated `api.New<Domain>Handler` automatically executes `httpkit.ParsePatchRequest` → `GetXxx` → `patchDoc.Apply` → restore path param → `Validate()` → `ReplaceXxx`.
 - Read-only fields (`id`, `created_at`, `updated_at`, etc.) are absent from `ReplaceXxxRequest`, so patches attempting to mutate them are silently dropped during unmarshalling.
 
 ### List methods
 
 - **Pagination**: `page int32` (1-based, default 1, reject if negative) + `page_size int32` (default 50, max 1000; coerce if over max, reject if negative). Service `List(ctx, req)` methods normalize pagination via `resolvePagination` in `internal/service/pagination.go` and return `*service.Page[*ent.Xxx]`.
-- **Ordering**: `order_by string` — comma-separated `"field"` or `"field desc"`. Return `*validator.FieldViolations` on errors.
+- **Ordering**: `order_by string` — comma-separated `"field"`, `"field asc"`, or `"field desc"`. Return `*validator.FieldViolations` on errors.
 - **Query fields**: Declare resource-specific `@query` fields directly on each `listXxx(...ListQuery, @query ...)` operation in TypeSpec (e.g. `title`, `author`, `min_price`, `max_price`), and translate them directly into typed ent predicates inside the owning service's `List` method; never build raw SQL.
 
 ---

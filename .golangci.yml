@@ -1,0 +1,22 @@
+run:
+  timeout: 3m
+
+linters:
+  disable-all: true
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - misspell
+    - staticcheck
+    - unused
+
+issues:
+  exclude-dirs:
+    - ent
+  exclude-files:
+    - '.*\.gen\.go$'
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - errcheck

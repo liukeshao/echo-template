@@ -12,13 +12,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/pkg/logging"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/internal/i18n"
+	"github.com/liukeshao/go-rest-template/internal/server"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/logging"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func TestProblemEncoder_AllClassificationPaths(t *testing.T) {

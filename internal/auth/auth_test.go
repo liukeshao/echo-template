@@ -11,12 +11,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/server"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 func TestPrincipalContext(t *testing.T) {
@@ -48,7 +48,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	cfg := config.JWT{
 		Secret:            "test-secret-key-at-least-32-bytes-long",
 		AccessTokenExpiry: 15 * time.Minute,
-		Issuer:            "echo-template-test",
+		Issuer:            "go-rest-template-test",
 	}
 	mgr := auth.NewJWT(cfg)
 
@@ -67,7 +67,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, tok, tok2)
 
-	// Wrong secret rejected as TOKEN_INVALID.
+	// Wrong secret rejected as token_invalid.
 	otherSecret := auth.NewJWT(config.JWT{
 		Secret:            "different-secret-key-at-least-32-bytes",
 		AccessTokenExpiry: 15 * time.Minute,
@@ -76,9 +76,9 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	_, err = otherSecret.ParseAccessToken(tok)
 	oe := testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.Equal(t, httperr.PreconditionInfo{
-		Type:    httperr.PreconditionTokenInvalid,
-		Subject: "authorization",
-		Detail:  "Bearer",
+		Type:      auth.ReasonTokenInvalid,
+		Subject:   "authorization",
+		Challenge: "Bearer",
 	}, oe.Context()[httperr.MetaKey])
 
 	// Wrong issuer rejected.
@@ -90,7 +90,7 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	_, err = otherIssuer.ParseAccessToken(tok)
 	testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 
-	// Expired token preserves jwt.ErrTokenExpired and sets TOKEN_EXPIRED metadata.
+	// Expired token preserves jwt.ErrTokenExpired and sets token_expired metadata.
 	expMgr := auth.NewJWT(config.JWT{
 		Secret:            cfg.Secret,
 		AccessTokenExpiry: -time.Second,
@@ -102,9 +102,9 @@ func TestJWT_SignAndParseAccessToken(t *testing.T) {
 	oe = testkit.AssertOopsStatus(t, err, httperr.Unauthorized)
 	assert.ErrorIs(t, err, jwt.ErrTokenExpired)
 	assert.Equal(t, httperr.PreconditionInfo{
-		Type:    httperr.PreconditionTokenExpired,
-		Subject: "authorization",
-		Detail:  "Bearer",
+		Type:      auth.ReasonTokenExpired,
+		Subject:   "authorization",
+		Challenge: "Bearer",
 	}, oe.Context()[httperr.MetaKey])
 
 	// Missing sub rejected.
@@ -123,7 +123,7 @@ func TestBearerAuthenticator(t *testing.T) {
 	mgr := auth.NewJWT(config.JWT{
 		Secret:            "test-secret-key-at-least-32-bytes-long",
 		AccessTokenExpiry: 15 * time.Minute,
-		Issuer:            "echo-template-test",
+		Issuer:            "go-rest-template-test",
 	})
 	tok, _, err := mgr.SignAccessToken("user-42")
 	require.NoError(t, err)

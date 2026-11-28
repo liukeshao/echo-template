@@ -1,7 +1,7 @@
 # English translations.
 # Structure:
 #   [errors]            1:1 with the 13 finite HTTP error statuses in pkg/httperr (100% required).
-#   [details.<STATUS>]  optional fine-grained overrides indexed by httperr.Metadata.I18nSubkeys().
+#   [details.<STATUS>]  optional fine-grained overrides indexed by httperr.Metadata.I18nSubkeys() (snake_case).
 #   [validation]        1:1 with validation rule codes registered in pkg/validator (100% required).
 #
 # Placeholders use the {name} form and are populated by httperr.Metadata.I18nVars()
@@ -26,19 +26,19 @@
 validation       = "Request validation failed."
 decode           = "Invalid JSON request body."
 patch            = "Invalid patch document for content type {content_type}."
-INVALID_PASSWORD = "Current password is incorrect."
+invalid_password = "Current password is incorrect."
 
 [details.401]
-INVALID_CREDENTIALS = "Invalid email or password."
-TOKEN_EXPIRED       = "Token has expired."
-TOKEN_INVALID       = "Invalid or expired token."
-TOKEN_REVOKED       = "Token has been revoked."
-MISSING_HEADER      = "Missing Authorization header."
-MALFORMED_HEADER    = "Invalid Authorization header format."
-EMPTY_TOKEN         = "Bearer token is empty."
+invalid_credentials = "Invalid email or password."
+token_expired       = "Token has expired."
+token_invalid       = "Invalid or expired token."
+token_revoked       = "Token has been revoked."
+missing_header      = "Missing Authorization header."
+malformed_header    = "Invalid Authorization header format."
+empty_token         = "Bearer token is empty."
 
 [details.403]
-ACCOUNT_DISABLED = "This account has been disabled."
+account_disabled = "This account has been disabled."
 
 [details.404]
 book = "Book {resource_name} was not found."
@@ -63,11 +63,14 @@ required                   = "{field} is required."
 min_length                 = "{field} must be at least {min} characters."
 max_length                 = "{field} must be at most {max} characters."
 max_bytes                  = "{field} must be at most {max} bytes."
+min_items                  = "{field} must contain at least {min} items."
+max_items                  = "{field} must contain at most {max} items."
 email                      = "{field} must be a valid email address."
 password_weak              = "{field} must contain at least one letter and one digit."
 integer                    = "{field} must be a valid integer."
 number                     = "{field} must be a valid number."
 boolean                    = "{field} must be a valid boolean."
+datetime                   = "{field} must be a valid RFC3339 timestamp."
 non_negative               = "{field} must be non-negative."
 min_value                  = "{field} must be at least {min}."
 max_value                  = "{field} must be at most {max}."
@@ -76,6 +79,6 @@ one_of                     = "{field} must be one of: {allowed}."
 invalid_type               = "{field} has an invalid value type."
 must_differ                = "{field} must differ from {other}."
 uuid                       = "{field} must be a valid UUID."
-invalid_order_by_clause    = "Invalid order_by clause {clause}; expected \"field\" or \"field desc\"."
-invalid_order_by_direction = "Invalid order_by direction {direction} in {clause}; use \"desc\" or omit for ascending."
+invalid_order_by_clause    = "Invalid order_by clause {clause}; expected \"field\", \"field asc\", or \"field desc\"."
+invalid_order_by_direction = "Invalid order_by direction {direction} in {clause}; expected \"asc\" or \"desc\"."
 unknown_order_by_field     = "Unknown order_by field {value}; supported: {allowed}."

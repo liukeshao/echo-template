@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httpclient"
+	"github.com/liukeshao/go-rest-template/pkg/httpclient"
 )
 
 func TestNew_DefaultsAndCustomConfig(t *testing.T) {

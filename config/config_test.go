@@ -18,10 +18,12 @@ func validBaseConfig() Config {
 			Driver:     "sqlite",
 			Connection: ":memory:",
 		},
-		JWT: JWT{
-			Secret:             defaultInsecureJWTSecret,
-			AccessTokenExpiry:  time.Hour,
-			RefreshTokenExpiry: 24 * time.Hour,
+		Auth: Auth{
+			JWT: JWT{
+				Secret:             defaultInsecureJWTSecret,
+				AccessTokenExpiry:  15 * time.Minute,
+				RefreshTokenExpiry: 24 * time.Hour,
+			},
 		},
 	}
 }
@@ -29,6 +31,28 @@ func validBaseConfig() Config {
 func TestConfig_Validate(t *testing.T) {
 	cfg := validBaseConfig()
 	require.NoError(t, cfg.Validate())
+
+	// Rejects unknown or mistyped environment (e.g. "production" instead of "prod").
+	badEnv := validBaseConfig()
+	badEnv.App.Environment = "production"
+	assert.Error(t, badEnv.Validate())
+
+	emptyEnv := validBaseConfig()
+	emptyEnv.App.Environment = ""
+	assert.Error(t, emptyEnv.Validate())
+
+	// Rejects negative HTTP timeouts, negative max_body_bytes, or insecure CORS wildcard + credentials.
+	negTimeout := validBaseConfig()
+	negTimeout.HTTP.ReadTimeout = -time.Second
+	assert.Error(t, negTimeout.Validate())
+
+	negBody := validBaseConfig()
+	negBody.HTTP.MaxBodyBytes = -1
+	assert.Error(t, negBody.Validate())
+
+	badCORS := validBaseConfig()
+	badCORS.HTTP.CORS = CORS{AllowedOrigins: []string{"*"}, AllowCredentials: true}
+	assert.Error(t, badCORS.Validate())
 
 	// Production rejects default placeholder secret.
 	prodDefault := validBaseConfig()
@@ -38,13 +62,13 @@ func TestConfig_Validate(t *testing.T) {
 	// Production rejects short secret (< 32 bytes).
 	prodShort := validBaseConfig()
 	prodShort.App.Environment = EnvProduction
-	prodShort.JWT.Secret = "short-secret"
+	prodShort.Auth.JWT.Secret = "short-secret"
 	assert.Error(t, prodShort.Validate())
 
 	// Production accepts strong secret (>= 32 bytes).
 	prodStrong := validBaseConfig()
 	prodStrong.App.Environment = EnvProduction
-	prodStrong.JWT.Secret = strings.Repeat("k", 32)
+	prodStrong.Auth.JWT.Secret = strings.Repeat("k", 32)
 	assert.NoError(t, prodStrong.Validate())
 
 	// Missing database fields.
@@ -54,12 +78,12 @@ func TestConfig_Validate(t *testing.T) {
 
 	// Missing JWT secret.
 	noSecret := validBaseConfig()
-	noSecret.JWT.Secret = "   "
+	noSecret.Auth.JWT.Secret = "   "
 	assert.Error(t, noSecret.Validate())
 
 	// Non-positive token expiry.
 	badExpiry := validBaseConfig()
-	badExpiry.JWT.AccessTokenExpiry = 0
+	badExpiry.Auth.JWT.AccessTokenExpiry = 0
 	assert.Error(t, badExpiry.Validate())
 
 	// Out-of-range bcrypt cost.
@@ -82,6 +106,7 @@ func TestLoad_LoadsTOMLAndEnvOverrides(t *testing.T) {
 [http]
 port = 9000
 graceful_timeout = "15s"
+max_body_bytes = 4194304
 
 [app]
 name = "custom-app"
@@ -90,16 +115,16 @@ environment = "local"
 [auth]
 bcrypt_cost = 10
 
+[auth.jwt]
+secret = "local-secret"
+access_token_expiry = "15m"
+refresh_token_expiry = "24h"
+issuer = "custom-issuer"
+
 [database]
 driver = "sqlite"
 connection = ":memory:"
 auto_migrate = true
-
-[jwt]
-secret = "local-secret"
-access_token_expiry = "1h"
-refresh_token_expiry = "24h"
-issuer = "custom-issuer"
 
 [i18n]
 default_locale = "en"
@@ -107,18 +132,19 @@ supported_locales = ["en", "zh-CN"]
 `
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "config.toml"), []byte(tomlContent), 0644))
 	t.Chdir(dir)
-	t.Setenv("ECHO_TEMPLATE_JWT_SECRET", "env-overridden-secret")
-	t.Setenv("ECHO_TEMPLATE_JWT_ACCESS_TOKEN_EXPIRY", "2h")
-	t.Setenv("ECHO_TEMPLATE_I18N_DEFAULT_LOCALE", "zh-CN")
+	t.Setenv("GO_REST_TEMPLATE_AUTH_JWT_SECRET", "env-overridden-secret")
+	t.Setenv("GO_REST_TEMPLATE_AUTH_JWT_ACCESS_TOKEN_EXPIRY", "30m")
+	t.Setenv("GO_REST_TEMPLATE_I18N_DEFAULT_LOCALE", "zh-CN")
 
 	cfg, err := Load()
 	require.NoError(t, err)
 	assert.Equal(t, uint16(9000), cfg.HTTP.Port)
 	assert.Equal(t, 15*time.Second, cfg.HTTP.GracefulTimeout)
+	assert.Equal(t, int64(4194304), cfg.HTTP.MaxBodyBytes)
 	assert.Equal(t, "custom-app", cfg.App.Name)
 	assert.Equal(t, 10, cfg.Auth.BcryptCost)
-	assert.Equal(t, "env-overridden-secret", cfg.JWT.Secret)
-	assert.Equal(t, 2*time.Hour, cfg.JWT.AccessTokenExpiry)
+	assert.Equal(t, "env-overridden-secret", cfg.Auth.JWT.Secret)
+	assert.Equal(t, 30*time.Minute, cfg.Auth.JWT.AccessTokenExpiry)
 	assert.Equal(t, "zh-CN", cfg.I18n.DefaultLocale)
 	assert.True(t, cfg.Database.AutoMigrate)
 }
@@ -137,23 +163,23 @@ environment = "test"
 [auth]
 bcrypt_cost = 4
 
-[database]
-driver = "sqlite"
-connection = ":memory:"
-auto_migrate = true
-
-[jwt]
+[auth.jwt]
 secret = "file-secret"
 access_token_expiry = "30m"
 refresh_token_expiry = "12h"
 issuer = "file-issuer"
+
+[database]
+driver = "sqlite"
+connection = ":memory:"
+auto_migrate = true
 
 [i18n]
 default_locale = "en"
 supported_locales = ["en", "zh-CN"]
 `
 	require.NoError(t, os.WriteFile(path, []byte(tomlContent), 0644))
-	t.Setenv("ECHO_TEMPLATE_APP_NAME", "env-file-app")
+	t.Setenv("GO_REST_TEMPLATE_APP_NAME", "env-file-app")
 
 	cfg, err := LoadFile(path)
 	require.NoError(t, err)
@@ -161,8 +187,8 @@ supported_locales = ["en", "zh-CN"]
 	assert.Equal(t, "env-file-app", cfg.App.Name)
 	assert.Equal(t, EnvTest, cfg.App.Environment)
 	assert.Equal(t, 4, cfg.Auth.BcryptCost)
-	assert.Equal(t, "file-secret", cfg.JWT.Secret)
-	assert.Equal(t, 30*time.Minute, cfg.JWT.AccessTokenExpiry)
+	assert.Equal(t, "file-secret", cfg.Auth.JWT.Secret)
+	assert.Equal(t, 30*time.Minute, cfg.Auth.JWT.AccessTokenExpiry)
 
 	_, err = LoadFile("")
 	assert.Error(t, err)

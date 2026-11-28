@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Echo Template API
+  title: Go REST Template API
   version: 0.0.0
 tags:
   - name: auth
@@ -235,12 +235,12 @@ paths:
         - books
       security:
         - BearerAuth: []
-  /api/v1/books/{book}:
+  /api/v1/books/{book_id}:
     get:
       operationId: getBook
       description: 获取书籍详情
       parameters:
-        - name: book
+        - name: book_id
           in: path
           required: true
           schema:
@@ -272,7 +272,7 @@ paths:
       operationId: replaceBook
       description: 全量替换书籍（幂等 PUT）
       parameters:
-        - name: book
+        - name: book_id
           in: path
           required: true
           schema:
@@ -316,7 +316,7 @@ paths:
       operationId: patchBook
       description: 局部更新书籍（RFC 7386 JSON Merge Patch）
       parameters:
-        - name: book
+        - name: book_id
           in: path
           required: true
           schema:
@@ -369,7 +369,7 @@ paths:
       operationId: deleteBook
       description: 删除书籍
       parameters:
-        - name: book
+        - name: book_id
           in: path
           required: true
           schema:
@@ -538,7 +538,7 @@ components:
       name: order_by
       in: query
       required: false
-      description: Comma-separated sort clauses, e.g. "created_at desc, title".
+      description: Comma-separated sort clauses, e.g. "created_at desc, title asc".
       schema:
         type: string
       explode: false

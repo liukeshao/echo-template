@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/api"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
-func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
+func TestBooksHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	t.Parallel()
 	env := testkit.New(t)
 	authResp := env.MustAuthUser("patcher", "patcher@example.com", "password123")
@@ -35,8 +35,8 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	assert.Equal(t, httperr.PatchSchemaMismatch, mt.Reason)
 	assert.Equal(t, "price", mt.Field)
 
-	// Unsupported PATCH Content-Type -> 415 with PatchInfo.
-	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/"+created.ID,
+	// Unsupported PATCH Content-Type -> 415 with PatchInfo (fail-fast even for non-existent ID before DB lookup).
+	unsupportedRec := env.DoRequest(http.MethodPatch, "/api/v1/books/0195a3b0-7c4e-7000-8000-000000000099",
 		testkit.WithBody("text/plain", `title=foo`),
 		testkit.WithBearer(authResp.AccessToken),
 	)
@@ -46,7 +46,7 @@ func TestBookHandler_PatchErrorsReturnProperHTTPStatus(t *testing.T) {
 	assert.Equal(t, httpkit.SupportedPatchMediaTypes, mt.Supported)
 }
 
-func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
+func TestBooksHandler_CRUDAndMergePatch(t *testing.T) {
 	t.Parallel()
 	env := testkit.New(t)
 	tok := env.MustAuthUser("bookuser", "bookuser@example.com", "password123")
@@ -65,13 +65,15 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, "Go", testkit.DecodeJSON[api.Book](t, rec).Title)
 
-	// Get invalid UUID -> 400 + ValidationInfo
+	// Get invalid UUID -> 400 + ValidationInfo with unified book_id field name
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books/not-a-uuid", auth)
-	testkit.AssertProblem(t, rec, http.StatusBadRequest)
+	p := testkit.AssertProblem(t, rec, http.StatusBadRequest)
+	require.Len(t, p.Errors, 1)
+	assert.Equal(t, "book_id", p.Errors[0].Field)
 
 	// List invalid integer query -> 400 + FieldError
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=abc", auth)
-	p := testkit.AssertProblem(t, rec, http.StatusBadRequest)
+	p = testkit.AssertProblem(t, rec, http.StatusBadRequest)
 	require.Len(t, p.Errors, 1)
 	assert.Contains(t, p.Errors[0].Message, "valid integer")
 
@@ -86,8 +88,8 @@ func TestBookHandler_CRUDAndMergePatch(t *testing.T) {
 	rec = env.DoRequest(http.MethodGet, "/api/v1/books?min_price=-1", auth)
 	testkit.AssertProblem(t, rec, http.StatusBadRequest)
 
-	// List with explicit typed query fields
-	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title&title=go&min_price=10&max_price=30", auth)
+	// List with explicit typed query fields + explicit asc sort direction
+	rec = env.DoRequest(http.MethodGet, "/api/v1/books?page=1&page_size=10&order_by=title%20asc&title=go&min_price=10&max_price=30", auth)
 	require.Equal(t, http.StatusOK, rec.Code)
 	list := testkit.DecodeJSON[api.BookList](t, rec)
 	assert.Equal(t, int32(1), list.TotalSize)

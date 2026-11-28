@@ -8,8 +8,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/samber/oops"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+)
+
+const (
+	ReasonTokenExpired = "token_expired"
+	ReasonTokenInvalid = "token_invalid"
+	ReasonTokenRevoked = "token_revoked"
 )
 
 var errAuth = oops.In("auth")
@@ -65,12 +71,12 @@ func (j *JWT) ParseAccessToken(tokenString string) (Principal, error) {
 	}, opts...)
 	if err != nil {
 		if errors.Is(err, jwt.ErrTokenExpired) {
-			return Principal{}, bearerTokenError(httperr.PreconditionTokenExpired, err)
+			return Principal{}, bearerTokenError(ReasonTokenExpired, err)
 		}
-		return Principal{}, bearerTokenError(httperr.PreconditionTokenInvalid, err)
+		return Principal{}, bearerTokenError(ReasonTokenInvalid, err)
 	}
 	if !parsed.Valid || claims.Subject == "" {
-		return Principal{}, bearerTokenError(httperr.PreconditionTokenInvalid, nil)
+		return Principal{}, bearerTokenError(ReasonTokenInvalid, nil)
 	}
 
 	return Principal{
@@ -81,9 +87,9 @@ func (j *JWT) ParseAccessToken(tokenString string) (Principal, error) {
 
 func bearerTokenError(reason string, cause error) error {
 	b := errAuth.With(httperr.MetaKey, httperr.PreconditionInfo{
-		Type:    reason,
-		Subject: "authorization",
-		Detail:  "Bearer",
+		Type:      reason,
+		Subject:   "authorization",
+		Challenge: "Bearer",
 	})
 	if cause != nil {
 		return b.Join(httperr.Unauthorized, cause)

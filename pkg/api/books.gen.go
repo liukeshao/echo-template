@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 type Book struct {
@@ -92,12 +92,12 @@ func (r *ListBooksRequest) Validate() error {
 }
 
 type GetBookRequest struct {
-	Book string
+	BookID string
 }
 
 func (r *GetBookRequest) Validate() error {
 	var v validator.FieldViolations
-	v.UUID("book", r.Book)
+	v.UUID("book_id", r.BookID)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -107,7 +107,7 @@ func (r *GetBookRequest) Validate() error {
 }
 
 type ReplaceBookRequest struct {
-	Book        string     `json:"-"`
+	BookID      string     `json:"-"`
 	Title       string     `json:"title"`
 	Author      string     `json:"author"`
 	Description string     `json:"description,omitempty"`
@@ -117,7 +117,7 @@ type ReplaceBookRequest struct {
 
 func (r *ReplaceBookRequest) Validate() error {
 	var v validator.FieldViolations
-	v.UUID("book", r.Book)
+	v.UUID("book_id", r.BookID)
 	if v.Required("title", r.Title) {
 		v.MaxLength("title", r.Title, 200)
 	}
@@ -139,12 +139,12 @@ func (r *ReplaceBookRequest) Validate() error {
 }
 
 type DeleteBookRequest struct {
-	Book string
+	BookID string
 }
 
 func (r *DeleteBookRequest) Validate() error {
 	var v validator.FieldViolations
-	v.UUID("book", r.Book)
+	v.UUID("book_id", r.BookID)
 	if extra, ok := any(r).(interface {
 		validateExtra(*validator.FieldViolations)
 	}); ok {
@@ -216,10 +216,10 @@ func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.H
 			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("GET /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "getBook", Method: http.MethodGet, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("GET /api/v1/books/{book_id}", cfg.Wrap(httpkit.Operation{ID: "getBook", Method: http.MethodGet, Pattern: "/api/v1/books/{book_id}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req GetBookRequest
-			req.Book = r.PathValue("book")
+			req.BookID = r.PathValue("book_id")
 			if err := req.Validate(); err != nil {
 				cfg.WriteError(w, r, err)
 				return
@@ -232,14 +232,14 @@ func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.H
 			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("PUT /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "replaceBook", Method: http.MethodPut, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("PUT /api/v1/books/{book_id}", cfg.Wrap(httpkit.Operation{ID: "replaceBook", Method: http.MethodPut, Pattern: "/api/v1/books/{book_id}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req ReplaceBookRequest
 			if err := httpkit.DecodeJSON(r, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			req.Book = r.PathValue("book")
+			req.BookID = r.PathValue("book_id")
 			if err := req.Validate(); err != nil {
 				cfg.WriteError(w, r, err)
 				return
@@ -252,10 +252,15 @@ func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.H
 			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("PATCH /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "patchBook", Method: http.MethodPatch, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("PATCH /api/v1/books/{book_id}", cfg.Wrap(httpkit.Operation{ID: "patchBook", Method: http.MethodPatch, Pattern: "/api/v1/books/{book_id}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			patchDoc, err := httpkit.ParsePatchRequest(r)
+			if err != nil {
+				cfg.WriteError(w, r, err)
+				return
+			}
 			var getReq GetBookRequest
-			getReq.Book = r.PathValue("book")
+			getReq.BookID = r.PathValue("book_id")
 			if err := getReq.Validate(); err != nil {
 				cfg.WriteError(w, r, err)
 				return
@@ -266,11 +271,11 @@ func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.H
 				return
 			}
 			var req ReplaceBookRequest
-			if err := httpkit.ApplyPatch(r, current, &req); err != nil {
+			if err := patchDoc.Apply(current, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
-			req.Book = r.PathValue("book")
+			req.BookID = r.PathValue("book_id")
 			if err := req.Validate(); err != nil {
 				cfg.WriteError(w, r, err)
 				return
@@ -283,10 +288,10 @@ func NewBooksHandler(impl BooksHandler, opts ...httpkit.HandlerOption) httpkit.H
 			httpkit.WriteJSON(w, r, http.StatusOK, res)
 		}))
 
-		mux.Handle("DELETE /api/v1/books/{book}", cfg.Wrap(httpkit.Operation{ID: "deleteBook", Method: http.MethodDelete, Pattern: "/api/v1/books/{book}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
+		mux.Handle("DELETE /api/v1/books/{book_id}", cfg.Wrap(httpkit.Operation{ID: "deleteBook", Method: http.MethodDelete, Pattern: "/api/v1/books/{book_id}", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
 			var req DeleteBookRequest
-			req.Book = r.PathValue("book")
+			req.BookID = r.PathValue("book_id")
 			if err := req.Validate(); err != nil {
 				cfg.WriteError(w, r, err)
 				return

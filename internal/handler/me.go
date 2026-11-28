@@ -5,10 +5,10 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/pkg/api"
 )
 
 var _ api.MeHandler = (*Me)(nil)
@@ -37,7 +37,10 @@ func (h *Me) GetMe(ctx context.Context) (*api.User, error) {
 
 func (h *Me) ReplaceMe(ctx context.Context, req *api.ReplaceMeRequest) (*api.User, error) {
 	principal := auth.MustPrincipal(ctx)
-	updated, err := h.user.Replace(ctx, principal.UserID, req)
+	updated, err := h.user.Replace(ctx, principal.UserID, service.ReplaceUserInput{
+		Username: req.Username,
+		Email:    req.Email,
+	})
 	if err != nil {
 		return nil, err
 	}

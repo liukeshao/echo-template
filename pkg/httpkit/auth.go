@@ -7,7 +7,13 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+)
+
+const (
+	AuthMissingHeader   = "missing_header"
+	AuthMalformedHeader = "malformed_header"
+	AuthEmptyToken      = "empty_token"
 )
 
 // Authenticator 实现单个命名认证方案，认证成功时返回附加身份信息的 context。
@@ -17,17 +23,17 @@ type Authenticator func(ctx context.Context, r *http.Request) (context.Context, 
 func ExtractBearerToken(r *http.Request) (string, error) {
 	authHeader := r.Header.Get("Authorization")
 	if strings.TrimSpace(authHeader) == "" {
-		return "", bearerHeaderProblem(httperr.PreconditionMissingHeader)
+		return "", bearerHeaderProblem(AuthMissingHeader)
 	}
 
 	scheme, rawToken, ok := strings.Cut(authHeader, " ")
 	if !ok || !strings.EqualFold(scheme, "Bearer") {
-		return "", bearerHeaderProblem(httperr.PreconditionMalformedHeader)
+		return "", bearerHeaderProblem(AuthMalformedHeader)
 	}
 
 	token := strings.TrimSpace(rawToken)
 	if token == "" {
-		return "", bearerHeaderProblem(httperr.PreconditionEmptyToken)
+		return "", bearerHeaderProblem(AuthEmptyToken)
 	}
 
 	return token, nil
@@ -37,9 +43,9 @@ func bearerHeaderProblem(reason string) error {
 	return httperr.Problem{
 		Status: http.StatusUnauthorized,
 		Metadata: httperr.PreconditionInfo{
-			Type:    reason,
-			Subject: "authorization",
-			Detail:  "Bearer",
+			Type:      reason,
+			Subject:   "authorization",
+			Challenge: "Bearer",
 		},
 	}
 }

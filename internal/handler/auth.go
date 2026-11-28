@@ -5,9 +5,9 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/pkg/api"
 )
 
 var _ api.AuthHandler = (*Auth)(nil)

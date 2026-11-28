@@ -5,24 +5,33 @@ graceful_timeout = "10s"
 read_timeout = "5s"
 write_timeout = "10s"
 idle_timeout = "2m"
+max_body_bytes = 2097152 # 2 MiB；设为 0 时使用默认值
+
+# 可选 CORS 配置（allowed_origins 为空时默认不启用）
+# [http.cors]
+# allowed_origins = ["http://localhost:3000"]
+# allowed_methods = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"]
+# allowed_headers = ["Authorization", "Content-Type", "Accept-Language", "X-Request-ID"]
+# exposed_headers = ["X-Request-ID", "Content-Language"]
+# allow_credentials = false
+# max_age = "10m"
 
 [app]
-name = "echo-template"
-# We manually set this rather than using the HTTP settings in order to build absolute URLs for users
-# since it's likely your app's HTTP settings are not identical to what is exposed by your server.
+name = "go-rest-template"
+# 手动配置对外访问地址以构造绝对 URL，因为对外地址通常与 HTTP 监听地址不同。
 host = "http://localhost:8000"
+# 允许值：local / test / dev / staging / prod
 environment = "local"
 
 [auth]
 # bcrypt 哈希成本（4-31）；设为 0 时使用默认值 12
 bcrypt_cost = 12
 
-# JWT配置
-[jwt]
+[auth.jwt]
 secret = "your-super-secret-jwt-key-change-this-in-production"
-access_token_expiry = "24h"   # Access token 过期时间
-refresh_token_expiry = "168h" # Refresh token 过期时间 (7天)
-issuer = "echo-template"      # Token发行者
+access_token_expiry = "15m"   # 无状态短生命周期 Access Token 过期时间
+refresh_token_expiry = "168h" # 数据库托管 Refresh Token 过期时间 (7天)
+issuer = "go-rest-template"   # Token 发行者
 
 [database]
 driver = "sqlite"

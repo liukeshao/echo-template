@@ -5,7 +5,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 type Middleware = func(http.Handler) http.Handler
@@ -58,7 +58,8 @@ type HandlerConfig struct {
 	ErrorEncoder httperr.Encoder
 	Middlewares  []RouteMiddleware
 
-	authSchemes map[string]Authenticator
+	authSchemes  map[string]Authenticator
+	externalAuth bool
 }
 
 func WithErrorEncoder(enc httperr.Encoder) HandlerOption {
@@ -78,6 +79,14 @@ func WithAuthScheme(name string, auth Authenticator) HandlerOption {
 			c.authSchemes = make(map[string]Authenticator)
 		}
 		c.authSchemes[name] = auth
+	}
+}
+
+// WithExternalAuth 显式声明 @useAuth 由外部 WithMiddleware 接管，跳过内置 AuthMiddleware 的 scheme 注册检查。
+// 未显式调用此选项时保持 fail-closed：任何带有 @useAuth 的操作若未通过 WithAuthScheme 注册对应方案，挂载时即 panic。
+func WithExternalAuth() HandlerOption {
+	return func(c *HandlerConfig) {
+		c.externalAuth = true
 	}
 }
 
@@ -101,8 +110,8 @@ func ApplyHandlerOptions(opts ...HandlerOption) HandlerConfig {
 	if cfg.ErrorEncoder == nil {
 		cfg.ErrorEncoder = httperr.DefaultEncoder
 	}
-	if len(cfg.authSchemes) > 0 {
-		// 命名鉴权置于用户 WithMiddleware 外层，便于后续中间件读取已认证身份。
+	if !cfg.externalAuth {
+		// 命名鉴权始终置于用户 WithMiddleware 外层且默认 fail-closed，避免漏传 WithAuthScheme 时受保护路由静默放行。
 		cfg.Middlewares = append([]RouteMiddleware{AuthMiddleware(cfg.ErrorEncoder, cfg.authSchemes)}, cfg.Middlewares...)
 	}
 	return cfg

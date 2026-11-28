@@ -9,8 +9,8 @@ import (
 
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/user"
 )
 
 // RefreshToken is the model entity for the RefreshToken schema.

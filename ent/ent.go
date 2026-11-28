@@ -12,9 +12,9 @@ import (
 	"entgo.io/ent"
 	"entgo.io/ent/dialect/sql"
 	"entgo.io/ent/dialect/sql/sqlgraph"
-	"github.com/liukeshao/echo-template/ent/book"
-	"github.com/liukeshao/echo-template/ent/refreshtoken"
-	"github.com/liukeshao/echo-template/ent/user"
+	"github.com/liukeshao/go-rest-template/ent/book"
+	"github.com/liukeshao/go-rest-template/ent/refreshtoken"
+	"github.com/liukeshao/go-rest-template/ent/user"
 )
 
 // ent aliases to avoid import conflicts in user's code.

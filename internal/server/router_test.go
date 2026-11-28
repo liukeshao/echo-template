@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/internal/auth"
-	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/internal/server"
-	"github.com/liukeshao/echo-template/internal/testkit"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/internal/auth"
+	"github.com/liukeshao/go-rest-template/internal/database"
+	"github.com/liukeshao/go-rest-template/internal/i18n"
+	"github.com/liukeshao/go-rest-template/internal/server"
+	"github.com/liukeshao/go-rest-template/internal/testkit"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
@@ -28,6 +30,25 @@ func TestServer_ShutdownBeforeStartDoesNotDeadlock(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	require.NoError(t, srv.Shutdown(ctx))
+}
+
+func TestRouter_HealthEndpoints(t *testing.T) {
+	t.Parallel()
+	env := testkit.New(t)
+
+	rec := env.DoRequest(http.MethodGet, "/healthz")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
+
+	rec = env.DoRequest(http.MethodGet, "/readyz")
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.JSONEq(t, `{"status":"ok"}`, rec.Body.String())
+
+	// Closing the underlying DB causes /readyz to fail with RFC 9457 503.
+	db := do.MustInvoke[*database.DB](env.Injector)
+	require.NoError(t, db.Close())
+	rec = env.DoRequest(http.MethodGet, "/readyz")
+	testkit.AssertProblem(t, rec, httperr.ServiceUnavailable)
 }
 
 func TestBearerAuth(t *testing.T) {
@@ -53,10 +74,10 @@ func TestBearerAuth(t *testing.T) {
 		header   string
 		wantType string
 	}{
-		{"missing header", "", httperr.PreconditionMissingHeader},
-		{"wrong scheme", "Basic abc", httperr.PreconditionMalformedHeader},
-		{"empty bearer", "Bearer ", httperr.PreconditionEmptyToken},
-		{"invalid jwt", "Bearer not.a.jwt", httperr.PreconditionTokenInvalid},
+		{"missing header", "", httpkit.AuthMissingHeader},
+		{"wrong scheme", "Basic abc", httpkit.AuthMalformedHeader},
+		{"empty bearer", "Bearer ", httpkit.AuthEmptyToken},
+		{"invalid jwt", "Bearer not.a.jwt", auth.ReasonTokenInvalid},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -79,6 +100,7 @@ func TestBearerAuth(t *testing.T) {
 			meta := testkit.DecodeProblemMeta[httperr.PreconditionInfo](t, p)
 			assert.Equal(t, tc.wantType, meta.Type)
 			assert.Equal(t, "authorization", meta.Subject)
+			assert.Empty(t, meta.Detail)
 		})
 	}
 
@@ -120,15 +142,17 @@ func TestRouter_404And405RunGlobalMiddleware(t *testing.T) {
 
 func TestRouter_BodyLimitReturns413(t *testing.T) {
 	t.Parallel()
-	env := testkit.New(t)
+	env := testkit.New(t, testkit.WithConfig(func(cfg *config.Config) {
+		cfg.HTTP.MaxBodyBytes = 1024
+	}))
 
-	oversized := bytes.Repeat([]byte("a"), (2<<20)+1024)
+	oversized := bytes.Repeat([]byte("a"), 2048)
 	rec := env.DoRequest(http.MethodPost, "/api/v1/auth/login",
 		testkit.WithRawBody("application/json", bytes.NewReader(oversized)),
 	)
 	p := testkit.AssertProblem(t, rec, http.StatusRequestEntityTooLarge)
 	limitMeta := testkit.DecodeProblemMeta[httperr.RequestLimitInfo](t, p)
-	assert.Equal(t, int64(2<<20), limitMeta.MaxBytes)
+	assert.Equal(t, int64(1024), limitMeta.MaxBytes)
 }
 
 func TestRouter_AuthBoundary(t *testing.T) {

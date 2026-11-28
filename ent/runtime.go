@@ -2,4 +2,4 @@
 
 package ent
 
-// The schema-stitching logic is generated in github.com/liukeshao/echo-template/ent/runtime/runtime.go
+// The schema-stitching logic is generated in github.com/liukeshao/go-rest-template/ent/runtime/runtime.go

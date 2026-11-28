@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/liukeshao/echo-template/ent"
+	"github.com/liukeshao/go-rest-template/ent"
 )
 
 // The BookFunc type is an adapter to allow the use of ordinary

@@ -1,4 +1,4 @@
-module github.com/liukeshao/echo-template
+module github.com/liukeshao/go-rest-template
 
 go 1.27.0
 

@@ -5,24 +5,24 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/ent"
-	"github.com/liukeshao/echo-template/internal/service"
-	"github.com/liukeshao/echo-template/pkg/api"
+	"github.com/liukeshao/go-rest-template/ent"
+	"github.com/liukeshao/go-rest-template/internal/service"
+	"github.com/liukeshao/go-rest-template/pkg/api"
 )
 
-var _ api.BooksHandler = (*Book)(nil)
+var _ api.BooksHandler = (*Books)(nil)
 
-type Book struct {
+type Books struct {
 	book *service.Book
 }
 
-func NewBook(i do.Injector) (*Book, error) {
-	return &Book{
+func NewBooks(i do.Injector) (*Books, error) {
+	return &Books{
 		book: do.MustInvoke[*service.Book](i),
 	}, nil
 }
 
-func (h *Book) CreateBook(ctx context.Context, req *api.CreateBookRequest) (*api.Book, error) {
+func (h *Books) CreateBook(ctx context.Context, req *api.CreateBookRequest) (*api.Book, error) {
 	b, err := h.book.Create(ctx, req)
 	if err != nil {
 		return nil, err
@@ -31,7 +31,7 @@ func (h *Book) CreateBook(ctx context.Context, req *api.CreateBookRequest) (*api
 	return &res, nil
 }
 
-func (h *Book) ListBooks(ctx context.Context, req *api.ListBooksRequest) (*api.BookList, error) {
+func (h *Books) ListBooks(ctx context.Context, req *api.ListBooksRequest) (*api.BookList, error) {
 	res, err := h.book.List(ctx, req)
 	if err != nil {
 		return nil, err
@@ -44,8 +44,8 @@ func (h *Book) ListBooks(ctx context.Context, req *api.ListBooksRequest) (*api.B
 	}, nil
 }
 
-func (h *Book) GetBook(ctx context.Context, req *api.GetBookRequest) (*api.Book, error) {
-	b, err := h.book.Get(ctx, req.Book)
+func (h *Books) GetBook(ctx context.Context, req *api.GetBookRequest) (*api.Book, error) {
+	b, err := h.book.Get(ctx, req.BookID)
 	if err != nil {
 		return nil, err
 	}
@@ -53,8 +53,8 @@ func (h *Book) GetBook(ctx context.Context, req *api.GetBookRequest) (*api.Book,
 	return &res, nil
 }
 
-func (h *Book) ReplaceBook(ctx context.Context, req *api.ReplaceBookRequest) (*api.Book, error) {
-	b, err := h.book.Replace(ctx, req.Book, req)
+func (h *Books) ReplaceBook(ctx context.Context, req *api.ReplaceBookRequest) (*api.Book, error) {
+	b, err := h.book.Replace(ctx, req)
 	if err != nil {
 		return nil, err
 	}
@@ -62,8 +62,8 @@ func (h *Book) ReplaceBook(ctx context.Context, req *api.ReplaceBookRequest) (*a
 	return &res, nil
 }
 
-func (h *Book) DeleteBook(ctx context.Context, req *api.DeleteBookRequest) error {
-	return h.book.Delete(ctx, req.Book)
+func (h *Books) DeleteBook(ctx context.Context, req *api.DeleteBookRequest) error {
+	return h.book.Delete(ctx, req.BookID)
 }
 
 func toBook(b *ent.Book) api.Book {

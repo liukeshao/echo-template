@@ -6,7 +6,7 @@ import "../common/problem.tsp";
 using TypeSpec.Http;
 using TypeSpec.OpenAPI;
 
-namespace EchoTemplate;
+namespace GoRestTemplate;
 
 model RegisterRequest {
   username: Username;

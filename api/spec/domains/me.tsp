@@ -8,7 +8,7 @@ using TypeSpec.Http;
 using TypeSpec.OpenAPI;
 using GoRest;
 
-namespace EchoTemplate;
+namespace GoRestTemplate;
 
 enum UserStatus {
   active: "active",

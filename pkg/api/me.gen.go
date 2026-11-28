@@ -7,8 +7,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/liukeshao/echo-template/pkg/httpkit"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 var patternReplaceMeRequestUsername = regexp.MustCompile("^[a-zA-Z0-9_-]+$")
@@ -114,13 +114,18 @@ func NewMeHandler(impl MeHandler, opts ...httpkit.HandlerOption) httpkit.Handler
 
 		mux.Handle("PATCH /api/v1/me", cfg.Wrap(httpkit.Operation{ID: "patchMe", Method: http.MethodPatch, Pattern: "/api/v1/me", Auth: [][]string{{"BearerAuth"}}}, func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
+			patchDoc, err := httpkit.ParsePatchRequest(r)
+			if err != nil {
+				cfg.WriteError(w, r, err)
+				return
+			}
 			current, err := impl.GetMe(ctx)
 			if err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}
 			var req ReplaceMeRequest
-			if err := httpkit.ApplyPatch(r, current, &req); err != nil {
+			if err := patchDoc.Apply(current, &req); err != nil {
 				cfg.WriteError(w, r, err)
 				return
 			}

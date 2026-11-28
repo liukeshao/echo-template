@@ -2,6 +2,7 @@
 package validator
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -51,6 +52,39 @@ func (v *FieldViolations) Add(field string, rule Rule, params ...Param) {
 		Code:     rule,
 		Metadata: meta,
 	})
+}
+
+// Merge 将嵌套结构体或切片元素的 *FieldViolations 按 prefix 路径前缀合并到当前集合
+// （如 prefix="address" → "address.city"，prefix="items[0]" → "items[0].sku"）。
+func (v *FieldViolations) Merge(prefix string, err error) {
+	if err == nil {
+		return
+	}
+	fv, ok := errors.AsType[*FieldViolations](err)
+	if !ok || fv == nil {
+		return
+	}
+	for _, it := range fv.items {
+		field := it.Field
+		switch {
+		case prefix == "":
+		case field == "":
+			field = prefix
+		case strings.HasPrefix(field, "["):
+			field = prefix + field
+		default:
+			field = prefix + "." + field
+		}
+		var meta map[string]string
+		if len(it.Metadata) > 0 {
+			meta = maps.Clone(it.Metadata)
+		}
+		v.items = append(v.items, Violation{
+			Field:    field,
+			Code:     it.Code,
+			Metadata: meta,
+		})
+	}
 }
 
 func (v *FieldViolations) HasErrors() bool {

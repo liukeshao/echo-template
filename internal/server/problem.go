@@ -6,9 +6,9 @@ import (
 	"github.com/samber/oops"
 	"golang.org/x/text/language"
 
-	"github.com/liukeshao/echo-template/internal/i18n"
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/logging"
+	"github.com/liukeshao/go-rest-template/internal/i18n"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/logging"
 )
 
 // NewProblemEncoder 装配应用级 RFC 9457 错误编码器（RequestID + oops Metadata + i18n）。

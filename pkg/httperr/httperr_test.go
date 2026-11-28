@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
-	"github.com/liukeshao/echo-template/pkg/validator"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/validator"
 )
 
 func decodeProblem(t *testing.T, rec *httptest.ResponseRecorder) httperr.Problem {
@@ -70,6 +70,23 @@ func TestDefaultEncoder_AllClassificationPaths(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusTooManyRequests, rec.Code)
 	assert.Equal(t, "30", rec.Header().Get("Retry-After"))
+
+	// PreconditionInfo.Challenge sets WWW-Authenticate without leaking into JSON metadata.detail
+	rec = call("/unauth", httperr.Problem{
+		Status: http.StatusUnauthorized,
+		Metadata: httperr.PreconditionInfo{
+			Type:      "missing_header",
+			Subject:   "authorization",
+			Challenge: "Bearer",
+		},
+	})
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, "Bearer", rec.Header().Get("WWW-Authenticate"))
+	p = decodeProblem(t, rec)
+	preMeta, err := httperr.DecodeMetadata[httperr.PreconditionInfo](p)
+	require.NoError(t, err)
+	assert.Equal(t, "missing_header", preMeta.Type)
+	assert.Empty(t, preMeta.Detail, "Challenge must not leak into JSON metadata.detail")
 
 	// Context errors
 	assert.Equal(t, http.StatusGatewayTimeout, call("/deadline", context.DeadlineExceeded).Code)

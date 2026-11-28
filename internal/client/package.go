@@ -3,8 +3,8 @@ package client
 import (
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/internal/client/weather"
-	"github.com/liukeshao/echo-template/pkg/httpclient"
+	"github.com/liukeshao/go-rest-template/internal/client/weather"
+	"github.com/liukeshao/go-rest-template/pkg/httpclient"
 )
 
 func newSharedHTTPClient(_ do.Injector) (*httpclient.Client, error) {

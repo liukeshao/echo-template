@@ -6,8 +6,8 @@ import (
 
 	"github.com/samber/do/v2"
 
-	"github.com/liukeshao/echo-template/config"
-	"github.com/liukeshao/echo-template/pkg/httpkit"
+	"github.com/liukeshao/go-rest-template/config"
+	"github.com/liukeshao/go-rest-template/pkg/httpkit"
 )
 
 var Package = do.Package(

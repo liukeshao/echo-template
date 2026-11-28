@@ -11,7 +11,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/liukeshao/echo-template/pkg/httperr"
+	"github.com/liukeshao/go-rest-template/pkg/httperr"
 )
 
 const (
@@ -24,34 +24,91 @@ var SupportedPatchMediaTypes = []string{
 	ContentTypeJSON,
 }
 
+// PatchDocument 表示已校验媒体类型与 JSON 语法的 RFC 7386 补丁文档，
+// 可在查询当前资源前先 fail-fast 拒绝非法 Content-Type 或损坏 JSON，避免无谓 DB 查询。
+type PatchDocument struct {
+	mediaType string
+	patchVal  any
+}
+
+// ParsePatchRequest 校验 PATCH 请求的 Content-Type 并读取、预解析补丁 JSON。
+func ParsePatchRequest(r *http.Request) (*PatchDocument, error) {
+	effectiveType, err := resolvePatchMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		return nil, err
+	}
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		if maxErr, ok := errors.AsType[*http.MaxBytesError](err); ok {
+			return nil, maxErr
+		}
+		return nil, err
+	}
+	patchVal, err := decodeJSONValue(body)
+	if err != nil {
+		return nil, invalidPatch(effectiveType, httperr.PatchInvalidJSON)
+	}
+	return &PatchDocument{
+		mediaType: effectiveType,
+		patchVal:  patchVal,
+	}, nil
+}
+
+// Apply 将 current 序列化并与预解析的补丁文档合并，再反序列化到 dst（通常为 *api.ReplaceXxxRequest）。
+func (p *PatchDocument) Apply(current any, dst any) error {
+	currentJSON, err := json.Marshal(current)
+	if err != nil {
+		return err
+	}
+	target, err := decodeJSONValue(currentJSON)
+	if err != nil {
+		return invalidPatch(p.mediaType, httperr.PatchInvalidOriginal)
+	}
+	merged := mergeValue(target, p.patchVal)
+	patched, err := json.Marshal(merged)
+	if err != nil {
+		return invalidPatch(p.mediaType, httperr.PatchMarshalFailed)
+	}
+	return unmarshalPatched(patched, p.mediaType, dst)
+}
+
 // ApplyMergePatch 按 RFC 7386 JSON Merge Patch 将 body 合并到 original。
 func ApplyMergePatch(original, body []byte, contentType string) ([]byte, error) {
-	mediaType := parseMediaType(contentType)
-
-	switch mediaType {
-	case ContentTypeMergePatch, ContentTypeJSON, "":
-		effectiveType := mediaType
-		if effectiveType == "" {
-			effectiveType = ContentTypeMergePatch
-		}
-		return applyMergePatch(original, body, effectiveType)
-	default:
-		return nil, unsupportedPatchMediaType(contentType)
+	effectiveType, err := resolvePatchMediaType(contentType)
+	if err != nil {
+		return nil, err
 	}
+	return applyMergePatch(original, body, effectiveType)
 }
 
 // ApplyMergePatchInto 执行 ApplyMergePatch 并将结果反序列化到 dst（通常为 *api.ReplaceXxxRequest）。
 // 反序列化失败包装为 400 Problem 并附带 PatchInfo，不泄漏内部 Go 类型名。
 func ApplyMergePatchInto(original, body []byte, contentType string, dst any) error {
-	patched, err := ApplyMergePatch(original, body, contentType)
+	effectiveType, err := resolvePatchMediaType(contentType)
 	if err != nil {
 		return err
 	}
+	patched, err := applyMergePatch(original, body, effectiveType)
+	if err != nil {
+		return err
+	}
+	return unmarshalPatched(patched, effectiveType, dst)
+}
+
+func resolvePatchMediaType(contentType string) (string, error) {
+	mediaType := parseMediaType(contentType)
+	switch mediaType {
+	case ContentTypeMergePatch, ContentTypeJSON:
+		return mediaType, nil
+	case "":
+		return ContentTypeMergePatch, nil
+	default:
+		return "", unsupportedPatchMediaType(contentType)
+	}
+}
+
+func unmarshalPatched(patched []byte, effectiveType string, dst any) error {
 	if err := json.Unmarshal(patched, dst); err != nil {
-		effectiveType := parseMediaType(contentType)
-		if effectiveType == "" {
-			effectiveType = ContentTypeMergePatch
-		}
 		info := httperr.PatchInfo{
 			ContentType: effectiveType,
 			Reason:      httperr.PatchSchemaMismatch,

@@ -1,7 +1,9 @@
 import {
   getDoc,
+  getMaxItems,
   getMaxLength,
   getMaxValue,
+  getMinItems,
   getMinLength,
   getMinValue,
   getPattern,
@@ -22,6 +24,11 @@ export function toGoName(name) {
       return lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join("");
+}
+
+/** Return true when a TypeSpec property is optional without a default value (represented as a Go pointer for value types). */
+export function isOptionalPointer(prop) {
+  return Boolean(prop && prop.optional && prop.defaultValue === undefined);
 }
 
 /** Return the semantic scalar name if `type` is (or derives from) a scalar with special Go validation semantics. */
@@ -58,25 +65,25 @@ export function stringLiteralValues(type) {
   return null;
 }
 
-/** Map a TypeSpec type + optionality to Go type string and required imports. */
-export function resolveGoType(type, optional, imports) {
+/** Map a TypeSpec type + pointer optionality to Go type string and required imports. */
+export function resolveGoType(type, usePtr, imports) {
   if (type.kind === "Scalar") {
     const base = baseScalarName(type);
     switch (base) {
       case "string":
         return "string";
       case "int32":
-        return "int32";
+        return usePtr ? "*int32" : "int32";
       case "int64":
-        return "int64";
+        return usePtr ? "*int64" : "int64";
       case "float64":
-        return optional ? "*float64" : "float64";
+        return usePtr ? "*float64" : "float64";
       case "boolean":
-        return optional ? "*bool" : "bool";
+        return usePtr ? "*bool" : "bool";
       case "utcDateTime":
       case "offsetDateTime":
         imports.add("time");
-        return optional ? "*time.Time" : "time.Time";
+        return usePtr ? "*time.Time" : "time.Time";
       default:
         return "string";
     }
@@ -96,7 +103,7 @@ export function resolveGoType(type, optional, imports) {
       const val = resolveGoType(type.indexer.value, false, imports);
       return `map[string]${val}`;
     }
-    return optional ? `*${type.name}` : type.name;
+    return usePtr ? `*${type.name}` : type.name;
   }
   return "any";
 }
@@ -136,7 +143,7 @@ export function emitEnumType(program, enumType) {
 
 /**
  * Emit a flat Go struct for a TypeSpec model, optionally prepending extra path fields
- * (e.g. `Book string \`json:"-"\`` on ReplaceBookRequest).
+ * (e.g. `BookID string \`json:"-"\`` on ReplaceBookRequest).
  */
 export function emitModelStruct(
   program,
@@ -151,12 +158,13 @@ export function emitModelStruct(
   lines.push(`type ${model.name} struct {`);
 
   for (const pf of extraPathFields) {
-    lines.push(`\t${toGoName(pf.name)} string \`json:"-"\``);
+    const pathGoType = pf.param.type.kind === "Enum" ? pf.param.type.name : "string";
+    lines.push(`\t${toGoName(pf.name)} ${pathGoType} \`json:"-"\``);
   }
 
   for (const prop of model.properties.values()) {
     const goField = toGoName(prop.name);
-    const goType = resolveGoType(prop.type, prop.optional, imports);
+    const goType = resolveGoType(prop.type, isOptionalPointer(prop), imports);
     const omitempty = prop.optional ? ",omitempty" : "";
     const propDoc = getDoc(program, prop);
     if (propDoc) {
@@ -171,7 +179,7 @@ export function emitModelStruct(
       ...extraPathFields.map((pf) => pf.param),
       ...model.properties.values(),
     ];
-    const vCode = emitValidateMethod(program, model.name, validateProps, imports, extraDecls);
+    const vCode = emitValidateMethod(program, model.name, validateProps, imports, extraDecls, validatedModels);
     if (vCode) {
       if (validatedModels) validatedModels.add(model.name);
       lines.push("");
@@ -194,13 +202,13 @@ export function emitParamRequestStruct(
     const prop = p.param;
     props.push(prop);
     const goField = toGoName(prop.name);
-    const goType = resolveGoType(prop.type, prop.optional, imports);
+    const goType = resolveGoType(prop.type, isOptionalPointer(prop), imports);
     lines.push(`\t${goField} ${goType}`);
   }
   lines.push("}");
 
   if (emitValidate) {
-    const vCode = emitValidateMethod(program, structName, props, imports, extraDecls);
+    const vCode = emitValidateMethod(program, structName, props, imports, extraDecls, validatedModels);
     if (vCode) {
       if (validatedModels) validatedModels.add(structName);
       lines.push("");
@@ -212,10 +220,9 @@ export function emitParamRequestStruct(
 
 /**
  * Generate Validate() error directly targeting pkg/validator (with i18n keys) and optional validateExtra hook.
- * Always emitted for request structs so hand-written validateExtra(*validator.FieldViolations) hooks work
- * even when a request struct has no single-field TypeSpec decorators.
+ * Always emitted for request structs (and nested request models) so hand-written validateExtra hooks work uniformly.
  */
-export function emitValidateMethod(program, structName, props, imports, extraDecls = []) {
+export function emitValidateMethod(program, structName, props, imports, extraDecls = [], validatedModels = new Set()) {
   const checks = [];
 
   for (const prop of props) {
@@ -228,6 +235,8 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
     const pattern = getPattern(program, prop) ?? (prop.type.kind === "Scalar" ? getPattern(program, prop.type) : undefined);
     const minVal = getMinValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMinValue(program, prop.type) : undefined);
     const maxVal = getMaxValue(program, prop) ?? (prop.type.kind === "Scalar" ? getMaxValue(program, prop.type) : undefined);
+    const minItems = getMinItems(program, prop);
+    const maxItems = getMaxItems(program, prop);
     const optionalStrGuard = prop.optional ? `r.${goField} != ""` : "";
 
     if (semantic === "UUID") {
@@ -270,6 +279,31 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
       continue;
     }
 
+    if (prop.type.kind === "Model") {
+      if (prop.type.name === "Array" && prop.type.indexer) {
+        emitArrayChecks(checks, {
+          goField,
+          jsonName,
+          fieldLit,
+          optional: prop.optional,
+          minItems,
+          maxItems,
+          elemType: prop.type.indexer.value,
+          validatedModels,
+          imports,
+        });
+        continue;
+      }
+      if (prop.type.name !== "Record" && validatedModels.has(prop.type.name)) {
+        if (isOptionalPointer(prop)) {
+          checks.push(`\tif r.${goField} != nil {`, `\t\tv.Merge(${fieldLit}, r.${goField}.Validate())`, `\t}`);
+        } else {
+          checks.push(`\tv.Merge(${fieldLit}, r.${goField}.Validate())`);
+        }
+        continue;
+      }
+    }
+
     const base = prop.type.kind === "Scalar" ? baseScalarName(prop.type) : "";
 
     if (base === "string") {
@@ -277,7 +311,7 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
     }
 
     if (base === "float64" || base === "int32" || base === "int64") {
-      const isPtr = base === "float64" && prop.optional;
+      const isPtr = isOptionalPointer(prop);
       emitNumericChecks(checks, { goField, fieldLit, isPtr, minVal, maxVal });
     }
   }
@@ -293,6 +327,53 @@ export function emitValidateMethod(program, structName, props, imports, extraDec
     `\treturn v.Err()`,
     `}`,
   ].join("\n");
+}
+
+function emitArrayChecks(checks, { goField, jsonName, fieldLit, optional, minItems, maxItems, elemType, validatedModels, imports }) {
+  if (minItems !== undefined) {
+    if (optional) {
+      checks.push(`\tif r.${goField} != nil {`, `\t\tv.MinItems(${fieldLit}, len(r.${goField}), ${minItems})`, `\t}`);
+    } else {
+      checks.push(`\tv.MinItems(${fieldLit}, len(r.${goField}), ${minItems})`);
+    }
+  }
+  if (maxItems !== undefined) {
+    checks.push(`\tv.MaxItems(${fieldLit}, len(r.${goField}), ${maxItems})`);
+  }
+
+  if (elemType.kind === "Model" && elemType.name !== "Array" && elemType.name !== "Record" && validatedModels.has(elemType.name)) {
+    imports.add("strconv");
+    checks.push(
+      `\tfor i := range r.${goField} {`,
+      `\t\tv.Merge(${JSON.stringify(jsonName + "[")} + strconv.Itoa(i) + "]", r.${goField}[i].Validate())`,
+      `\t}`,
+    );
+    return;
+  }
+
+  const elemSemantic = semanticScalarName(elemType);
+  if (elemSemantic === "UUID" || elemSemantic === "Email") {
+    imports.add("strconv");
+    const method = elemSemantic === "UUID" ? "UUID" : "Email";
+    checks.push(
+      `\tfor i, item := range r.${goField} {`,
+      `\t\tv.${method}(${JSON.stringify(jsonName + "[")} + strconv.Itoa(i) + "]", item)`,
+      `\t}`,
+    );
+    return;
+  }
+
+  const elemEnumVals = stringLiteralValues(elemType);
+  if (elemEnumVals) {
+    imports.add("strconv");
+    const expr = elemType.kind === "Enum" ? "string(item)" : "item";
+    const allowedArgs = elemEnumVals.map((val) => JSON.stringify(val)).join(", ");
+    checks.push(
+      `\tfor i, item := range r.${goField} {`,
+      `\t\tvalidator.OneOf(&v, ${JSON.stringify(jsonName + "[")} + strconv.Itoa(i) + "]", ${expr}, ${allowedArgs})`,
+      `\t}`,
+    );
+  }
 }
 
 function emitCheckChain(checks, preds, optionalGuard = "") {
